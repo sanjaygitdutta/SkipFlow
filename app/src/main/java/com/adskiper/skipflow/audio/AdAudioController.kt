@@ -19,7 +19,7 @@ class AdAudioController(context: Context) {
 
     companion object {
         private const val TAG = "AdAudioController"
-        private const val DEFAULT_MUTE_WATCHDOG_MS = 65_000L // 65s initial failsafe watchdog (safe for 15-50s ads)
+        private const val DEFAULT_MUTE_WATCHDOG_MS = 35_000L // 35s failsafe watchdog (safe for all standard non-skippable ads)
         private const val DEFAULT_FALLBACK_VOLUME = 8
     }
 
@@ -53,7 +53,20 @@ class AdAudioController(context: Context) {
     @Synchronized
     fun unmuteAdAudio() {
         cancelAutonomousWatchdog()
-        if (!isMuted) return
+        if (!isMuted) {
+            // Failsafe: if stream volume is 0 when content is playing, recover it immediately
+            try {
+                val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                if (currentVol == 0) {
+                    val restoreVol = if (savedVolume > 0) savedVolume else lastKnownUserVolume
+                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, restoreVol, 0)
+                    Log.i(TAG, "Failsafe recovered silent stream volume to: $restoreVol")
+                }
+            } catch (e: Exception) {
+                // ignore
+            }
+            return
+        }
 
         try {
             val restoreVol = if (savedVolume > 0) savedVolume else lastKnownUserVolume
@@ -71,8 +84,9 @@ class AdAudioController(context: Context) {
      * still playing on screen (e.g., long 35s-60s ads or dual back-to-back ads).
      */
     @Synchronized
-    fun renewWatchdogIfConfirmedAd(extensionMs: Long = 30_000L) {
+    fun renewWatchdogIfConfirmedAd(extensionMs: Long = 15_000L) {
         if (!isMuted) return
+        muteStartTime = SystemClock.elapsedRealtime()
         scheduleAutonomousWatchdog(extensionMs)
     }
 

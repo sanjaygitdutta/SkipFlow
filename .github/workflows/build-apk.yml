@@ -41,36 +41,38 @@ jobs:
 
       - name: Prepare APKs for Release
         run: |
-          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.1.7.apk
-          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.1.7-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.1.8.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.1.8-debug.apk
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SkipFlow-v1.1.7-Release-APK
-          path: SkipFlow-v1.1.7.apk
+          name: SkipFlow-v1.1.8-Release-APK
+          path: SkipFlow-v1.1.8.apk
           retention-days: 30
 
       - name: Create GitHub Release with Direct APK Download
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.1.7
-          name: "SkipFlow v1.1.7 (Instant 0s Mute, Zero Phantom Silence & Robust Auto-Skip)"
+          tag_name: v1.1.8
+          name: "SkipFlow v1.1.8 (Instant Rapid Skip & Zero Audio Lockup)"
           body: |
-            ### ⏩ SkipFlow v1.1.7 — Instant 0s Mute, Zero Phantom Silence & Robust Auto-Skip
+            ### ⏩ SkipFlow v1.1.8 — Instant Rapid Skip & Zero Audio Lockup
 
-            #### 🌟 What's Fixed in v1.1.7:
-            - ⚡ **Instant Frame-One Ad Muting (0s Delay)**: Added modern YouTube overlay IDs, `ad_countdown_text`, and `Sponsored` badge indicators. Event throttle reduced from 180ms to 60ms. Eliminates the initial 1–2 second audio leak when an ad begins.
-            - 🛡️ **Zero Ghost/Phantom Muting during Content**: Fully eliminated phantom views (0x0 bounds). Normal video playback will NEVER remain muted.
-            - ⏱️ **Autonomous Watchdog with Dynamic Long-Ad Extension**: Replaced the rigid 3-minute timeout with an autonomous 65s failsafe that automatically renews for legitimate 35s–60s long ads while actively confirmed on screen.
-            - 📐 **Dynamic Player Geometry (36%–44%)**: Dynamic boundary calculation accurately encompasses the entire video player across all aspect ratios (16:9, 18:9, 20:9), while strictly excluding comments and feed.
-            - 🚫 **Countdown Protection Guard**: Strictly prevents clicks during countdown (*"Skip in 5s"*, *"5"*). Ads are only clicked when the skip button actually becomes actionable.
-            - 👆 **Simultaneous Hardware Touch Tap**: Dispatches physical `dispatchTapGesture` alongside accessibility `ACTION_CLICK`, guaranteeing that modern Litho/Compose buttons cannot swallow or ignore skip actions.
-            - 🔄 **Verified Unmuting**: Audio verifies that an ad has fully cleared (handling *Ad 1 of 2* into *Ad 2 of 2* seamlessly) before restoring normal volume.
+            #### 🌟 What's Fixed in v1.1.8:
+            - ⚡ **Priority-1 Instant Auto-Skip**: The auto-skip scan executes as the very first operation upon any window change, eliminating all processing latency.
+            - ⏱️ **Ultra-Fast 150ms Mute Poller**: Polling interval reduced to **150ms**. The millisecond the skip button appears (even without OS events), it is skipped immediately.
+            - 🎯 **Pinpoint Touch Coordinates**: Hardware touch tap gesture is now targeted directly at the actual skip button's physical center coordinates instead of ancestor containers.
+            - 🔊 **Zero Mute Locks on Normal Content**:
+              - Confined in-stream ad boundary to the actual video player (28%–34% max), completely excluding sponsored product cards, video titles, and channel items below the player.
+              - Removed false positive autoplay countdown IDs (`countdown_text`) and generic `ad_player_overlay` empty containers.
+              - Added instant regular content detection (`time_bar`, `current_time`) so new content starts playing with instant audio.
+              - Reduced failsafe watchdog from 65s to 35s.
+            - 🔄 **Actionable Skip Validation**: Accurately tracks countdown numbers 1–30 across node and child trees, firing the click the exact instant countdown reaches 0 or disappears.
 
-            > 💡 **Recommended**: Download **SkipFlow-v1.1.7.apk** (Release). If upgrading from an older debug build, uninstall the previous version once to clear signature caches.
+            > 💡 **Recommended**: Download **SkipFlow-v1.1.8.apk** (Release). If upgrading from an older debug build, uninstall the previous version once to clear signature caches.
           files: |
-            SkipFlow-v1.1.7.apk
-            SkipFlow-v1.1.7-debug.apk
+            SkipFlow-v1.1.8.apk
+            SkipFlow-v1.1.8-debug.apk
           prerelease: false

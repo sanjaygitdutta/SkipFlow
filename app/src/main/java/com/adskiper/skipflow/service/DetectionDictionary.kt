@@ -26,16 +26,23 @@ object DetectionDictionary {
 
     // IDs that strictly belong to in-stream video ad skip buttons across YouTube and OTT players
     val IN_STREAM_SKIP_BUTTON_IDS = setOf(
-        // YouTube
-        "com.google.android.youtube:id/skip_ad_button",
-        "com.google.android.youtube:id/modern_skip_ad_button",
-        "com.google.android.youtube:id/skip_ad_button_text",
+        // YouTube: prioritize leaf text & button nodes first, containers last
         "com.google.android.youtube:id/modern_skip_ad_button_text",
+        "com.google.android.youtube:id/skip_ad_button_text",
+        "com.google.android.youtube:id/modern_skip_ad_button",
+        "com.google.android.youtube:id/skip_ad_button",
+        "com.google.android.youtube:id/ad_skip_button_modern",
         "com.google.android.youtube:id/ad_skip_button",
+        "com.google.android.youtube:id/skip_ad_button_container",
+        "com.google.android.youtube:id/skip_button",
+        "com.google.android.youtube:id/skip_ad",
         "com.google.android.apps.youtube.music:id/skip_ad_button",
-        "skip_ad_button",
+        "modern_skip_ad_button_text",
+        "skip_ad_button_text",
         "modern_skip_ad_button",
+        "skip_ad_button",
         "ad_skip_button",
+        "skip_ad_button_container",
         // Hotstar
         "in.startv.hotstar:id/btn_skip",
         "in.startv.hotstar:id/skip_btn",
@@ -69,16 +76,12 @@ object DetectionDictionary {
         "ad_skip"
     )
 
-    // IDs that strictly indicate an in-stream video ad timer or overlay is active in the video player
+    // IDs that strictly indicate an in-stream video ad timer or active ad progress is active in the video player
     val IN_STREAM_AD_COUNTDOWN_IDS = setOf(
         "com.google.android.youtube:id/ad_countdown",
         "com.google.android.youtube:id/ad_progress_text",
         "com.google.android.youtube:id/ad_countdown_text",
         "com.google.android.youtube:id/ad_time_remaining",
-        "com.google.android.youtube:id/countdown_text",
-        "com.google.android.youtube:id/ad_badge",
-        "com.google.android.youtube:id/instream_ad_player_overlay",
-        "com.google.android.youtube:id/ad_player_overlay",
         "in.startv.hotstar:id/ad_timer",
         "in.startv.hotstar:id/ad_countdown",
         "com.jio.media.ondemand:id/ad_timer",
@@ -90,8 +93,16 @@ object DetectionDictionary {
         "ad_progress_text",
         "ad_countdown_text",
         "ad_time_remaining",
-        "ad_timer",
-        "ad_badge"
+        "ad_timer"
+    )
+
+    // IDs strictly indicating regular content is currently active on screen (used to confirm regular playback)
+    val REGULAR_CONTENT_IDS = setOf(
+        "com.google.android.youtube:id/time_bar",
+        "com.google.android.youtube:id/current_time",
+        "com.google.android.youtube:id/total_time",
+        "time_bar",
+        "current_time"
     )
 
     // IDs for closing overlay/popup ad banners in portrait and full-screen video
@@ -178,15 +189,8 @@ object DetectionDictionary {
         "דלג על המודעה"
     )
 
-    // Exact in-stream countdown & sponsor phrases (inside video player only)
+    // Exact in-stream countdown phrases that only appear during in-stream video ads
     val IN_STREAM_COUNTDOWN_MARKERS = setOf(
-        "sponsored ·",
-        "sponsored •",
-        "sponsored",
-        "ad ·",
-        "ad •",
-        "ad: ",
-        "ad : ",
         "ad 1 of",
         "ad 2 of",
         "ad 3 of",
