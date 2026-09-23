@@ -70,11 +70,10 @@ object DetectionDictionary {
         "ad_skip"
     )
 
-    // IDs that strictly indicate an in-stream video ad timer or badge is running in the video player
+    // IDs that strictly indicate an in-stream video ad timer is running in the video player
     val IN_STREAM_AD_COUNTDOWN_IDS = setOf(
         "com.google.android.youtube:id/ad_countdown",
         "com.google.android.youtube:id/ad_progress_text",
-        "com.google.android.youtube:id/ad_badge",
         "in.startv.hotstar:id/ad_timer",
         "in.startv.hotstar:id/ad_countdown",
         "com.jio.media.ondemand:id/ad_timer",
@@ -84,8 +83,7 @@ object DetectionDictionary {
         "com.mxtech.videoplayer.ad:id/ad_timer",
         "ad_countdown",
         "ad_progress_text",
-        "ad_timer",
-        "ad_badge"
+        "ad_timer"
     )
 
     // IDs for closing overlay/popup ad banners in portrait and full-screen video

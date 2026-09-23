@@ -382,9 +382,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         val screenHeight = Resources.getSystem().displayMetrics.heightPixels
         val screenWidth = Resources.getSystem().displayMetrics.widthPixels
         val isPortrait = screenHeight > screenWidth
-        // In YouTube portrait mode, player occupies top 58% (supporting 16:9, 18:9, 4:3, square formats).
-        // Cutting off at 58% strictly excludes the feed, comments, and sponsored products below the player.
-        val maxPlayerBottomY = if (isPortrait && isYouTube) (screenHeight * 0.58f).toInt() else screenHeight
+        // In YouTube portrait mode, the video player occupies the top 32% of screen.
+        // Cutting off at 32% strictly isolates the video player and excludes comments, feed, and sponsored products below.
+        val maxPlayerBottomY = if (isPortrait && isYouTube) (screenHeight * 0.32f).toInt() else screenHeight
 
         // 1. Check in-stream countdown IDs (must be visible and have non-empty text)
         for (countdownId in DetectionDictionary.IN_STREAM_AD_COUNTDOWN_IDS) {
@@ -458,32 +458,6 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 }
                 if (matched) return true
             }
-        }
-
-        // 4. Check for in-player "Ad" badge or indicator text (crucial for 30s+ ads when countdown ends or controls fade)
-        val adBadgeNodes = root.findAccessibilityNodeInfosByText("Ad")
-        if (!adBadgeNodes.isNullOrEmpty()) {
-            var matched = false
-            for (node in adBadgeNodes) {
-                val rect = Rect()
-                node.getBoundsInScreen(rect)
-                if (rect.top < maxPlayerBottomY && node.isVisibleToUser) {
-                    val text = node.text?.toString()?.trim()?.lowercase() ?: ""
-                    val desc = node.contentDescription?.toString()?.trim()?.lowercase() ?: ""
-                    if (!text.contains("intro") && !desc.contains("intro")) {
-                        if (text == "ad" || desc == "ad" ||
-                            text.startsWith("ad ·") || text.startsWith("ad •") ||
-                            text.startsWith("ad:") || text.startsWith("ad :") ||
-                            desc.startsWith("ad ·") || desc.startsWith("ad •") ||
-                            desc.startsWith("ad:") || desc.startsWith("ad :")
-                        ) {
-                            matched = true
-                        }
-                    }
-                }
-                node.recycle()
-            }
-            if (matched) return true
         }
 
         return false
@@ -689,23 +663,11 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         }
         if (isAutoMuteEnabled) {
             cancelPendingUnmute()
-            // Promptly restore audio within 200ms when video resumes, unless Ad 2 is playing
-            mainHandler.postDelayed({
-                val root = rootInActiveWindow
-                val nextAdPlaying = if (root != null) {
-                    try {
-                        inspectInStreamAdState(root, isYouTube)
-                    } finally {
-                        root.recycle()
-                    }
-                } else false
-
-                if (!nextAdPlaying && audioController.isCurrentlyMuted()) {
-                    Log.i(TAG, "Ad skipped. Promptly restoring audio for regular video.")
-                    audioController.unmuteAdAudio()
-                    stopActiveMutePoller()
-                }
-            }, 200L)
+            stopActiveMutePoller()
+            if (audioController.isCurrentlyMuted()) {
+                Log.i(TAG, "Ad skipped successfully! Immediately restoring audio for regular content.")
+                audioController.unmuteAdAudio()
+            }
         }
     }
 
