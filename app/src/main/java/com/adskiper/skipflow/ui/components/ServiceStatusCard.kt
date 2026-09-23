@@ -1,6 +1,7 @@
 package com.adskiper.skipflow.ui.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -21,7 +22,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ElectricBolt
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -43,7 +47,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.adskiper.skipflow.ui.theme.AmberWarning
 import com.adskiper.skipflow.ui.theme.EmeraldAccent
+import com.adskiper.skipflow.ui.theme.HeroGradient
 import com.adskiper.skipflow.ui.theme.IndigoPrimary
+import com.adskiper.skipflow.ui.theme.VioletNeon
 
 @Composable
 fun ServiceStatusCard(
@@ -54,93 +60,210 @@ fun ServiceStatusCard(
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 0.85f,
-        targetValue = 1.15f,
+        targetValue = 1.25f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1200),
+            animation = tween(1400, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulseScale"
     )
-
-    val cardBorderColor by animateColorAsState(
-        targetValue = if (isActive) EmeraldAccent.copy(alpha = 0.4f) else AmberWarning.copy(alpha = 0.4f),
-        label = "borderColor"
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 0.15f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseAlpha"
     )
+
+    val cardBorderBrush = if (isActive) {
+        Brush.linearGradient(
+            listOf(
+                EmeraldAccent.copy(alpha = 0.6f),
+                Color(0xFF06B6D4).copy(alpha = 0.3f),
+                EmeraldAccent.copy(alpha = 0.1f)
+            )
+        )
+    } else {
+        Brush.linearGradient(
+            listOf(
+                AmberWarning.copy(alpha = 0.6f),
+                Color(0xFFF97316).copy(alpha = 0.3f),
+                AmberWarning.copy(alpha = 0.1f)
+            )
+        )
+    }
 
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, cardBorderColor, RoundedCornerShape(20.dp)),
-        shape = RoundedCornerShape(20.dp),
+            .border(1.2.dp, cardBorderBrush, RoundedCornerShape(22.dp)),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = if (isActive) Color(0xFF131D2D) else Color(0xFF1F1B24)
         )
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .scale(if (isActive) pulseScale else 1f)
-                            .clip(CircleShape)
-                            .background(if (isActive) EmeraldAccent else AmberWarning)
+        Box(modifier = Modifier.fillMaxWidth()) {
+            // Subtle ambient radial glow in the top-right corner
+            Box(
+                modifier = Modifier
+                    .size(130.dp)
+                    .align(Alignment.TopEnd)
+                    .background(
+                        Brush.radialGradient(
+                            listOf(
+                                (if (isActive) EmeraldAccent else AmberWarning).copy(alpha = 0.12f),
+                                Color.Transparent
+                            )
+                        )
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = if (isActive) "Service Active" else "Setup Required",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Icon(
-                    imageVector = if (isActive) Icons.Default.CheckCircle else Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = if (isActive) EmeraldAccent else AmberWarning,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(
-                text = if (isActive) {
-                    "SkipFlow is running in the background. Ready to auto-skip ads and adjust audio as you watch."
-                } else {
-                    "Accessibility permission is required so SkipFlow can detect and tap the skip button hands-free."
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                lineHeight = 20.sp
             )
 
-            if (!isActive) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = onEnableClicked,
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+            ) {
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = IndigoPrimary
-                    )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = "Enable Accessibility",
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Pulsing Beacon with Outer Glow Ring
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            if (isActive) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(22.dp)
+                                        .scale(pulseScale)
+                                        .clip(CircleShape)
+                                        .background(EmeraldAccent.copy(alpha = pulseAlpha))
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isActive) EmeraldAccent else AmberWarning)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Column {
+                            Text(
+                                text = if (isActive) "Engine Active & Guarding" else "Setup Required",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp
+                            )
+                            Text(
+                                text = if (isActive) "Hands-free skipping & muting armed" else "Enable permission to start",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isActive) EmeraldAccent else AmberWarning,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(
+                                (if (isActive) EmeraldAccent else AmberWarning).copy(alpha = 0.15f),
+                                RoundedCornerShape(10.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isActive) Icons.Default.Shield else Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = if (isActive) EmeraldAccent else AmberWarning,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = if (isActive) {
+                        "Monitoring YouTube, Spotify, Hotstar, JioCinema & MX Player in real-time. Ads are automatically skipped and muted."
+                    } else {
+                        "SkipFlow requires Android Accessibility permission to detect skip buttons and adjust media volume when your hands are busy."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 20.sp,
+                    fontSize = 13.sp
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                if (isActive) {
+                    // Supported Platforms Badges Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AppPill(name = "YouTube", color = Color(0xFFFF0000))
+                        AppPill(name = "Spotify", color = Color(0xFF1DB954))
+                        AppPill(name = "Hotstar", color = Color(0xFF0084FF))
+                        AppPill(name = "JioCinema", color = Color(0xFFE21B5F))
+                        AppPill(name = "MX Player", color = Color(0xFF00BCD4))
+                    }
+                } else {
+                    Button(
+                        onClick = onEnableClicked,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Activate Hands-Free Protection",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AppPill(name: String, color: Color) {
+    Box(
+        modifier = Modifier
+            .background(color.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+            .border(0.8.dp, color.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 7.dp, vertical = 3.dp)
+    ) {
+        Text(
+            text = name,
+            color = color.copy(alpha = 0.95f),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }

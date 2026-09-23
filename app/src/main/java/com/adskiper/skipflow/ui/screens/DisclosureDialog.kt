@@ -86,8 +86,8 @@ fun DisclosureDialog(
 
                 DisclosureBullet(
                     icon = Icons.Default.Check,
-                    title = "What it does",
-                    description = "Monitors supported video players (YouTube) for the official 'Skip Ad' button and performs a simulated click on your behalf.",
+                    title = "Hands-Free Auto-Skip",
+                    description = "Monitors supported media players (YouTube, Hotstar, JioCinema, MX Player) for official 'Skip Ad' and close buttons, clicking them on your behalf.",
                     accentColor = IndigoPrimary
                 )
 
@@ -96,7 +96,7 @@ fun DisclosureDialog(
                 DisclosureBullet(
                     icon = Icons.Default.VolumeUp,
                     title = "Smart Audio Control",
-                    description = "Temporarily mutes video audio when an ad is playing and restores previous volume once the content continues.",
+                    description = "Temporarily silences volume during video ads (YouTube) and background audio ads (Spotify), smoothly restoring sound when normal content continues.",
                     accentColor = EmeraldAccent
                 )
 

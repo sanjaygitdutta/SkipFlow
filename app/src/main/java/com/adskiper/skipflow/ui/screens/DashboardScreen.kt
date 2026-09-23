@@ -1,6 +1,10 @@
 package com.adskiper.skipflow.ui.screens
 
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -20,6 +25,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FrontHand
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.VolumeMute
@@ -34,7 +40,10 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,9 +51,15 @@ import com.adskiper.skipflow.ui.components.FeatureSwitchCard
 import com.adskiper.skipflow.ui.components.ServiceStatusCard
 import com.adskiper.skipflow.ui.components.SimulatorCard
 import com.adskiper.skipflow.ui.components.StatCardsRow
+import com.adskiper.skipflow.ui.theme.AmberWarning
+import com.adskiper.skipflow.ui.theme.CyberCyan
 import com.adskiper.skipflow.ui.theme.EmeraldAccent
+import com.adskiper.skipflow.ui.theme.HeroGradient
 import com.adskiper.skipflow.ui.theme.IndigoLight
 import com.adskiper.skipflow.ui.theme.IndigoPrimary
+import com.adskiper.skipflow.ui.theme.SpotifyGreen
+import com.adskiper.skipflow.ui.theme.SunsetOrange
+import com.adskiper.skipflow.ui.theme.VioletNeon
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +88,8 @@ fun DashboardScreen(
     onStartSimulation: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
+    val context = LocalContext.current
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -80,39 +97,88 @@ fun DashboardScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
-                                .background(IndigoPrimary, RoundedCornerShape(10.dp)),
+                                .size(38.dp)
+                                .background(HeroGradient, RoundedCornerShape(12.dp))
+                                .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(12.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.FastForward,
                                 contentDescription = null,
                                 tint = Color.White,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(22.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
                         Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "SkipFlow",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = (-0.5).sp
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .background(IndigoPrimary.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "v1.1",
+                                        color = IndigoLight,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                             Text(
-                                text = "SkipFlow",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Hands-Free Video Assistant",
+                                text = "Hands-Free Media Assistant",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 10.sp
+                                fontSize = 11.sp
                             )
                         }
                     }
                 },
                 actions = {
+                    // Status Capsule Pill
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                (if (isServiceActive) EmeraldAccent else AmberWarning).copy(alpha = 0.12f),
+                                RoundedCornerShape(20.dp)
+                            )
+                            .border(
+                                1.dp,
+                                (if (isServiceActive) EmeraldAccent else AmberWarning).copy(alpha = 0.35f),
+                                RoundedCornerShape(20.dp)
+                            )
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isServiceActive) EmeraldAccent else AmberWarning)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = if (isServiceActive) "ACTIVE" else "SETUP",
+                                color = if (isServiceActive) EmeraldAccent else AmberWarning,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
+
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Settings",
-                            tint = MaterialTheme.colorScheme.onSurface
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 },
@@ -127,41 +193,41 @@ fun DashboardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = 18.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-            // Service Status Hero Banner
+            // 1. Service Status Hero Banner
             ServiceStatusCard(
                 isActive = isServiceActive,
                 onEnableClicked = onEnableServiceClicked
             )
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Stat Cards Row
+            // 2. Metrics & Analytics 2x2 Grid
             StatCardsRow(
                 totalAdsSkipped = totalAdsSkipped,
                 totalSecondsSaved = totalSecondsSaved,
+                spotifyAdsMuted = spotifyAdsMuted,
                 activeDays = activeDays
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Section: Controls
-            Text(
-                text = "AUTOMATION CONTROLS",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                letterSpacing = 1.sp,
-                modifier = Modifier.padding(start = 4.dp, bottom = 10.dp)
-            )
+            // 3. Quick Launch Bar
+            SectionHeader(title = "QUICK LAUNCH PROTECTED APPS")
+            QuickAppLauncherRow(context = context)
+
+            Spacer(modifier = Modifier.height(22.dp))
+
+            // 4. Section: Video Automation Controls
+            SectionHeader(title = "VIDEO AD AUTOMATION")
 
             FeatureSwitchCard(
                 title = "Auto-Skip Video Ads",
-                description = "Instantly clicks skip when YouTube's countdown finishes",
+                description = "Automatically presses 'Skip Ad' the millisecond YouTube's countdown finishes",
                 icon = Icons.Default.FastForward,
                 accentColor = IndigoLight,
                 isChecked = isAutoSkipEnabled,
@@ -173,19 +239,34 @@ fun DashboardScreen(
 
             FeatureSwitchCard(
                 title = "Auto-Close Ad Banners",
-                description = "Automatically closes popup and overlay ad banners without interrupting video sound",
+                description = "Dismisses popup and overlay banners in portrait and full-screen without cutting video sound",
                 icon = Icons.Default.Close,
-                accentColor = Color(0xFF06B6D4),
+                accentColor = CyberCyan,
                 isChecked = isAutoCloseBannersEnabled,
                 onCheckedChange = onToggleAutoCloseBanners,
-                tag = "Auto-Dismiss"
+                tag = "Dismiss"
             )
 
             Spacer(modifier = Modifier.height(10.dp))
 
             FeatureSwitchCard(
-                title = "Smart Audio Mute",
-                description = "Automatically silences ad audio and restores your volume when video resumes",
+                title = "OTT Streaming Auto-Skip",
+                description = "Auto-skips ads & closes banners on Disney+ Hotstar, JioCinema, MX Player & DailyMotion",
+                icon = Icons.Default.Tv,
+                accentColor = VioletNeon,
+                isChecked = isOttSkipEnabled,
+                onCheckedChange = onToggleOttSkip,
+                tag = "OTT Media"
+            )
+
+            Spacer(modifier = Modifier.height(22.dp))
+
+            // 5. Section: Audio Muting Engine
+            SectionHeader(title = "SMART AUDIO ENGINE")
+
+            FeatureSwitchCard(
+                title = "Smart Video Audio Mute",
+                description = "Silences media volume during video ad playback and smoothly restores volume when video returns",
                 icon = Icons.Default.VolumeMute,
                 accentColor = EmeraldAccent,
                 isChecked = isAutoMuteEnabled,
@@ -196,42 +277,33 @@ fun DashboardScreen(
             Spacer(modifier = Modifier.height(10.dp))
 
             FeatureSwitchCard(
-                title = "Wave-to-Skip",
-                description = "Wave hand over phone to skip hands-free (ideal for cooking or messy hands)",
-                icon = Icons.Default.FrontHand,
-                accentColor = Color(0xFFF97316),
-                isChecked = isWaveEnabled,
-                onCheckedChange = onToggleWave,
-                tag = "Hands-Free"
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            FeatureSwitchCard(
                 title = "Spotify Background Ad Muter",
-                description = "Silently mutes audio ads between songs. Requires Spotify 'Device Broadcast Status' enabled.",
+                description = "Silently mutes audio ads between songs in the background using zero extra battery",
                 icon = Icons.Default.Headphones,
-                accentColor = Color(0xFF1DB954),
+                accentColor = SpotifyGreen,
                 isChecked = isSpotifyMuteEnabled,
                 onCheckedChange = onToggleSpotifyMute,
                 tag = if (spotifyAdsMuted > 0) "${spotifyAdsMuted} Muted" else "Spotify"
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(22.dp))
+
+            // 6. Section: Hands-Free Sensor
+            SectionHeader(title = "HANDS-OCCUPIED GESTURES")
 
             FeatureSwitchCard(
-                title = "OTT Video Auto-Skip",
-                description = "Auto-skips ads & closes banners on Hotstar, JioCinema, MX Player & DailyMotion",
-                icon = Icons.Default.Tv,
-                accentColor = Color(0xFF8B5CF6),
-                isChecked = isOttSkipEnabled,
-                onCheckedChange = onToggleOttSkip,
-                tag = "OTT Media"
+                title = "Wave-to-Skip Sensor",
+                description = "Wave hand over phone's front sensor to force skip (perfect for cooking or messy gym hands)",
+                icon = Icons.Default.FrontHand,
+                accentColor = SunsetOrange,
+                isChecked = isWaveEnabled,
+                onCheckedChange = onToggleWave,
+                tag = "Hands-Free"
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(22.dp))
 
-            // Section: Simulator Demo Sandbox
+            // 7. Interactive Simulator Sandbox
             SimulatorCard(
                 isSimulating = isSimulating,
                 countdown = simCountdown,
@@ -239,7 +311,102 @@ fun DashboardScreen(
                 onStartTest = onStartSimulation
             )
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        letterSpacing = 1.2.sp,
+        fontSize = 11.sp,
+        modifier = Modifier.padding(start = 4.dp, bottom = 10.dp)
+    )
+}
+
+@Composable
+private fun QuickAppLauncherRow(context: Context) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        QuickLaunchButton(
+            title = "YouTube",
+            color = Color(0xFFFF0000),
+            packageName = "com.google.android.youtube",
+            context = context,
+            modifier = Modifier.weight(1f)
+        )
+        QuickLaunchButton(
+            title = "Spotify",
+            color = Color(0xFF1DB954),
+            packageName = "com.spotify.music",
+            context = context,
+            modifier = Modifier.weight(1f)
+        )
+        QuickLaunchButton(
+            title = "Hotstar",
+            color = Color(0xFF0084FF),
+            packageName = "in.startv.hotstar",
+            context = context,
+            modifier = Modifier.weight(1f)
+        )
+        QuickLaunchButton(
+            title = "JioCinema",
+            color = Color(0xFFE21B5F),
+            packageName = "com.jio.media.ondemand",
+            context = context,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun QuickLaunchButton(
+    title: String,
+    color: Color,
+    packageName: String,
+    context: Context,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF131B2E))
+            .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+            .clickable {
+                try {
+                    val intent = context.packageManager.getLaunchIntentForPackage(packageName)
+                    if (intent != null) {
+                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        context.startActivity(intent)
+                    }
+                } catch (e: Exception) {
+                    // ignore if app is not installed
+                }
+            }
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(color)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = title,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
         }
     }
 }
