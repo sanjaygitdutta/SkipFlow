@@ -1,0 +1,37 @@
+<resources>
+    <string name="app_name">SkipFlow</string>
+    <string name="app_tagline">Hands-Free Video Assistant</string>
+    <string name="accessibility_service_label">SkipFlow Assistant</string>
+    <string name="accessibility_service_description">SkipFlow uses the Android Accessibility Service to detect when the official video skip button appears on screen and automatically taps it on your behalf when your hands are occupied (cooking, driving, working out, or for motor accessibility). SkipFlow NEVER collects, reads, or stores any personal data, keystrokes, or personal screen content.</string>
+
+    <!-- Permissions and Disclosures -->
+    <string name="disclosure_title">Accessibility Service Disclosure</string>
+    <string name="disclosure_message">SkipFlow requires Accessibility Service permission to function.\n\n• Why is this needed? To automatically detect and tap the official \'Skip Ad\' button when your hands are occupied (cooking, cleaning, working out, or due to motor assistance needs).\n\n• Audio Control: Temporarily mutes media volume during ad playback if you have Smart Mute enabled.\n\n• Privacy Guarantee: SkipFlow does NOT collect, transmit, or record any personal information, passwords, messages, or screen data. Everything happens locally on your device.</string>
+    <string name="disclosure_agree">Accept &amp; Enable</string>
+    <string name="disclosure_decline">Cancel</string>
+
+    <!-- Dashboard Strings -->
+    <string name="status_active">SkipFlow is Active</string>
+    <string name="status_inactive">Accessibility Service Disabled</string>
+    <string name="status_enable_button">Enable Service</string>
+    <string name="stat_ads_skipped">Ads Skipped</string>
+    <string name="stat_time_saved">Time Saved</string>
+    <string name="stat_streak">Days Active</string>
+
+    <!-- Features -->
+    <string name="feature_auto_skip_title">Auto-Skip Ads</string>
+    <string name="feature_auto_skip_desc">Taps skip as soon as the countdown finishes</string>
+    <string name="feature_smart_mute_title">Smart Audio Mute</string>
+    <string name="feature_smart_mute_desc">Mutes volume during ads and restores when video resumes</string>
+    <string name="feature_wave_skip_title">Wave-to-Skip</string>
+    <string name="feature_wave_skip_desc">Wave your hand over the proximity sensor to skip instantly</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="battery_optimization_title">Battery Optimization</string>
+    <string name="battery_optimization_desc">Disable battery optimization to prevent Android from closing SkipFlow in the background.</string>
+    <string name="skip_delay_title">Skip Delay</string>
+    <string name="skip_delay_desc">Add an intentional delay before clicking skip</string>
+    <string name="privacy_policy_title">Privacy Policy</string>
+    <string name="about_title">About SkipFlow</string>
+</resources>
