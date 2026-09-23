@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/accessibility_service_description"
-    android:packageNames="com.google.android.youtube,com.google.android.apps.youtube.music,com.google.android.apps.youtube.kids,in.startv.hotstar,com.jio.media.ondemand,com.jio.jioplay.tv,com.mxtech.videoplayer.ad,com.mxtech.videoplayer.pro,com.dailymotion.dailymotion,tv.twitch.android.app,com.crunchyroll.crunchyroll"
+    android:packageNames="com.google.android.youtube,com.google.android.apps.youtube.music,com.google.android.apps.youtube.kids,in.startv.hotstar,com.disney.hotstar,com.jio.media.ondemand,com.jio.jioplay.tv,com.sonyliv,com.graymatrix.did,com.mxtech.videoplayer.ad,com.mxtech.videoplayer.pro,com.dailymotion.dailymotion,tv.twitch.android.app,com.crunchyroll.crunchyroll"
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewClicked"
     android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows|flagReportViewIds"
     android:accessibilityFeedbackType="feedbackGeneric"

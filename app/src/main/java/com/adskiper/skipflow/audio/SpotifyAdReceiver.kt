@@ -96,10 +96,11 @@ class SpotifyAdReceiver(
     }
 
     private fun isSpotifyAd(id: String, track: String, artist: String): Boolean {
-        // Spotify ad track URIs start with "spotify:ad:"
-        if (id.startsWith("spotify:ad:", ignoreCase = true)) return true
-        if (track.equals("Advertisement", ignoreCase = true)) return true
-        if (track.equals("Spotify", ignoreCase = true) && artist.equals("Spotify", ignoreCase = true)) return true
+        // Spotify ad track URIs start with "spotify:ad:" or contain ":ad:"
+        if (id.startsWith("spotify:ad:", ignoreCase = true) || id.contains(":ad:", ignoreCase = true)) return true
+        if (track.contains("Advertisement", ignoreCase = true)) return true
+        if (track.equals("Spotify", ignoreCase = true) && (artist.equals("Spotify", ignoreCase = true) || artist.isEmpty())) return true
+        if (track.equals("Spotify Free", ignoreCase = true)) return true
         return false
     }
 

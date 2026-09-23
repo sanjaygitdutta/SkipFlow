@@ -232,7 +232,7 @@ fun SettingsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text("SkipFlow v1.1.0", fontWeight = FontWeight.SemiBold)
+                        Text("SkipFlow v1.1.3", fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(

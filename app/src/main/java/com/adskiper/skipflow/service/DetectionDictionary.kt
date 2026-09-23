@@ -10,8 +10,11 @@ object DetectionDictionary {
 
     val OTT_PACKAGES = setOf(
         "in.startv.hotstar",                // Disney+ Hotstar / JioHotstar
+        "com.disney.hotstar",              // Hotstar Global
         "com.jio.media.ondemand",          // JioCinema
         "com.jio.jioplay.tv",              // JioTV
+        "com.sonyliv",                     // SonyLIV
+        "com.graymatrix.did",              // Zee5
         "com.mxtech.videoplayer.ad",       // MX Player Free
         "com.mxtech.videoplayer.pro",      // MX Player Pro
         "com.dailymotion.dailymotion",     // DailyMotion
@@ -34,10 +37,21 @@ object DetectionDictionary {
         "in.startv.hotstar:id/btn_skip",
         "in.startv.hotstar:id/skip_btn",
         "in.startv.hotstar:id/skip_ad_btn",
+        "in.startv.hotstar:id/ad_skip_button",
+        "com.disney.hotstar:id/btn_skip",
         // JioCinema
         "com.jio.media.ondemand:id/ad_skip",
         "com.jio.media.ondemand:id/skip_ad",
         "com.jio.media.ondemand:id/ad_skip_button",
+        "com.jio.media.ondemand:id/btn_skip_ad",
+        // SonyLIV
+        "com.sonyliv:id/btn_skip",
+        "com.sonyliv:id/skip_ad",
+        "com.sonyliv:id/skip_btn",
+        // Zee5
+        "com.graymatrix.did:id/btn_skip",
+        "com.graymatrix.did:id/skip_ad",
+        "com.graymatrix.did:id/skip_btn",
         // MX Player
         "com.mxtech.videoplayer.ad:id/ad_skip",
         "com.mxtech.videoplayer.ad:id/btn_skip",
@@ -45,12 +59,14 @@ object DetectionDictionary {
         // DailyMotion & Twitch
         "com.dailymotion.dailymotion:id/skip_button",
         "tv.twitch.android.app:id/ad_skip_button",
-        // Common generic IDs
+        // Common generic IDs across Android media players
         "btn_skip",
+        "btn_skip_ad",
         "skip_button",
         "skipAdButton",
         "skip_ad",
-        "ad_skip"
+        "ad_skip",
+        "skip"
     )
 
     // IDs that indicate an in-stream video ad is playing
@@ -64,6 +80,8 @@ object DetectionDictionary {
         "com.google.android.youtube:id/player_learn_more_button",
         "in.startv.hotstar:id/ad_timer",
         "com.jio.media.ondemand:id/ad_timer",
+        "com.sonyliv:id/ad_timer",
+        "com.graymatrix.did:id/ad_timer",
         "ad_countdown",
         "ad_progress_text",
         "ad_timer",
@@ -89,6 +107,9 @@ object DetectionDictionary {
         "com.mxtech.videoplayer.ad:id/ad_close",
         "com.mxtech.videoplayer.ad:id/close",
         "com.mxtech.videoplayer.ad:id/interstitial_close",
+        // SonyLIV & Zee5
+        "com.sonyliv:id/close",
+        "com.graymatrix.did:id/close",
         // Common generic IDs
         "close_button",
         "ad_close_button",
@@ -100,8 +121,8 @@ object DetectionDictionary {
 
     // Strict multi-language phrases that appear on the Skip button
     val SKIP_BUTTON_TEXTS = setOf(
-        // English
-        "skip ad", "skip ads",
+        // English & Short Variants (crucial for OTT apps like Hotstar, JioCinema, MX Player)
+        "skip ad", "skip ads", "skip", "skip >", "skip >>", "skip intro", "skip advertisement",
         // Spanish
         "omitir anuncio", "omitir anuncios", "saltar anuncio",
         // French
