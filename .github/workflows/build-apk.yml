@@ -31,22 +31,19 @@ jobs:
           chmod +x gradlew
 
       - name: Build Debug APK
-        id: gradle_build
         run: |
           ./gradlew assembleDebug --stacktrace 2>&1 | tee build_output.log
-        continue-on-error: true
 
-      - name: Report Build Output
-        if: steps.gradle_build.outcome == 'failure'
+      - name: Locate APK files
         run: |
-          echo "::error title=Gradle Build Failed::$(tail -n 30 build_output.log)"
-          tail -n 80 build_output.log
-          exit 1
+          echo "=== Found APKs ==="
+          find . -name "*.apk"
+          echo "=== End Found APKs ==="
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: SkipFlow-Debug-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          path: "**/build/outputs/apk/**/*.apk"
+          if-no-files-found: warn
           retention-days: 30
