@@ -32,18 +32,20 @@ jobs:
 
       - name: Build Debug APK
         run: |
-          ./gradlew assembleDebug --stacktrace 2>&1 | tee build_output.log
+          ./gradlew :app:assembleDebug --stacktrace 2>&1 | tee build_output.log
 
-      - name: Locate APK files
+      - name: Check Build Result and Locate APK
         run: |
-          echo "=== Found APKs ==="
-          find . -name "*.apk"
-          echo "=== End Found APKs ==="
+          echo "=== BUILD LOG SUMMARY ==="
+          grep -E "Task :|BUILD|FAILURE|ERROR" build_output.log || tail -n 40 build_output.log
+          echo "=== SEARCHING FOR APK ==="
+          find . -type f -name "*.apk"
+          ls -la app/build/outputs/apk/debug/ || true
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: SkipFlow-Debug-APK
-          path: "**/build/outputs/apk/**/*.apk"
-          if-no-files-found: warn
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
           retention-days: 30
