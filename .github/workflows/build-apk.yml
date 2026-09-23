@@ -41,35 +41,34 @@ jobs:
 
       - name: Prepare APKs for Release
         run: |
-          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.1.4.apk
-          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.1.4-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.1.5.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.1.5-debug.apk
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SkipFlow-v1.1.4-Release-APK
-          path: SkipFlow-v1.1.4.apk
+          name: SkipFlow-v1.1.5-Release-APK
+          path: SkipFlow-v1.1.5.apk
           retention-days: 30
 
       - name: Create GitHub Release with Direct APK Download
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.1.4
-          name: "SkipFlow v1.1.4 (Obsidian Redesign & Audio Reliability)"
+          tag_name: v1.1.5
+          name: "SkipFlow v1.1.5 (Sustained 30s+ Ad Muting & Stability)"
           body: |
-            ### ⏩ SkipFlow v1.1.4 — Obsidian Redesign & Audio Reliability
+            ### ⏩ SkipFlow v1.1.5 — Sustained 30s+ Ad Muting & In-Stream Tracking
 
-            #### 🌟 What's New in v1.1.4:
-            - 🎨 **Deep Space Obsidian & Neon Dashboard**: Disabled wallpaper color tinting and gave the entire app a high-contrast obsidian console look with atmospheric glow.
-            - 🎯 **Fixed False-Positive Video Muting**: Removed feed-level keywords ("sponsored", "learn more", "ad_view", "ad_badge") that caused normal videos to be muted when starting.
-            - 📐 **Precise 38% YouTube Player Bounding**: Bounded YouTube portrait scanning strictly to the top 38% of the screen, isolating the player from comments and feed.
-            - ⚡ **Instant Post-Skip Audio Restoration**: Sound is now restored within 200ms when an ad is skipped.
-            - 🔄 **Deferred Event Scheduler**: Throttled content events are deferred instead of dropped, ensuring skip buttons are never missed.
-            - 🔑 **Permanent Release Signature**: Signed with official permanent keystore for seamless future updates.
+            #### 🌟 What's New in v1.1.5:
+            - 🔇 **Fixed 30s+ Ad Sound Reactivation**: Resolved issue where long ads (30s+ unskippable or long-form ads) would prematurely unmute when video player controls auto-faded after a few seconds.
+            - ⏱️ **Extended Watchdog & Smooth Control-Fade Hysteresis**: Increased safety watchdog limit to 5 minutes (from 60s) with active timestamp refreshing, and widened the unmute hysteresis to 2500ms so transient UI fades never break the mute state.
+            - 🏷️ **In-Player Ad Badge Tracking**: Added in-stream ad tracking for `"Ad · 0:30"`, `"Ad •"`, `"ad_badge"`, and countdown markers strictly confined inside the top 38% video player box.
+            - 🔒 **100% Login-Free & Local**: Zero accounts, zero login, zero tracking. Complete on-device accessibility and privacy.
+            - 🔑 **Permanent Signed Keystore**: Signed with permanent release keystore for seamless installs and updates.
 
-            > 💡 **Installation Note**: If you previously had an older test build installed, please uninstall the old version first before installing v1.1.4 to clear signature caches.
+            > 💡 **Recommended**: Download **SkipFlow-v1.1.5.apk** (Release). If upgrading from an older v1.1.3 or debug build, uninstall the previous version once to refresh Android package signatures.
           files: |
-            SkipFlow-v1.1.4.apk
-            SkipFlow-v1.1.4-debug.apk
+            SkipFlow-v1.1.5.apk
+            SkipFlow-v1.1.5-debug.apk
           prerelease: false

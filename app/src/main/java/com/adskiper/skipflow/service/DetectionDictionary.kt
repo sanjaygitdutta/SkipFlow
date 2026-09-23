@@ -30,9 +30,13 @@ object DetectionDictionary {
         "com.google.android.youtube:id/skip_ad_button",
         "com.google.android.youtube:id/modern_skip_ad_button",
         "com.google.android.youtube:id/skip_ad_button_text",
+        "com.google.android.youtube:id/ad_skip_button",
+        "com.google.android.youtube:id/skip_ad_button_container",
         "com.google.android.apps.youtube.music:id/skip_ad_button",
         "skip_ad_button",
         "modern_skip_ad_button",
+        "ad_skip_button",
+        "skip_ad_button_container",
         // Hotstar
         "in.startv.hotstar:id/btn_skip",
         "in.startv.hotstar:id/skip_btn",
@@ -59,27 +63,29 @@ object DetectionDictionary {
         // DailyMotion & Twitch
         "com.dailymotion.dailymotion:id/skip_button",
         "tv.twitch.android.app:id/ad_skip_button",
-        // Common generic IDs across Android media players
-        "btn_skip",
+        // Specific ad skip button IDs across Android media players
         "btn_skip_ad",
-        "skip_button",
         "skipAdButton",
         "skip_ad",
-        "ad_skip",
-        "skip"
+        "ad_skip"
     )
 
-    // IDs that strictly indicate an in-stream video ad timer is running in the video player
+    // IDs that strictly indicate an in-stream video ad timer or badge is running in the video player
     val IN_STREAM_AD_COUNTDOWN_IDS = setOf(
         "com.google.android.youtube:id/ad_countdown",
         "com.google.android.youtube:id/ad_progress_text",
+        "com.google.android.youtube:id/ad_badge",
         "in.startv.hotstar:id/ad_timer",
+        "in.startv.hotstar:id/ad_countdown",
         "com.jio.media.ondemand:id/ad_timer",
+        "com.jio.media.ondemand:id/ad_countdown",
         "com.sonyliv:id/ad_timer",
         "com.graymatrix.did:id/ad_timer",
+        "com.mxtech.videoplayer.ad:id/ad_timer",
         "ad_countdown",
         "ad_progress_text",
-        "ad_timer"
+        "ad_timer",
+        "ad_badge"
     )
 
     // IDs for closing overlay/popup ad banners in portrait and full-screen video
@@ -115,7 +121,7 @@ object DetectionDictionary {
     // Strict multi-language phrases that appear on the Skip button
     val SKIP_BUTTON_TEXTS = setOf(
         // English & Short Variants (crucial for OTT apps like Hotstar, JioCinema, MX Player)
-        "skip ad", "skip ads", "skip", "skip >", "skip >>", "skip intro", "skip advertisement",
+        "skip ad", "skip ads", "skip", "skip >", "skip >>", "skip advertisement",
         // Spanish
         "omitir anuncio", "omitir anuncios", "saltar anuncio",
         // French
@@ -168,14 +174,22 @@ object DetectionDictionary {
 
     // Exact in-stream countdown phrases only (inside video player)
     val IN_STREAM_COUNTDOWN_MARKERS = setOf(
+        "ad ·",
+        "ad •",
+        "ad: ",
+        "ad : ",
+        "ad 1 of",
+        "ad 2 of",
+        "ad 3 of",
+        "ad 1 of 1",
         "ad 1 of 2",
         "ad 2 of 2",
-        "ad 1 of 1",
         "video will play after ad",
         "your video will begin shortly",
         "skip in",
         "reward in",
         "ad will end in",
+        "advertisement",
         "anuncio 1 de 2",
         "anuncio 2 de 2",
         "publicité 1 sur 2",

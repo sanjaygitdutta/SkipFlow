@@ -15,14 +15,14 @@ class AdAudioController(context: Context) {
 
     companion object {
         private const val TAG = "AdAudioController"
-        private const val MAX_MUTE_DURATION_MS = 60_000L // 60s failsafe watchdog
+        private const val MAX_MUTE_DURATION_MS = 180_000L // 3-minute failsafe watchdog
         private const val DEFAULT_FALLBACK_VOLUME = 8
     }
 
     @Synchronized
     fun muteAdAudio() {
         if (isMuted) {
-            checkWatchdog()
+            muteStartTime = SystemClock.elapsedRealtime()
             // Verify volume didn't slip through
             ensureMuted()
             return
