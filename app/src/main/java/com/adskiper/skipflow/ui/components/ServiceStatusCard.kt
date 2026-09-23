@@ -46,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.adskiper.skipflow.ui.theme.AmberWarning
+import com.adskiper.skipflow.ui.theme.CyberCyan
 import com.adskiper.skipflow.ui.theme.EmeraldAccent
 import com.adskiper.skipflow.ui.theme.HeroGradient
 import com.adskiper.skipflow.ui.theme.IndigoPrimary

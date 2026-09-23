@@ -59,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.adskiper.skipflow.ui.theme.EmeraldAccent
+import com.adskiper.skipflow.ui.theme.IndigoLight
 import com.adskiper.skipflow.ui.theme.IndigoPrimary
 import com.adskiper.skipflow.ui.theme.RoseError
 import kotlin.math.roundToLong
