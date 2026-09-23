@@ -1,0 +1,7 @@
+# Enforce LF on gradlew
+gradlew text eol=lf
+*.sh text eol=lf
+
+# Keep Windows scripts CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
