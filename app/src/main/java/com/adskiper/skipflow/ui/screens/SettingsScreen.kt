@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Policy
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
@@ -69,6 +70,7 @@ fun SettingsScreen(
     onDelayChanged: (Long) -> Unit,
     onDisableBatteryOptClicked: () -> Unit,
     onResetStatsClicked: () -> Unit,
+    onShowOnboardingClicked: () -> Unit,
     onBack: () -> Unit
 ) {
     var showResetDialog by remember { mutableStateOf(false) }
@@ -204,6 +206,16 @@ fun SettingsScreen(
                 icon = Icons.Default.Delete,
                 accentColor = RoseError,
                 onClick = { showResetDialog = true }
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            SettingsActionCard(
+                title = "Welcome & Feature Showcase",
+                description = "Revisit the dynamic onboarding hero screen.",
+                icon = Icons.Default.PlayArrow,
+                accentColor = IndigoPrimary,
+                onClick = onShowOnboardingClicked
             )
 
             Spacer(modifier = Modifier.height(16.dp))

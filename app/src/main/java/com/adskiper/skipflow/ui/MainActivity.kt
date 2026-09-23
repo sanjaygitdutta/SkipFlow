@@ -20,6 +20,7 @@ import com.adskiper.skipflow.data.PreferencesRepository
 import com.adskiper.skipflow.data.StatsRepository
 import com.adskiper.skipflow.ui.screens.DashboardScreen
 import com.adskiper.skipflow.ui.screens.DisclosureDialog
+import com.adskiper.skipflow.ui.screens.OnboardingWelcomeScreen
 import com.adskiper.skipflow.ui.screens.SettingsScreen
 import com.adskiper.skipflow.ui.theme.SkipFlowTheme
 import com.adskiper.skipflow.ui.viewmodel.MainViewModel
@@ -55,6 +56,7 @@ class MainActivity : ComponentActivity() {
 }
 
 private enum class Screen {
+    ONBOARDING,
     DASHBOARD,
     SETTINGS
 }
@@ -64,7 +66,10 @@ private fun MainAppContent(
     viewModel: MainViewModel,
     activity: ComponentActivity
 ) {
-    var currentScreen by remember { mutableStateOf(Screen.DASHBOARD) }
+    val isOnboardingCompleted by viewModel.isOnboardingCompleted.collectAsState()
+    var currentScreen by remember(isOnboardingCompleted) {
+        mutableStateOf(if (isOnboardingCompleted) Screen.DASHBOARD else Screen.ONBOARDING)
+    }
 
     val isServiceActive by viewModel.isAccessibilityEnabled.collectAsState()
     val showDisclosure by viewModel.showDisclosure.collectAsState()
@@ -88,6 +93,14 @@ private fun MainAppContent(
 
     Crossfade(targetState = currentScreen, label = "screen_transition") { screen ->
         when (screen) {
+            Screen.ONBOARDING -> {
+                OnboardingWelcomeScreen(
+                    onStartClicked = {
+                        viewModel.completeOnboarding(activity)
+                        currentScreen = Screen.DASHBOARD
+                    }
+                )
+            }
             Screen.DASHBOARD -> {
                 DashboardScreen(
                     isServiceActive = isServiceActive,
@@ -121,6 +134,7 @@ private fun MainAppContent(
                     onDelayChanged = { viewModel.setSkipDelay(it) },
                     onDisableBatteryOptClicked = { viewModel.requestDisableBatteryOptimization(activity) },
                     onResetStatsClicked = { viewModel.resetStats() },
+                    onShowOnboardingClicked = { currentScreen = Screen.ONBOARDING },
                     onBack = { currentScreen = Screen.DASHBOARD }
                 )
             }

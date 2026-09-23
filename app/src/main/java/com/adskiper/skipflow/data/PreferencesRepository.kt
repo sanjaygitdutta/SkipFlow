@@ -24,6 +24,7 @@ class PreferencesRepository(private val context: Context) {
         val KEY_SOUND_FEEDBACK = booleanPreferencesKey("pref_sound_feedback")
         val KEY_SPOTIFY_MUTE = booleanPreferencesKey("pref_spotify_mute")
         val KEY_OTT_SKIP = booleanPreferencesKey("pref_ott_skip")
+        val KEY_ONBOARDING_COMPLETED = booleanPreferencesKey("pref_onboarding_completed")
 
         @Volatile
         private var INSTANCE: PreferencesRepository? = null
@@ -71,6 +72,10 @@ class PreferencesRepository(private val context: Context) {
         preferences[KEY_OTT_SKIP] ?: true
     }
 
+    val isOnboardingCompleted: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[KEY_ONBOARDING_COMPLETED] ?: false
+    }
+
     suspend fun setAutoSkip(enabled: Boolean) {
         context.dataStore.edit { it[KEY_AUTO_SKIP] = enabled }
     }
@@ -105,5 +110,9 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setOttSkip(enabled: Boolean) {
         context.dataStore.edit { it[KEY_OTT_SKIP] = enabled }
+    }
+
+    suspend fun setOnboardingCompleted(completed: Boolean) {
+        context.dataStore.edit { it[KEY_ONBOARDING_COMPLETED] = completed }
     }
 }

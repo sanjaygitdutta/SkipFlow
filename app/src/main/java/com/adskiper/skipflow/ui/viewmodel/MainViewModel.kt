@@ -68,6 +68,9 @@ class MainViewModel(
     val activeDaysCount: StateFlow<Int> = statsRepo.activeDaysCount
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1)
 
+    val isOnboardingCompleted: StateFlow<Boolean> = preferencesRepo.isOnboardingCompleted
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     // Interactive In-App Simulator Demo State
     private val _isSimulatingAd = MutableStateFlow(false)
     val isSimulatingAd = _isSimulatingAd.asStateFlow()
@@ -194,6 +197,15 @@ class MainViewModel(
 
     fun toggleOttSkip(enabled: Boolean) {
         viewModelScope.launch { preferencesRepo.setOttSkip(enabled) }
+    }
+
+    fun completeOnboarding(context: Context) {
+        viewModelScope.launch {
+            preferencesRepo.setOnboardingCompleted(true)
+            if (!_isAccessibilityEnabled.value) {
+                onEnableServiceClicked(context)
+            }
+        }
     }
 
     fun setSkipDelay(delayMs: Long) {
