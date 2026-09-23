@@ -74,6 +74,7 @@ private fun MainAppContent(
     val activeDays by viewModel.activeDaysCount.collectAsState()
 
     val isAutoSkipEnabled by viewModel.isAutoSkipEnabled.collectAsState()
+    val isAutoCloseBannersEnabled by viewModel.isAutoCloseBannersEnabled.collectAsState()
     val isAutoMuteEnabled by viewModel.isAutoMuteEnabled.collectAsState()
     val isWaveEnabled by viewModel.isWaveToSkipEnabled.collectAsState()
     val skipDelayMs by viewModel.skipDelayMs.collectAsState()
@@ -91,6 +92,7 @@ private fun MainAppContent(
                     totalSecondsSaved = totalSecondsSaved,
                     activeDays = activeDays,
                     isAutoSkipEnabled = isAutoSkipEnabled,
+                    isAutoCloseBannersEnabled = isAutoCloseBannersEnabled,
                     isAutoMuteEnabled = isAutoMuteEnabled,
                     isWaveEnabled = isWaveEnabled,
                     isSimulating = isSimulating,
@@ -98,6 +100,7 @@ private fun MainAppContent(
                     isSimMuted = isSimMuted,
                     onEnableServiceClicked = { viewModel.onEnableServiceClicked(activity) },
                     onToggleAutoSkip = { viewModel.toggleAutoSkip(it) },
+                    onToggleAutoCloseBanners = { viewModel.toggleAutoCloseBanners(it) },
                     onToggleAutoMute = { viewModel.toggleAutoMute(it) },
                     onToggleWave = { viewModel.toggleWaveToSkip(it) },
                     onStartSimulation = { viewModel.triggerInteractiveSimulator() },

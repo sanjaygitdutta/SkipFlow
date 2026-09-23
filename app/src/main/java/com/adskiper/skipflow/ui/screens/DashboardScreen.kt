@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FrontHand
 import androidx.compose.material.icons.filled.Settings
@@ -51,6 +52,7 @@ fun DashboardScreen(
     totalSecondsSaved: Long,
     activeDays: Int,
     isAutoSkipEnabled: Boolean,
+    isAutoCloseBannersEnabled: Boolean,
     isAutoMuteEnabled: Boolean,
     isWaveEnabled: Boolean,
     isSimulating: Boolean,
@@ -58,6 +60,7 @@ fun DashboardScreen(
     isSimMuted: Boolean,
     onEnableServiceClicked: () -> Unit,
     onToggleAutoSkip: (Boolean) -> Unit,
+    onToggleAutoCloseBanners: (Boolean) -> Unit,
     onToggleAutoMute: (Boolean) -> Unit,
     onToggleWave: (Boolean) -> Unit,
     onStartSimulation: () -> Unit,
@@ -150,13 +153,25 @@ fun DashboardScreen(
             )
 
             FeatureSwitchCard(
-                title = "Auto-Skip Ads",
+                title = "Auto-Skip Video Ads",
                 description = "Instantly clicks skip when YouTube's countdown finishes",
                 icon = Icons.Default.FastForward,
                 accentColor = IndigoLight,
                 isChecked = isAutoSkipEnabled,
                 onCheckedChange = onToggleAutoSkip,
                 tag = "Instant"
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            FeatureSwitchCard(
+                title = "Auto-Close Ad Banners",
+                description = "Automatically closes popup and overlay ad banners without interrupting video sound",
+                icon = Icons.Default.Close,
+                accentColor = Color(0xFF06B6D4),
+                isChecked = isAutoCloseBannersEnabled,
+                onCheckedChange = onToggleAutoCloseBanners,
+                tag = "Auto-Dismiss"
             )
 
             Spacer(modifier = Modifier.height(10.dp))

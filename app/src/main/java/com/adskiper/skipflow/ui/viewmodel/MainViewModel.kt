@@ -38,6 +38,9 @@ class MainViewModel(
     val isAutoSkipEnabled: StateFlow<Boolean> = preferencesRepo.isAutoSkipEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    val isAutoCloseBannersEnabled: StateFlow<Boolean> = preferencesRepo.isAutoCloseBannersEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     val isAutoMuteEnabled: StateFlow<Boolean> = preferencesRepo.isAutoMuteEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
@@ -162,6 +165,10 @@ class MainViewModel(
 
     fun toggleAutoSkip(enabled: Boolean) {
         viewModelScope.launch { preferencesRepo.setAutoSkip(enabled) }
+    }
+
+    fun toggleAutoCloseBanners(enabled: Boolean) {
+        viewModelScope.launch { preferencesRepo.setAutoCloseBanners(enabled) }
     }
 
     fun toggleAutoMute(enabled: Boolean) {

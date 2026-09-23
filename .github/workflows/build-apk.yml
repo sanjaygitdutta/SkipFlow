@@ -41,27 +41,28 @@ jobs:
 
       - name: Prepare APK for Release
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.0.1.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.0.2.apk
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SkipFlow-v1.0.1-APK
-          path: SkipFlow-v1.0.1.apk
+          name: SkipFlow-v1.0.2-APK
+          path: SkipFlow-v1.0.2.apk
           retention-days: 30
 
       - name: Create GitHub Pre-Release with Direct APK Download
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.0.1
-          name: "SkipFlow v1.0.1 Improved Update"
+          tag_name: v1.0.2
+          name: "SkipFlow v1.0.2 (Auto-Close Banner Ads)"
           body: |
-            ### ⏩ SkipFlow v1.0.1 (Precision Ad Detection & Sound Fix)
+            ### ⏩ SkipFlow v1.0.2 (Auto-Close Banners & Smart Mute)
             
-            #### 🛠️ What's Improved in this update:
-            - **Fixed Audio Muting False Positives**: Static display banners & sponsored products below the video player no longer mute your video sound. Audio muting strictly triggers only for actual in-stream video ads!
-            - **Guaranteed Volume Restoration**: Audio is immediately restored the instant an ad is skipped or video resumes, so the next video sound is never muted.
-            - **Fixed Permission Prompt Bug**: Multi-source accessibility validation ensures you won't be repeatedly asked for permissions once granted on your device.
-          files: SkipFlow-v1.0.1.apk
+            #### 🌟 New Features & Improvements:
+            - **Auto-Close Banner Ads**: Automatically taps the "X" / "Close" button on popup and overlay ad banners in both portrait mode and full-screen video playback without interrupting your video sound!
+            - **Fixed Audio Muting False Positives**: Static banners below the video player no longer mute the video.
+            - **Instant Volume Restoration**: Video sound is 100% guaranteed to restore smoothly when skipping or transitioning to the next video.
+            - **Permission Fix**: Universal system settings validation prevents repeated permission prompts.
+          files: SkipFlow-v1.0.2.apk
           prerelease: false

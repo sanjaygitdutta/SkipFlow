@@ -29,6 +29,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     companion object {
         private const val TAG = "SkipFlowService"
         private const val CLICK_DEBOUNCE_MS = 800L
+        private const val BANNER_DEBOUNCE_MS = 1200L
 
         private val _isServiceActive = MutableStateFlow(false)
         val isServiceActive = _isServiceActive.asStateFlow()
@@ -43,11 +44,13 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     private var waveDetector: ProximityWaveDetector? = null
 
     private var isAutoSkipEnabled = true
+    private var isAutoCloseBannersEnabled = true
     private var isAutoMuteEnabled = true
     private var isWaveEnabled = false
     private var skipDelayMs = 0L
 
     private var lastClickTimestamp = 0L
+    private var lastBannerCloseTimestamp = 0L
     private var isForegroundInYouTube = false
 
     override fun onServiceConnected() {
@@ -69,6 +72,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     private fun observePreferences() {
         serviceScope.launch {
             preferencesRepo.isAutoSkipEnabled.collectLatest { isAutoSkipEnabled = it }
+        }
+        serviceScope.launch {
+            preferencesRepo.isAutoCloseBannersEnabled.collectLatest { isAutoCloseBannersEnabled = it }
         }
         serviceScope.launch {
             preferencesRepo.isAutoMuteEnabled.collectLatest {
@@ -114,6 +120,12 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         try {
             audioController.checkWatchdog()
 
+            // 1. Automatically close popup / overlay banner ads in portrait or full screen
+            if (isAutoCloseBannersEnabled) {
+                scanAndCloseBanners(rootNode)
+            }
+
+            // 2. In-stream video ad detection (audio muting)
             val inStreamAdActive = inspectInStreamAdState(rootNode)
 
             if (isAutoMuteEnabled) {
@@ -127,6 +139,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 }
             }
 
+            // 3. Auto-skip in-stream video ad
             if (isAutoSkipEnabled) {
                 scanAndSkip(rootNode)
             }
@@ -134,6 +147,50 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             Log.e(TAG, "Error processing accessibility event", e)
         } finally {
             rootNode.recycle()
+        }
+    }
+
+    /**
+     * Finds and clicks the "Close" or "X" button on banner ads (overlay banners in portrait or full-screen)
+     */
+    private fun scanAndCloseBanners(root: AccessibilityNodeInfo) {
+        val now = System.currentTimeMillis()
+        if (now - lastBannerCloseTimestamp < BANNER_DEBOUNCE_MS) return
+
+        // 1. Search known banner close button IDs
+        for (closeId in DetectionDictionary.BANNER_CLOSE_BUTTON_IDS) {
+            val nodes = root.findAccessibilityNodeInfosByViewId(closeId)
+            if (!nodes.isNullOrEmpty()) {
+                for (node in nodes) {
+                    if (triggerClick(node)) {
+                        lastBannerCloseTimestamp = now
+                        Log.i(TAG, "Automatically closed ad banner via view ID: $closeId")
+                        nodes.forEach { it.recycle() }
+                        return
+                    }
+                }
+                nodes.forEach { it.recycle() }
+            }
+        }
+
+        // 2. Search close button text or contentDescription
+        for (keyword in DetectionDictionary.BANNER_CLOSE_TEXTS) {
+            val nodes = root.findAccessibilityNodeInfosByText(keyword)
+            if (!nodes.isNullOrEmpty()) {
+                for (node in nodes) {
+                    val desc = node.contentDescription?.toString()?.trim()?.lowercase() ?: ""
+                    val text = node.text?.toString()?.trim()?.lowercase() ?: ""
+                    if (desc.contains(keyword) || text.contains(keyword)) {
+                        if (triggerClick(node)) {
+                            lastBannerCloseTimestamp = now
+                            Log.i(TAG, "Automatically closed ad banner via keyword: $keyword")
+                            nodes.forEach { it.recycle() }
+                            return
+                        }
+                    }
+                }
+                nodes.forEach { it.recycle() }
+            }
         }
     }
 
@@ -307,7 +364,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 if (target.isClickable) {
                     clicked = target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                     if (clicked) {
-                        Log.i(TAG, "Successfully clicked skip node via ACTION_CLICK")
+                        Log.i(TAG, "Successfully clicked node via ACTION_CLICK")
                         break
                     }
                 }

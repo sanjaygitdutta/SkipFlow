@@ -19,6 +19,7 @@ class PreferencesRepository(private val context: Context) {
         val KEY_AUTO_MUTE = booleanPreferencesKey("pref_auto_mute")
         val KEY_WAVE_TO_SKIP = booleanPreferencesKey("pref_wave_to_skip")
         val KEY_SKIP_DELAY_MS = longPreferencesKey("pref_skip_delay_ms")
+        val KEY_AUTO_CLOSE_BANNERS = booleanPreferencesKey("pref_auto_close_banners")
         val KEY_DISCLOSURE_ACCEPTED = booleanPreferencesKey("pref_disclosure_accepted")
         val KEY_SOUND_FEEDBACK = booleanPreferencesKey("pref_sound_feedback")
 
@@ -48,6 +49,10 @@ class PreferencesRepository(private val context: Context) {
         preferences[KEY_SKIP_DELAY_MS] ?: 0L
     }
 
+    val isAutoCloseBannersEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[KEY_AUTO_CLOSE_BANNERS] ?: true
+    }
+
     val isDisclosureAccepted: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[KEY_DISCLOSURE_ACCEPTED] ?: false
     }
@@ -58,6 +63,10 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setAutoSkip(enabled: Boolean) {
         context.dataStore.edit { it[KEY_AUTO_SKIP] = enabled }
+    }
+
+    suspend fun setAutoCloseBanners(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_AUTO_CLOSE_BANNERS] = enabled }
     }
 
     suspend fun setAutoMute(enabled: Boolean) {

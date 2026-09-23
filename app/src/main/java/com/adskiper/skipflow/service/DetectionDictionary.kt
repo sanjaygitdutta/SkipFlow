@@ -24,6 +24,18 @@ object DetectionDictionary {
         "com.google.android.youtube:id/ad_progress_text"
     )
 
+    // IDs for closing overlay/popup ad banners in portrait and full-screen video
+    val BANNER_CLOSE_BUTTON_IDS = setOf(
+        "com.google.android.youtube:id/close_button",
+        "com.google.android.youtube:id/ad_close_button",
+        "com.google.android.youtube:id/dismiss_button",
+        "com.google.android.youtube:id/cancel_button",
+        "com.google.android.youtube:id/action_close",
+        "close_button",
+        "ad_close_button",
+        "dismiss_button"
+    )
+
     // Strict multi-language phrases that appear on the Skip button
     val SKIP_BUTTON_TEXTS = setOf(
         // English
@@ -79,7 +91,6 @@ object DetectionDictionary {
     )
 
     // Exact in-stream phrases only (e.g. countdowns inside video player)
-    // NEVER match generic "ad" or "sponsored" because those match banners below the video!
     val IN_STREAM_COUNTDOWN_MARKERS = setOf(
         "ad 1 of 2",
         "ad 2 of 2",
@@ -91,5 +102,15 @@ object DetectionDictionary {
         "anuncio 2 de 2",
         "publicité 1 sur 2",
         "werbung 1 von 2"
+    )
+
+    // Multi-language text and contentDescription for closing banner ads
+    val BANNER_CLOSE_TEXTS = setOf(
+        "close ad", "dismiss ad", "hide ad",
+        "close", "dismiss",
+        "cerrar anuncio", "fermer l'annonce", "schließen",
+        "fechar anúncio", "chiudi annuncio",
+        "закрыть", "閉じる", "닫기", "关闭", "關閉",
+        "विज्ञापन बंद करें", "बंद करें"
     )
 }
