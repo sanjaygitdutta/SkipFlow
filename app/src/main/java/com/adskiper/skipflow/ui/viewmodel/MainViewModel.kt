@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
+import android.text.TextUtils
 import android.view.accessibility.AccessibilityManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -71,29 +73,58 @@ class MainViewModel(
             SkipFlowAccessibilityService.isServiceActive.collect { active ->
                 if (active) {
                     _isAccessibilityEnabled.value = true
+                    _showDisclosure.value = false
                 }
             }
         }
     }
 
     fun checkServiceStatus(context: Context) {
+        val isSecureSettingsEnabled = isAccessibilitySettingsEnabled(context)
         val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
-        val enabledServices = am?.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-        val isServiceRunning = enabledServices?.any {
-            it.resolveInfo.serviceInfo.packageName == context.packageName
-        } ?: false
+        val isAmEnabled = am?.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+            ?.any { it.resolveInfo.serviceInfo.packageName == context.packageName } ?: false
+        val isServiceRunning = SkipFlowAccessibilityService.isServiceActive.value
 
-        _isAccessibilityEnabled.value = isServiceRunning || SkipFlowAccessibilityService.isServiceActive.value
+        val enabled = isSecureSettingsEnabled || isAmEnabled || isServiceRunning
+        _isAccessibilityEnabled.value = enabled
+
+        if (enabled) {
+            _showDisclosure.value = false
+        }
+    }
+
+    private fun isAccessibilitySettingsEnabled(context: Context): Boolean {
+        try {
+            val enabledServices = Settings.Secure.getString(
+                context.contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ) ?: return false
+
+            val colonSplitter = TextUtils.SimpleStringSplitter(':')
+            colonSplitter.setString(enabledServices)
+
+            while (colonSplitter.hasNext()) {
+                val componentName = colonSplitter.next()
+                if (componentName.contains(context.packageName, ignoreCase = true)) {
+                    return true
+                }
+            }
+        } catch (e: Exception) {
+            // fallback gracefully
+        }
+        return false
     }
 
     fun onEnableServiceClicked(context: Context) {
+        if (_isAccessibilityEnabled.value) return
+
         viewModelScope.launch {
-            preferencesRepo.isDisclosureAccepted.collect { accepted ->
-                if (!accepted) {
-                    _showDisclosure.value = true
-                } else {
-                    navigateToAccessibilitySettings(context)
-                }
+            val accepted = preferencesRepo.isDisclosureAccepted.first()
+            if (!accepted) {
+                _showDisclosure.value = true
+            } else {
+                navigateToAccessibilitySettings(context)
             }
         }
     }

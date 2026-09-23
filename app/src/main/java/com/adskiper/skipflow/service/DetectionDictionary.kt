@@ -8,60 +8,60 @@ object DetectionDictionary {
         "com.google.android.apps.youtube.kids"
     )
 
-    val SKIP_BUTTON_IDS = setOf(
+    // IDs that strictly belong to in-stream video ad skip buttons and countdowns
+    val IN_STREAM_SKIP_BUTTON_IDS = setOf(
         "com.google.android.youtube:id/skip_ad_button",
         "com.google.android.youtube:id/modern_skip_ad_button",
         "com.google.android.youtube:id/skip_ad_button_text",
-        "com.google.android.youtube:id/ad_countdown",
         "com.google.android.apps.youtube.music:id/skip_ad_button",
         "skip_ad_button",
         "modern_skip_ad_button"
     )
 
-    val AD_MARKER_IDS = setOf(
-        "com.google.android.youtube:id/ad_progress_text",
+    // IDs that indicate an in-stream video ad is playing (NOT banners below video)
+    val IN_STREAM_AD_COUNTDOWN_IDS = setOf(
         "com.google.android.youtube:id/ad_countdown",
-        "com.google.android.youtube:id/companion_ad_container",
-        "com.google.android.youtube:id/player_learn_more_button"
+        "com.google.android.youtube:id/ad_progress_text"
     )
 
-    val SKIP_TEXT_KEYWORDS = setOf(
+    // Strict multi-language phrases that appear on the Skip button
+    val SKIP_BUTTON_TEXTS = setOf(
         // English
-        "skip ad", "skip ads", "skip",
+        "skip ad", "skip ads",
         // Spanish
-        "omitir anuncio", "omitir anuncios", "saltar anuncio", "saltar",
+        "omitir anuncio", "omitir anuncios", "saltar anuncio",
         // French
         "passer l'annonce", "passer les annonces", "ignorer l'annonce",
         // German
-        "werbung überspringen", "video überspringen", "überspringen",
+        "werbung überspringen", "video überspringen",
         // Portuguese
         "pular anúncio", "pular anúncios", "ignorar anúncio",
         // Italian
         "salta annuncio", "ignora annuncio",
         // Russian / Ukrainian
-        "пропустить рекламу", "пропустить", "пропустити рекламу",
+        "пропустить рекламу", "пропустити рекламу",
         // Japanese
-        "広告をスキップ", "スキップ",
+        "広告をスキップ",
         // Korean
-        "광고 건너뛰기", "건너뛰기",
+        "광고 건너뛰기",
         // Chinese
-        "跳过广告", "跳过", "略過廣告", "略過",
+        "跳过广告", "略過廣告",
         // Hindi / Indian Languages
         "विज्ञापन छोड़ें", "विज्ञापन छोड़े", "स्किप करें",
         // Arabic
-        "تخطي الإعلان", "تخطي",
+        "تخطي الإعلان",
         // Turkish
-        "reklamı atla", "atla",
+        "reklamı atla",
         // Indonesian / Malay
         "lewati iklan", "langkau iklan",
         // Vietnamese
-        "bỏ qua quảng cáo", "bỏ qua",
+        "bỏ qua quảng cáo",
         // Thai
-        "ข้ามโฆษณา", "ข้าม",
+        "ข้ามโฆษณา",
         // Polish
-        "pomiń reklamę", "pomiń",
+        "pomiń reklamę",
         // Dutch
-        "advertentie overslaan", "overslaan",
+        "advertentie overslaan",
         // Swedish / Danish / Norwegian
         "hoppa över annons", "spring over annonce", "hopp over annonse",
         // Finnish
@@ -75,12 +75,21 @@ object DetectionDictionary {
         // Hungarian
         "hirdetés átugrása",
         // Hebrew
-        "דלג על המודעה", "דלג"
+        "דלג על המודעה"
     )
 
-    val AD_INDICATORS = setOf(
-        "ad", "ad ·", "ad 1 of 2", "ad 2 of 2", "sponsored",
-        "werbung", "publicité", "publicidad", "anúncio", "reklama",
-        "реклама", "광고", "広告", "विज्ञापन"
+    // Exact in-stream phrases only (e.g. countdowns inside video player)
+    // NEVER match generic "ad" or "sponsored" because those match banners below the video!
+    val IN_STREAM_COUNTDOWN_MARKERS = setOf(
+        "ad 1 of 2",
+        "ad 2 of 2",
+        "ad 1 of 1",
+        "video will play after ad",
+        "your video will begin shortly",
+        "skip in",
+        "anuncio 1 de 2",
+        "anuncio 2 de 2",
+        "publicité 1 sur 2",
+        "werbung 1 von 2"
     )
 }

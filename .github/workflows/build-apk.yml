@@ -41,30 +41,27 @@ jobs:
 
       - name: Prepare APK for Release
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.0.0-debug.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.0.1.apk
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SkipFlow-Debug-APK
-          path: SkipFlow-v1.0.0-debug.apk
+          name: SkipFlow-v1.0.1-APK
+          path: SkipFlow-v1.0.1.apk
           retention-days: 30
 
       - name: Create GitHub Pre-Release with Direct APK Download
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.0.0-preview
-          name: "SkipFlow v1.0.0 Preview APK"
+          tag_name: v1.0.1
+          name: "SkipFlow v1.0.1 Improved Update"
           body: |
-            ### ⏩ SkipFlow Hands-Free YouTube Assistant (Debug APK)
+            ### ⏩ SkipFlow v1.0.1 (Precision Ad Detection & Sound Fix)
             
-            **Direct Download:** Download `SkipFlow-v1.0.0-debug.apk` below and install it directly on your Android phone!
-            
-            #### 🌟 Features in this build:
-            - **Auto-Skip Ads**: Automatically taps YouTube skip button when countdown finishes.
-            - **Smart Audio Mute**: Silences ad audio and restores volume when video resumes.
-            - **Wave-to-Skip**: Proximity sensor detection for cooking & messy hands.
-            - **In-App Sandbox Simulator**: Test auto-skipping right inside the app!
-          files: SkipFlow-v1.0.0-debug.apk
-          prerelease: true
+            #### 🛠️ What's Improved in this update:
+            - **Fixed Audio Muting False Positives**: Static display banners & sponsored products below the video player no longer mute your video sound. Audio muting strictly triggers only for actual in-stream video ads!
+            - **Guaranteed Volume Restoration**: Audio is immediately restored the instant an ad is skipped or video resumes, so the next video sound is never muted.
+            - **Fixed Permission Prompt Bug**: Multi-source accessibility validation ensures you won't be repeatedly asked for permissions once granted on your device.
+          files: SkipFlow-v1.0.1.apk
+          prerelease: false
