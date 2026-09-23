@@ -37,16 +37,17 @@ jobs:
       - name: Run Gradle Build
         run: |
           set -o pipefail
-          ./gradlew :app:assembleDebug --stacktrace
+          ./gradlew :app:assembleRelease :app:assembleDebug --stacktrace
 
-      - name: Prepare APK for Release
+      - name: Prepare APKs for Release
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.1.4.apk
+          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.1.4.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.1.4-debug.apk
 
-      - name: Upload Debug APK Artifact
+      - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SkipFlow-v1.1.4-APK
+          name: SkipFlow-v1.1.4-Release-APK
           path: SkipFlow-v1.1.4.apk
           retention-days: 30
 
@@ -55,15 +56,20 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
           tag_name: v1.1.4
-          name: "SkipFlow v1.1.4 (Instant Unmute & Accurate Player Bounding)"
+          name: "SkipFlow v1.1.4 (Obsidian Redesign & Audio Reliability)"
           body: |
-            ### ⏩ SkipFlow v1.1.4 — Instant Unmute & Accurate Player Bounding
+            ### ⏩ SkipFlow v1.1.4 — Obsidian Redesign & Audio Reliability
 
-            #### 🌟 What's Fixed in v1.1.4:
-            - 🎯 **Fixed False-Positive Video Muting**: Removed feed-level keywords ("sponsored", "learn more", "ad_view", "ad_badge") that caused normal videos to be muted when they started playing.
-            - 📐 **Precise 38% YouTube Player Bounding**: Bounded YouTube portrait scanning strictly to the top 38% of the screen, completely isolating the video player from the comments, feed, and sponsored cards below.
-            - ⚡ **Instant Post-Skip Audio Restoration**: Sound is now restored within 200ms when an ad is skipped instead of waiting through seconds of silence.
-            - 🔄 **Deferred Event Scheduler**: Throttled content events are deferred instead of dropped, ensuring the "Skip Ad" button is never left unclicked on screen.
-            - 🛡️ **Debounce Guard Fix**: Only debounces if a click action actually succeeded, allowing instant fallback attempts if a container view was not clickable.
-          files: SkipFlow-v1.1.4.apk
+            #### 🌟 What's New in v1.1.4:
+            - 🎨 **Deep Space Obsidian & Neon Dashboard**: Disabled wallpaper color tinting and gave the entire app a high-contrast obsidian console look with atmospheric glow.
+            - 🎯 **Fixed False-Positive Video Muting**: Removed feed-level keywords ("sponsored", "learn more", "ad_view", "ad_badge") that caused normal videos to be muted when starting.
+            - 📐 **Precise 38% YouTube Player Bounding**: Bounded YouTube portrait scanning strictly to the top 38% of the screen, isolating the player from comments and feed.
+            - ⚡ **Instant Post-Skip Audio Restoration**: Sound is now restored within 200ms when an ad is skipped.
+            - 🔄 **Deferred Event Scheduler**: Throttled content events are deferred instead of dropped, ensuring skip buttons are never missed.
+            - 🔑 **Permanent Release Signature**: Signed with official permanent keystore for seamless future updates.
+
+            > 💡 **Installation Note**: If you previously had an older test build installed, please uninstall the old version first before installing v1.1.4 to clear signature caches.
+          files: |
+            SkipFlow-v1.1.4.apk
+            SkipFlow-v1.1.4-debug.apk
           prerelease: false
