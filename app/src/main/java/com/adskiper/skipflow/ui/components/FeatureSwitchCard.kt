@@ -47,11 +47,11 @@ fun FeatureSwitchCard(
     modifier: Modifier = Modifier
 ) {
     val borderColor by animateColorAsState(
-        targetValue = if (isChecked) accentColor.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+        targetValue = if (isChecked) accentColor.copy(alpha = 0.5f) else Color(0xFF1E2E47).copy(alpha = 0.5f),
         label = "borderColor"
     )
     val cardBackground by animateColorAsState(
-        targetValue = if (isChecked) Color(0xFF161E30) else Color(0xFF111726),
+        targetValue = if (isChecked) Color(0xFF121B2E) else Color(0xFF0F1524),
         label = "cardBg"
     )
 
@@ -60,7 +60,7 @@ fun FeatureSwitchCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .clickable { onCheckedChange(!isChecked) }
-            .border(1.dp, borderColor, RoundedCornerShape(18.dp)),
+            .border(1.2.dp, borderColor, RoundedCornerShape(18.dp)),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = cardBackground)
     ) {
@@ -79,12 +79,12 @@ fun FeatureSwitchCard(
                     modifier = Modifier
                         .size(44.dp)
                         .background(
-                            if (isChecked) accentColor.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                            if (isChecked) accentColor.copy(alpha = 0.18f) else Color(0xFF161F33),
                             RoundedCornerShape(12.dp)
                         )
                         .border(
-                            0.8.dp,
-                            if (isChecked) accentColor.copy(alpha = 0.4f) else Color.Transparent,
+                            1.dp,
+                            if (isChecked) accentColor.copy(alpha = 0.45f) else Color(0xFF23304A),
                             RoundedCornerShape(12.dp)
                         ),
                     contentAlignment = Alignment.Center
@@ -92,7 +92,7 @@ fun FeatureSwitchCard(
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = if (isChecked) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (isChecked) accentColor else Color(0xFF64748B),
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -104,8 +104,8 @@ fun FeatureSwitchCard(
                         Text(
                             text = title,
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isChecked) Color.White else Color(0xFFCBD5E1),
                             fontSize = 15.sp
                         )
                         if (tag != null) {
@@ -113,16 +113,21 @@ fun FeatureSwitchCard(
                             Box(
                                 modifier = Modifier
                                     .background(
-                                        if (isChecked) accentColor.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant,
+                                        if (isChecked) accentColor.copy(alpha = 0.18f) else Color(0xFF161F33),
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .border(
+                                        0.8.dp,
+                                        if (isChecked) accentColor.copy(alpha = 0.4f) else Color(0xFF23304A),
                                         RoundedCornerShape(6.dp)
                                     )
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(
                                     text = tag,
-                                    color = if (isChecked) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = if (isChecked) accentColor else Color(0xFF94A3B8),
                                     fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.ExtraBold
                                 )
                             }
                         }
@@ -133,7 +138,7 @@ fun FeatureSwitchCard(
                     Text(
                         text = description,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = Color(0xFF94A3B8),
                         fontSize = 12.sp,
                         lineHeight = 16.sp
                     )
@@ -148,8 +153,8 @@ fun FeatureSwitchCard(
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
                     checkedTrackColor = accentColor,
-                    uncheckedThumbColor = Color(0xFF94A3B8),
-                    uncheckedTrackColor = Color(0xFF1E293B)
+                    uncheckedThumbColor = Color(0xFF64748B),
+                    uncheckedTrackColor = Color(0xFF1A2234)
                 )
             )
         }

@@ -69,24 +69,17 @@ object DetectionDictionary {
         "skip"
     )
 
-    // IDs that indicate an in-stream video ad is playing
+    // IDs that strictly indicate an in-stream video ad timer is running in the video player
     val IN_STREAM_AD_COUNTDOWN_IDS = setOf(
         "com.google.android.youtube:id/ad_countdown",
         "com.google.android.youtube:id/ad_progress_text",
-        "com.google.android.youtube:id/ad_view",
-        "com.google.android.youtube:id/ad_badge",
-        "com.google.android.youtube:id/ad_headline",
-        "com.google.android.youtube:id/ad_compact_view",
-        "com.google.android.youtube:id/player_learn_more_button",
         "in.startv.hotstar:id/ad_timer",
         "com.jio.media.ondemand:id/ad_timer",
         "com.sonyliv:id/ad_timer",
         "com.graymatrix.did:id/ad_timer",
         "ad_countdown",
         "ad_progress_text",
-        "ad_timer",
-        "ad_badge",
-        "ad_view"
+        "ad_timer"
     )
 
     // IDs for closing overlay/popup ad banners in portrait and full-screen video
@@ -173,7 +166,7 @@ object DetectionDictionary {
         "דלג על המודעה"
     )
 
-    // Exact in-stream phrases only (e.g. countdowns & badges inside video player)
+    // Exact in-stream countdown phrases only (inside video player)
     val IN_STREAM_COUNTDOWN_MARKERS = setOf(
         "ad 1 of 2",
         "ad 2 of 2",
@@ -182,22 +175,11 @@ object DetectionDictionary {
         "your video will begin shortly",
         "skip in",
         "reward in",
-        "sponsored",
-        "ad •",
-        "ad ·",
-        "visit advertiser",
-        "learn more",
-        "install now",
-        "shop now",
+        "ad will end in",
         "anuncio 1 de 2",
         "anuncio 2 de 2",
         "publicité 1 sur 2",
-        "werbung 1 von 2",
-        "patrocinado",
-        "sponsorisé",
-        "gesponsert",
-        "sponsorizzato",
-        "प्रायोजित"
+        "werbung 1 von 2"
     )
 
     // Multi-language text and contentDescription for closing banner ads

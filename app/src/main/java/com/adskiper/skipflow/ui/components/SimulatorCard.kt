@@ -52,9 +52,9 @@ fun SimulatorCard(
 ) {
     val cardBorder = Brush.linearGradient(
         listOf(
-            IndigoPrimary.copy(alpha = 0.45f),
-            VioletNeon.copy(alpha = 0.25f),
-            Color.Transparent
+            IndigoPrimary.copy(alpha = 0.55f),
+            VioletNeon.copy(alpha = 0.35f),
+            Color(0xFF1E2E47).copy(alpha = 0.25f)
         )
     )
 
@@ -64,7 +64,7 @@ fun SimulatorCard(
             .border(1.2.dp, cardBorder, RoundedCornerShape(22.dp)),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF111827)
+            containerColor = Color(0xFF101728)
         )
     ) {
         Column(
@@ -90,14 +90,14 @@ fun SimulatorCard(
                             text = "Interactive Test Sandbox",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = Color.White,
                             fontSize = 16.sp
                         )
                     }
                     Text(
                         text = "Experience auto-skipping and muting hands-free",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = Color(0xFF94A3B8),
                         fontSize = 12.sp
                     )
                 }

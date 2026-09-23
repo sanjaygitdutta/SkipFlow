@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -90,119 +91,149 @@ fun DashboardScreen(
 ) {
     val context = LocalContext.current
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .background(HeroGradient, RoundedCornerShape(12.dp))
-                                .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(12.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.FastForward,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "SkipFlow",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    letterSpacing = (-0.5).sp
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .background(IndigoPrimary.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = "v1.1",
-                                        color = IndigoLight,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                            Text(
-                                text = "Hands-Free Media Assistant",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-                },
-                actions = {
-                    // Status Capsule Pill
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                (if (isServiceActive) EmeraldAccent else AmberWarning).copy(alpha = 0.12f),
-                                RoundedCornerShape(20.dp)
-                            )
-                            .border(
-                                1.dp,
-                                (if (isServiceActive) EmeraldAccent else AmberWarning).copy(alpha = 0.35f),
-                                RoundedCornerShape(20.dp)
-                            )
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
-                    ) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF090D16))
+    ) {
+        // Atmospheric gradient glow orbs
+        Box(
+            modifier = Modifier
+                .size(320.dp)
+                .offset(x = (-90).dp, y = (-50).dp)
+                .background(
+                    Brush.radialGradient(
+                        listOf(VioletNeon.copy(alpha = 0.16f), Color.Transparent)
+                    )
+                )
+        )
+        Box(
+            modifier = Modifier
+                .size(300.dp)
+                .align(Alignment.TopEnd)
+                .offset(x = 90.dp, y = 140.dp)
+                .background(
+                    Brush.radialGradient(
+                        listOf(CyberCyan.copy(alpha = 0.12f), Color.Transparent)
+                    )
+                )
+        )
+
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
-                                    .size(7.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isServiceActive) EmeraldAccent else AmberWarning)
-                            )
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Text(
-                                text = if (isServiceActive) "ACTIVE" else "SETUP",
-                                color = if (isServiceActive) EmeraldAccent else AmberWarning,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 0.5.sp
+                                    .size(38.dp)
+                                    .background(HeroGradient, RoundedCornerShape(12.dp))
+                                    .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(12.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FastForward,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "SkipFlow",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color.White,
+                                        letterSpacing = (-0.5).sp
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .background(IndigoPrimary.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
+                                            .border(0.8.dp, IndigoLight.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "v1.1.4",
+                                            color = IndigoLight,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.ExtraBold
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = "Hands-Free Media Assistant",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    },
+                    actions = {
+                        // Status Capsule Pill
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    (if (isServiceActive) EmeraldAccent else AmberWarning).copy(alpha = 0.16f),
+                                    RoundedCornerShape(20.dp)
+                                )
+                                .border(
+                                    1.dp,
+                                    (if (isServiceActive) EmeraldAccent else AmberWarning).copy(alpha = 0.5f),
+                                    RoundedCornerShape(20.dp)
+                                )
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isServiceActive) EmeraldAccent else AmberWarning)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = if (isServiceActive) "ARMED" else "SETUP",
+                                    color = if (isServiceActive) EmeraldAccent else AmberWarning,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+                        }
+
+                        IconButton(onClick = onNavigateToSettings) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings",
+                                tint = Color(0xFF94A3B8)
                             )
                         }
-                    }
-
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent
+                    )
                 )
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 18.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Spacer(modifier = Modifier.height(4.dp))
+            },
+            containerColor = Color.Transparent
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 18.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Spacer(modifier = Modifier.height(4.dp))
 
-            // 1. Service Status Hero Banner
-            ServiceStatusCard(
-                isActive = isServiceActive,
-                onEnableClicked = onEnableServiceClicked
-            )
+                // 1. Service Status Hero Banner
+                ServiceStatusCard(
+                    isActive = isServiceActive,
+                    onEnableClicked = onEnableServiceClicked
+                )
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -315,18 +346,29 @@ fun DashboardScreen(
         }
     }
 }
+}
 
 @Composable
 private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        letterSpacing = 1.2.sp,
-        fontSize = 11.sp,
-        modifier = Modifier.padding(start = 4.dp, bottom = 10.dp)
-    )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(start = 2.dp, bottom = 10.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 3.dp, height = 12.dp)
+                .background(IndigoLight, RoundedCornerShape(2.dp))
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color(0xFF94A3B8),
+            letterSpacing = 1.2.sp,
+            fontSize = 11.sp
+        )
+    }
 }
 
 @Composable
@@ -337,7 +379,7 @@ private fun QuickAppLauncherRow(context: Context) {
     ) {
         QuickLaunchButton(
             title = "YouTube",
-            color = Color(0xFFFF0000),
+            color = Color(0xFFFF2A2A),
             packageName = "com.google.android.youtube",
             context = context,
             modifier = Modifier.weight(1f)
@@ -377,8 +419,12 @@ private fun QuickLaunchButton(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF131B2E))
-            .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+            .background(Color(0xFF101728))
+            .border(
+                1.dp,
+                Brush.linearGradient(listOf(color.copy(alpha = 0.5f), Color(0xFF1E293B).copy(alpha = 0.3f))),
+                RoundedCornerShape(12.dp)
+            )
             .clickable {
                 try {
                     val intent = context.packageManager.getLaunchIntentForPackage(packageName)

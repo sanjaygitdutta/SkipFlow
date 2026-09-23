@@ -113,17 +113,17 @@ private fun MetricCard(
 ) {
     val borderGradient = Brush.linearGradient(
         listOf(
-            accentColor.copy(alpha = 0.35f),
-            Color.Transparent
+            accentColor.copy(alpha = 0.5f),
+            Color(0xFF1E2E47).copy(alpha = 0.25f)
         )
     )
 
     Card(
         modifier = modifier
-            .border(1.dp, borderGradient, RoundedCornerShape(18.dp)),
+            .border(1.2.dp, borderGradient, RoundedCornerShape(18.dp)),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF131B2E).copy(alpha = 0.85f)
+            containerColor = Color(0xFF101728)
         )
     ) {
         Column(
@@ -138,28 +138,30 @@ private fun MetricCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(34.dp)
-                        .background(accentColor.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
+                        .size(36.dp)
+                        .background(accentColor.copy(alpha = 0.16f), RoundedCornerShape(11.dp))
+                        .border(1.dp, accentColor.copy(alpha = 0.35f), RoundedCornerShape(11.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
                         tint = accentColor,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(19.dp)
                     )
                 }
 
                 Box(
                     modifier = Modifier
-                        .background(accentColor.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .background(accentColor.copy(alpha = 0.14f), RoundedCornerShape(8.dp))
+                        .border(0.8.dp, accentColor.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 7.dp, vertical = 3.dp)
                 ) {
                     Text(
                         text = tag,
                         color = accentColor,
                         fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.ExtraBold
                     )
                 }
             }
@@ -171,7 +173,7 @@ private fun MetricCard(
                     text = value,
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = Color.White,
                     lineHeight = 30.sp,
                     fontSize = 24.sp
                 )
@@ -179,8 +181,9 @@ private fun MetricCard(
                 Text(
                     text = unit,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Color(0xFF94A3B8),
                     fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 3.dp)
                 )
             }
@@ -190,7 +193,7 @@ private fun MetricCard(
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color(0xFF94A3B8),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium
             )

@@ -40,21 +40,22 @@ val GlassCardBorder = Brush.linearGradient(
 )
 
 // Dark Theme Surfaces
-val BackgroundDark = Color(0xFF0B0F19)
-val SurfaceDark = Color(0xFF111827)
-val CardBackgroundDark = Color(0xFF1A2234)
-val CardBorderDark = Color(0xFF28354D)
+val BackgroundDark = Color(0xFF090D16)
+val SurfaceDark = Color(0xFF0F1728)
+val CardBackgroundDark = Color(0xFF121B2E)
+val CardBorderDark = Color(0xFF1F2E47)
 
-val TextPrimaryDark = Color(0xFFF8FAFC)
+val TextPrimaryDark = Color(0xFFFFFFFF)
 val TextSecondaryDark = Color(0xFF94A3B8)
 val TextMutedDark = Color(0xFF64748B)
 
 // Light Theme Surfaces
-val BackgroundLight = Color(0xFFF8FAFC)
-val SurfaceLight = Color(0xFFFFFFFF)
-val CardBackgroundLight = Color(0xFFF1F5F9)
-val CardBorderLight = Color(0xFFE2E8F0)
+val BackgroundLight = Color(0xFF090D16)
+val SurfaceLight = Color(0xFF0F1728)
+val CardBackgroundLight = Color(0xFF121B2E)
+val CardBorderLight = Color(0xFF1F2E47)
 
-val TextPrimaryLight = Color(0xFF0F172A)
-val TextSecondaryLight = Color(0xFF475569)
-val TextMutedLight = Color(0xFF94A3B8)
+val TextPrimaryLight = Color(0xFFFFFFFF)
+val TextSecondaryLight = Color(0xFF94A3B8)
+val TextMutedLight = Color(0xFF64748B)
+

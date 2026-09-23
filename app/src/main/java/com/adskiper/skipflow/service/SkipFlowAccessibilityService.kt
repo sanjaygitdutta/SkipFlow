@@ -30,10 +30,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "SkipFlowService"
-        private const val CLICK_DEBOUNCE_MS = 600L
+        private const val CLICK_DEBOUNCE_MS = 500L
         private const val BANNER_DEBOUNCE_MS = 1200L
-        private const val SCAN_THROTTLE_MS = 250L
-        private const val UNMUTE_CONFIRMATION_DELAY_MS = 1200L
+        private const val UNMUTE_CONFIRMATION_DELAY_MS = 350L // Fast 350ms hysteresis for natural ad completion
 
         private val _isServiceActive = MutableStateFlow(false)
         val isServiceActive = _isServiceActive.asStateFlow()
@@ -61,6 +60,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     private var lastScanTimestamp = 0L
     private var isForegroundInTargetMediaApp = false
     private var pendingUnmuteRunnable: Runnable? = null
+    private var deferredScanRunnable: Runnable? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -137,6 +137,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 isForegroundInTargetMediaApp = false
                 updateWaveSensorState()
                 cancelPendingUnmute()
+                cancelDeferredScan()
                 if (audioController.isCurrentlyMuted()) {
                     audioController.unmuteAdAudio()
                 }
@@ -155,19 +156,48 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         val eventType = event.eventType
         val now = System.currentTimeMillis()
 
-        // Throttle high-frequency content changes to protect Android IPC binder from exhaustion
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            audioController.checkWatchdog()
+            cancelDeferredScan()
+            lastScanTimestamp = now
+            processActiveWindow(isYouTube, isOtt)
+            return
+        }
+
+        // Handle content change events with deferred scheduling so no skip event is dropped
         if (eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
-            val minInterval = if (audioController.isCurrentlyMuted()) 160L else SCAN_THROTTLE_MS
-            if (now - lastScanTimestamp < minInterval) {
+            val minInterval = if (audioController.isCurrentlyMuted()) 100L else 180L
+            val elapsed = now - lastScanTimestamp
+            if (elapsed < minInterval) {
+                scheduleDeferredScan(minInterval - elapsed, isYouTube, isOtt)
                 return
             }
         }
+
         lastScanTimestamp = now
+        cancelDeferredScan()
+        processActiveWindow(isYouTube, isOtt)
+    }
 
-        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            audioController.checkWatchdog()
+    private fun scheduleDeferredScan(delayMs: Long, isYouTube: Boolean, isOtt: Boolean) {
+        if (deferredScanRunnable != null) return
+        val runnable = Runnable {
+            deferredScanRunnable = null
+            lastScanTimestamp = System.currentTimeMillis()
+            processActiveWindow(isYouTube, isOtt)
         }
+        deferredScanRunnable = runnable
+        mainHandler.postDelayed(runnable, delayMs)
+    }
 
+    private fun cancelDeferredScan() {
+        deferredScanRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            deferredScanRunnable = null
+        }
+    }
+
+    private fun processActiveWindow(isYouTube: Boolean, isOtt: Boolean) {
         val rootNode = rootInActiveWindow ?: return
 
         try {
@@ -185,7 +215,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     cancelPendingUnmute()
                     audioController.muteAdAudio()
                 } else if (audioController.isCurrentlyMuted()) {
-                    // Debounce unmuting with hysteresis: eliminates 1st sec audio blips & control-fade unmuting
+                    // Debounce unmuting with quick 350ms hysteresis: eliminates control-fade unmuting
                     scheduleDebouncedUnmute(isYouTube)
                 }
             }
@@ -248,7 +278,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             if (!nodes.isNullOrEmpty()) {
                 var clicked = false
                 for (node in nodes) {
-                    if (!clicked && triggerClick(node)) {
+                    if (!clicked && triggerClick(node, isYouTube = false)) {
                         lastBannerCloseTimestamp = now
                         Log.i(TAG, "Automatically closed ad banner via view ID: $closeId")
                         clicked = true
@@ -269,7 +299,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         val desc = node.contentDescription?.toString()?.trim()?.lowercase() ?: ""
                         val text = node.text?.toString()?.trim()?.lowercase() ?: ""
                         if (desc.contains(keyword) || text.contains(keyword)) {
-                            if (triggerClick(node)) {
+                            if (triggerClick(node, isYouTube = false)) {
                                 lastBannerCloseTimestamp = now
                                 Log.i(TAG, "Automatically closed ad banner via keyword: $keyword")
                                 clicked = true
@@ -291,10 +321,11 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         val screenHeight = Resources.getSystem().displayMetrics.heightPixels
         val screenWidth = Resources.getSystem().displayMetrics.widthPixels
         val isPortrait = screenHeight > screenWidth
-        // In YouTube portrait mode, video box is in top 52%. In OTT apps, player and ads can span the full screen.
-        val maxPlayerBottomY = if (isPortrait && isYouTube) (screenHeight * 0.52f).toInt() else screenHeight
+        // In YouTube portrait mode, the video player occupies the top 38% of screen.
+        // Cutting off at 38% strictly excludes the feed, comments, and sponsored products below the player.
+        val maxPlayerBottomY = if (isPortrait && isYouTube) (screenHeight * 0.38f).toInt() else screenHeight
 
-        // 1. Check in-stream countdown & modern ad badge IDs
+        // 1. Check in-stream countdown IDs
         for (countdownId in DetectionDictionary.IN_STREAM_AD_COUNTDOWN_IDS) {
             val nodes = root.findAccessibilityNodeInfosByViewId(countdownId)
             if (!nodes.isNullOrEmpty()) {
@@ -328,7 +359,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             }
         }
 
-        // 3. Check for in-stream countdown text markers (e.g. "Skip in 5s", "Sponsored", "Ad 1 of 2")
+        // 3. Check for in-stream countdown text markers (e.g. "Skip in 5s", "Ad 1 of 2")
         for (marker in DetectionDictionary.IN_STREAM_COUNTDOWN_MARKERS) {
             val nodes = root.findAccessibilityNodeInfosByText(marker)
             if (!nodes.isNullOrEmpty()) {
@@ -355,8 +386,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         val screenHeight = Resources.getSystem().displayMetrics.heightPixels
         val screenWidth = Resources.getSystem().displayMetrics.widthPixels
         val isPortrait = screenHeight > screenWidth
-        // In YouTube portrait mode, video box is in top 52%. In OTT apps, player and ads can span the full screen.
-        val maxPlayerBottomY = if (isPortrait && isYouTube) (screenHeight * 0.52f).toInt() else screenHeight
+        // In YouTube portrait mode, video box is in top 38%. In OTT apps, player and ads can span the full screen.
+        val maxPlayerBottomY = if (isPortrait && isYouTube) (screenHeight * 0.38f).toInt() else screenHeight
 
         // Strategy 1: Check known Skip Button IDs in player area
         for (viewId in DetectionDictionary.IN_STREAM_SKIP_BUTTON_IDS) {
@@ -368,7 +399,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         val rect = Rect()
                         node.getBoundsInScreen(rect)
                         if (rect.top < maxPlayerBottomY && (rect.width() > 0 || rect.height() > 0 || node.isVisibleToUser)) {
-                            if (triggerClick(node)) {
+                            if (triggerClick(node, isYouTube)) {
                                 clicked = true
                             }
                         }
@@ -389,7 +420,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         val rect = Rect()
                         node.getBoundsInScreen(rect)
                         if (rect.top < maxPlayerBottomY && isMatchingSkipNode(node, keyword)) {
-                            if (triggerClick(node)) {
+                            if (triggerClick(node, isYouTube)) {
                                 clicked = true
                             }
                         }
@@ -402,7 +433,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
         // Strategy 3: Breadth-first search bounded to player (with guaranteed node recycling)
         traverseAndFindSkipNode(root, maxPlayerBottomY)?.let { node ->
-            triggerClick(node)
+            triggerClick(node, isYouTube)
             node.recycle()
         }
     }
@@ -476,11 +507,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         return foundNode
     }
 
-    private fun triggerClick(node: AccessibilityNodeInfo): Boolean {
+    private fun triggerClick(node: AccessibilityNodeInfo, isYouTube: Boolean): Boolean {
         val now = System.currentTimeMillis()
         if (now - lastClickTimestamp < CLICK_DEBOUNCE_MS) return false
-
-        lastClickTimestamp = now
 
         val rect = Rect()
         node.getBoundsInScreen(rect)
@@ -499,7 +528,14 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     break
                 }
             }
-            target = target.parent
+            val parent = target.parent
+            if (target != node) {
+                target.recycle()
+            }
+            target = parent
+        }
+        if (target != null && target != node) {
+            target.recycle()
         }
 
         // 2. Fallback: Touch gesture tap at node bounds
@@ -509,7 +545,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         }
 
         if (clicked) {
-            onSkipSucceeded()
+            lastClickTimestamp = now // ONLY debounce when a click actually succeeded!
+            onSkipSucceeded(isYouTube)
         }
 
         return clicked
@@ -522,13 +559,28 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         return dispatchGesture(gesture, null, null)
     }
 
-    private fun onSkipSucceeded() {
+    private fun onSkipSucceeded(isYouTube: Boolean) {
         serviceScope.launch {
             statsRepo.recordAdSkipped()
         }
-        // Let the hysteresis debouncer confirm when ad video finishes before unmuting (protects back-to-back ads)
         if (isAutoMuteEnabled) {
-            scheduleDebouncedUnmute()
+            cancelPendingUnmute()
+            // Promptly restore audio within 200ms when video resumes, unless Ad 2 is playing
+            mainHandler.postDelayed({
+                val root = rootInActiveWindow
+                val nextAdPlaying = if (root != null) {
+                    try {
+                        inspectInStreamAdState(root, isYouTube)
+                    } finally {
+                        root.recycle()
+                    }
+                } else false
+
+                if (!nextAdPlaying && audioController.isCurrentlyMuted()) {
+                    Log.i(TAG, "Ad skipped. Promptly restoring audio for regular video.")
+                    audioController.unmuteAdAudio()
+                }
+            }, 200L)
         }
     }
 
@@ -554,6 +606,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {
         Log.w(TAG, "SkipFlow Accessibility Service Interrupted")
         cancelPendingUnmute()
+        cancelDeferredScan()
         audioController.unmuteAdAudio()
     }
 
@@ -562,6 +615,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         _isServiceActive.value = false
         waveDetector?.stop()
         cancelPendingUnmute()
+        cancelDeferredScan()
         try {
             spotifyAdReceiver?.let {
                 it.cleanup()

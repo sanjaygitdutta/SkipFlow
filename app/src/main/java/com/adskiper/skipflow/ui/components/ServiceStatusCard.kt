@@ -80,17 +80,17 @@ fun ServiceStatusCard(
     val cardBorderBrush = if (isActive) {
         Brush.linearGradient(
             listOf(
-                EmeraldAccent.copy(alpha = 0.6f),
-                Color(0xFF06B6D4).copy(alpha = 0.3f),
-                EmeraldAccent.copy(alpha = 0.1f)
+                EmeraldAccent.copy(alpha = 0.7f),
+                CyberCyan.copy(alpha = 0.4f),
+                Color(0xFF1E2E47).copy(alpha = 0.3f)
             )
         )
     } else {
         Brush.linearGradient(
             listOf(
-                AmberWarning.copy(alpha = 0.6f),
-                Color(0xFFF97316).copy(alpha = 0.3f),
-                AmberWarning.copy(alpha = 0.1f)
+                AmberWarning.copy(alpha = 0.7f),
+                Color(0xFFF97316).copy(alpha = 0.4f),
+                Color(0xFF1E2E47).copy(alpha = 0.3f)
             )
         )
     }
@@ -101,19 +101,19 @@ fun ServiceStatusCard(
             .border(1.2.dp, cardBorderBrush, RoundedCornerShape(22.dp)),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isActive) Color(0xFF131D2D) else Color(0xFF1F1B24)
+            containerColor = if (isActive) Color(0xFF0F1728) else Color(0xFF18131C)
         )
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             // Subtle ambient radial glow in the top-right corner
             Box(
                 modifier = Modifier
-                    .size(130.dp)
+                    .size(160.dp)
                     .align(Alignment.TopEnd)
                     .background(
                         Brush.radialGradient(
                             listOf(
-                                (if (isActive) EmeraldAccent else AmberWarning).copy(alpha = 0.12f),
+                                (if (isActive) EmeraldAccent else AmberWarning).copy(alpha = 0.16f),
                                 Color.Transparent
                             )
                         )
@@ -159,7 +159,7 @@ fun ServiceStatusCard(
                             Text(
                                 text = if (isActive) "Engine Active & Guarding" else "Setup Required",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 17.sp
                             )
@@ -178,6 +178,11 @@ fun ServiceStatusCard(
                             .size(36.dp)
                             .background(
                                 (if (isActive) EmeraldAccent else AmberWarning).copy(alpha = 0.15f),
+                                RoundedCornerShape(10.dp)
+                            )
+                            .border(
+                                1.dp,
+                                (if (isActive) EmeraldAccent else AmberWarning).copy(alpha = 0.35f),
                                 RoundedCornerShape(10.dp)
                             ),
                         contentAlignment = Alignment.Center
@@ -200,7 +205,7 @@ fun ServiceStatusCard(
                         "SkipFlow requires Android Accessibility permission to detect skip buttons and adjust media volume when your hands are busy."
                     },
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Color(0xFF94A3B8),
                     lineHeight = 20.sp,
                     fontSize = 13.sp
                 )
@@ -214,7 +219,7 @@ fun ServiceStatusCard(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        AppPill(name = "YouTube", color = Color(0xFFFF0000))
+                        AppPill(name = "YouTube", color = Color(0xFFFF2A2A))
                         AppPill(name = "Spotify", color = Color(0xFF1DB954))
                         AppPill(name = "Hotstar", color = Color(0xFF0084FF))
                         AppPill(name = "JioCinema", color = Color(0xFFE21B5F))
@@ -255,15 +260,15 @@ fun ServiceStatusCard(
 private fun AppPill(name: String, color: Color) {
     Box(
         modifier = Modifier
-            .background(color.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
-            .border(0.8.dp, color.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+            .background(color.copy(alpha = 0.16f), RoundedCornerShape(8.dp))
+            .border(1.dp, color.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
             .padding(horizontal = 7.dp, vertical = 3.dp)
     ) {
         Text(
             text = name,
-            color = color.copy(alpha = 0.95f),
+            color = color,
             fontSize = 10.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.ExtraBold
         )
     }
 }
