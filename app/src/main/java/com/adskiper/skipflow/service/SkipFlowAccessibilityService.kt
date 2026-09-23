@@ -219,17 +219,10 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     audioController.muteAdAudio()
                     startActiveMutePoller(isYouTube, isOtt)
                 } else if (audioController.isCurrentlyMuted()) {
-                    // Check if regular content is confirmed playing
-                    val regularContentConfirmed = isRegularContentPlaying(rootNode)
-                    if (regularContentConfirmed) {
-                        Log.i(TAG, "Regular content confirmed playing. Restoring audio immediately!")
-                        cancelPendingUnmute()
-                        audioController.unmuteAdAudio()
-                        stopActiveMutePoller()
-                    } else {
-                        // Debounce unmuting with quick 500ms hysteresis: eliminates control-fade unmuting
-                        scheduleDebouncedUnmute(isYouTube)
-                    }
+                    Log.i(TAG, "In-stream ad not active. Immediately restoring audio!")
+                    cancelPendingUnmute()
+                    audioController.unmuteAdAudio()
+                    stopActiveMutePoller()
                 }
             }
 
@@ -423,7 +416,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
     /**
      * Dynamically calculates the player's bottom screen coordinate in portrait mode
-     * based on a standard 16:9 player + status bar/header padding, bounded strictly between 28% and 34%.
+     * based on a standard 16:9, 18:9, or square 1:1 player + status bar/header padding.
+     * Bounded strictly between 36% and 50% so in-stream countdowns and buttons at the player's bottom edge are never missed.
      * In landscape / full-screen, the player occupies the entire screen.
      */
     private fun getPlayerBottomBound(isYouTube: Boolean): Int {
@@ -432,9 +426,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         val isPortrait = screenHeight > screenWidth
         if (!isPortrait || !isYouTube) return screenHeight
 
-        val dynamicHeight = (screenWidth * 9f / 16f) + (screenHeight * 0.04f)
-        val minCap = (screenHeight * 0.28f).toInt()
-        val maxCap = (screenHeight * 0.34f).toInt()
+        val dynamicHeight = (screenWidth * 9f / 16f) + (screenHeight * 0.08f)
+        val minCap = (screenHeight * 0.36f).toInt()
+        val maxCap = (screenHeight * 0.50f).toInt()
         return dynamicHeight.toInt().coerceIn(minCap, maxCap)
     }
 
@@ -492,7 +486,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                             !text.contains("next") && !desc.contains("next") &&
                             !text.contains("prev") && !desc.contains("prev")
                         ) {
-                            if (text.isNotBlank() || desc.isNotBlank() || node.isClickable) {
+                            if (text.isNotBlank() || desc.isNotBlank() || node.childCount > 0) {
                                 matched = true
                             }
                         }
@@ -593,8 +587,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             if (keyword == "skip") {
                 if (text == "skip" || desc == "skip" ||
                     text == "skip >" || text == "skip >>" ||
-                    text.startsWith("skip ") || desc.startsWith("skip ") ||
-                    allText.contains("skip")
+                    text == "skip advertisement" || desc == "skip advertisement" ||
+                    text.startsWith("skip ad") || desc.startsWith("skip ad") ||
+                    allText.contains("skip ad") || allText.contains("skip ads")
                 ) {
                     return true
                 }

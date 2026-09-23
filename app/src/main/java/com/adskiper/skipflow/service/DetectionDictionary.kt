@@ -34,7 +34,6 @@ object DetectionDictionary {
         "com.google.android.youtube:id/ad_skip_button_modern",
         "com.google.android.youtube:id/ad_skip_button",
         "com.google.android.youtube:id/skip_ad_button_container",
-        "com.google.android.youtube:id/skip_button",
         "com.google.android.youtube:id/skip_ad",
         "com.google.android.apps.youtube.music:id/skip_ad_button",
         "modern_skip_ad_button_text",
@@ -65,9 +64,7 @@ object DetectionDictionary {
         // MX Player
         "com.mxtech.videoplayer.ad:id/ad_skip",
         "com.mxtech.videoplayer.ad:id/btn_skip",
-        "com.mxtech.videoplayer.ad:id/skip_button",
-        // DailyMotion & Twitch
-        "com.dailymotion.dailymotion:id/skip_button",
+        // Twitch
         "tv.twitch.android.app:id/ad_skip_button",
         // Specific ad skip button IDs across Android media players
         "btn_skip_ad",
