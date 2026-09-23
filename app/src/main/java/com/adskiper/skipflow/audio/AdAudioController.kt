@@ -2,28 +2,31 @@ package com.adskiper.skipflow.audio
 
 import android.content.Context
 import android.media.AudioManager
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 
 class AdAudioController(context: Context) {
 
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var isMuted = false
     private var savedVolume = -1
     private var lastKnownUserVolume = DEFAULT_FALLBACK_VOLUME
     private var muteStartTime = 0L
+    private var watchdogRunnable: Runnable? = null
 
     companion object {
         private const val TAG = "AdAudioController"
-        private const val MAX_MUTE_DURATION_MS = 180_000L // 3-minute failsafe watchdog
+        private const val DEFAULT_MUTE_WATCHDOG_MS = 65_000L // 65s initial failsafe watchdog (safe for 15-50s ads)
         private const val DEFAULT_FALLBACK_VOLUME = 8
     }
 
     @Synchronized
     fun muteAdAudio() {
         if (isMuted) {
-            muteStartTime = SystemClock.elapsedRealtime()
-            // Verify volume didn't slip through
+            // Keep muted, re-verify volume hasn't leaked, but do not push muteStartTime forward indefinitely
             ensureMuted()
             return
         }
@@ -40,6 +43,7 @@ class AdAudioController(context: Context) {
             audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
             isMuted = true
             muteStartTime = SystemClock.elapsedRealtime()
+            scheduleAutonomousWatchdog(DEFAULT_MUTE_WATCHDOG_MS)
             Log.i(TAG, "Muted ad audio. Saved volume: $savedVolume (lastKnown: $lastKnownUserVolume)")
         } catch (e: Exception) {
             Log.e(TAG, "Error muting ad audio", e)
@@ -48,6 +52,7 @@ class AdAudioController(context: Context) {
 
     @Synchronized
     fun unmuteAdAudio() {
+        cancelAutonomousWatchdog()
         if (!isMuted) return
 
         try {
@@ -58,6 +63,37 @@ class AdAudioController(context: Context) {
             Log.i(TAG, "Restored audio volume to: $restoreVol")
         } catch (e: Exception) {
             Log.e(TAG, "Error unmuting ad audio", e)
+        }
+    }
+
+    /**
+     * Allows the active mute poller to gently extend the watchdog if an ad is actively confirmed
+     * still playing on screen (e.g., long 35s-60s ads or dual back-to-back ads).
+     */
+    @Synchronized
+    fun renewWatchdogIfConfirmedAd(extensionMs: Long = 30_000L) {
+        if (!isMuted) return
+        scheduleAutonomousWatchdog(extensionMs)
+    }
+
+    private fun scheduleAutonomousWatchdog(durationMs: Long) {
+        cancelAutonomousWatchdog()
+        val runnable = Runnable {
+            synchronized(this) {
+                if (isMuted) {
+                    Log.w(TAG, "Watchdog triggered: Muted for ${durationMs}ms without clearing. Forcing unmute.")
+                    unmuteAdAudio()
+                }
+            }
+        }
+        watchdogRunnable = runnable
+        mainHandler.postDelayed(runnable, durationMs)
+    }
+
+    private fun cancelAutonomousWatchdog() {
+        watchdogRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            watchdogRunnable = null
         }
     }
 
@@ -80,8 +116,8 @@ class AdAudioController(context: Context) {
     fun checkWatchdog() {
         if (isMuted && muteStartTime > 0) {
             val elapsed = SystemClock.elapsedRealtime() - muteStartTime
-            if (elapsed > MAX_MUTE_DURATION_MS) {
-                Log.w(TAG, "Watchdog triggered: Muted for ${elapsed}ms. Forcing unmute.")
+            if (elapsed > DEFAULT_MUTE_WATCHDOG_MS) {
+                Log.w(TAG, "Watchdog check triggered: Muted for ${elapsed}ms. Forcing unmute.")
                 unmuteAdAudio()
             }
         }
