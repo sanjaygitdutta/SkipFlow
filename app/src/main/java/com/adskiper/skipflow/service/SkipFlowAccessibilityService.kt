@@ -10,7 +10,9 @@ import android.os.Looper
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.core.content.ContextCompat
 import com.adskiper.skipflow.audio.AdAudioController
+import com.adskiper.skipflow.audio.SpotifyAdReceiver
 import com.adskiper.skipflow.data.PreferencesRepository
 import com.adskiper.skipflow.data.StatsRepository
 import com.adskiper.skipflow.sensor.ProximityWaveDetector
@@ -42,16 +44,19 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     private lateinit var statsRepo: StatsRepository
     private lateinit var audioController: AdAudioController
     private var waveDetector: ProximityWaveDetector? = null
+    private var spotifyAdReceiver: SpotifyAdReceiver? = null
 
     private var isAutoSkipEnabled = true
     private var isAutoCloseBannersEnabled = true
     private var isAutoMuteEnabled = true
     private var isWaveEnabled = false
+    private var isOttSkipEnabled = true
+    private var isSpotifyMuteEnabled = true
     private var skipDelayMs = 0L
 
     private var lastClickTimestamp = 0L
     private var lastBannerCloseTimestamp = 0L
-    private var isForegroundInYouTube = false
+    private var isForegroundInTargetMediaApp = false
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -64,6 +69,20 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
         waveDetector = ProximityWaveDetector(applicationContext) {
             handleHandsFreeWave()
+        }
+
+        // Register Spotify background ad muter receiver
+        try {
+            spotifyAdReceiver = SpotifyAdReceiver(audioController, statsRepo, preferencesRepo)
+            ContextCompat.registerReceiver(
+                applicationContext,
+                spotifyAdReceiver,
+                SpotifyAdReceiver.createIntentFilter(),
+                ContextCompat.RECEIVER_EXPORTED
+            )
+            Log.i(TAG, "Registered SpotifyAdReceiver successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to register SpotifyAdReceiver", e)
         }
 
         observePreferences()
@@ -91,6 +110,12 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             }
         }
         serviceScope.launch {
+            preferencesRepo.isOttSkipEnabled.collectLatest { isOttSkipEnabled = it }
+        }
+        serviceScope.launch {
+            preferencesRepo.isSpotifyMuteEnabled.collectLatest { isSpotifyMuteEnabled = it }
+        }
+        serviceScope.launch {
             preferencesRepo.skipDelayMs.collectLatest { skipDelayMs = it }
         }
     }
@@ -99,18 +124,29 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         if (event == null) return
 
         val packageName = event.packageName?.toString() ?: return
-        isForegroundInYouTube = DetectionDictionary.TARGET_PACKAGES.contains(packageName)
+        val isYouTube = DetectionDictionary.YOUTUBE_PACKAGES.contains(packageName)
+        val isOtt = DetectionDictionary.OTT_PACKAGES.contains(packageName)
 
-        updateWaveSensorState()
-
-        if (!isForegroundInYouTube) {
-            if (audioController.isCurrentlyMuted()) {
-                audioController.unmuteAdAudio()
+        if (!isYouTube && !isOtt) {
+            if (isForegroundInTargetMediaApp) {
+                isForegroundInTargetMediaApp = false
+                updateWaveSensorState()
+                if (audioController.isCurrentlyMuted()) {
+                    audioController.unmuteAdAudio()
+                }
             }
             return
         }
 
-        // When navigating or switching windows, ensure audio is restored
+        // Check if user disabled OTT skipping
+        if (isOtt && !isOttSkipEnabled) {
+            return
+        }
+
+        isForegroundInTargetMediaApp = true
+        updateWaveSensorState()
+
+        // When navigating or switching windows, ensure audio watchdog is checked
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             audioController.checkWatchdog()
         }
@@ -125,10 +161,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 scanAndCloseBanners(rootNode)
             }
 
-            // 2. In-stream video ad detection (audio muting)
-            val inStreamAdActive = inspectInStreamAdState(rootNode)
-
-            if (isAutoMuteEnabled) {
+            // 2. In-stream video ad detection (audio muting) - active for YouTube
+            if (isYouTube && isAutoMuteEnabled) {
+                val inStreamAdActive = inspectInStreamAdState(rootNode)
                 if (inStreamAdActive) {
                     audioController.muteAdAudio()
                 } else {
@@ -139,7 +174,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 }
             }
 
-            // 3. Auto-skip in-stream video ad
+            // 3. Auto-skip in-stream video ad (YouTube & OTT platforms)
             if (isAutoSkipEnabled) {
                 scanAndSkip(rootNode)
             }
@@ -417,7 +452,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     }
 
     private fun handleHandsFreeWave() {
-        if (!isForegroundInYouTube) return
+        if (!isForegroundInTargetMediaApp) return
         Log.i(TAG, "Wave triggered: forcing skip attempt")
         val root = rootInActiveWindow ?: return
         try {
@@ -428,7 +463,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     }
 
     private fun updateWaveSensorState() {
-        if (isWaveEnabled && isForegroundInYouTube) {
+        if (isWaveEnabled && isForegroundInTargetMediaApp) {
             waveDetector?.start()
         } else {
             waveDetector?.stop()
@@ -444,6 +479,14 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         super.onDestroy()
         _isServiceActive.value = false
         waveDetector?.stop()
+        try {
+            spotifyAdReceiver?.let {
+                it.cleanup()
+                applicationContext.unregisterReceiver(it)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error unregistering Spotify receiver", e)
+        }
         audioController.unmuteAdAudio()
         serviceScope.cancel()
         Log.i(TAG, "SkipFlow Accessibility Service Destroyed")

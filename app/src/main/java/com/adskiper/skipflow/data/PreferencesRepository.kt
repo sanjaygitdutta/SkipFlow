@@ -22,6 +22,8 @@ class PreferencesRepository(private val context: Context) {
         val KEY_AUTO_CLOSE_BANNERS = booleanPreferencesKey("pref_auto_close_banners")
         val KEY_DISCLOSURE_ACCEPTED = booleanPreferencesKey("pref_disclosure_accepted")
         val KEY_SOUND_FEEDBACK = booleanPreferencesKey("pref_sound_feedback")
+        val KEY_SPOTIFY_MUTE = booleanPreferencesKey("pref_spotify_mute")
+        val KEY_OTT_SKIP = booleanPreferencesKey("pref_ott_skip")
 
         @Volatile
         private var INSTANCE: PreferencesRepository? = null
@@ -61,6 +63,14 @@ class PreferencesRepository(private val context: Context) {
         preferences[KEY_SOUND_FEEDBACK] ?: false
     }
 
+    val isSpotifyMuteEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[KEY_SPOTIFY_MUTE] ?: true
+    }
+
+    val isOttSkipEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[KEY_OTT_SKIP] ?: true
+    }
+
     suspend fun setAutoSkip(enabled: Boolean) {
         context.dataStore.edit { it[KEY_AUTO_SKIP] = enabled }
     }
@@ -87,5 +97,13 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setSoundFeedback(enabled: Boolean) {
         context.dataStore.edit { it[KEY_SOUND_FEEDBACK] = enabled }
+    }
+
+    suspend fun setSpotifyMute(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_SPOTIFY_MUTE] = enabled }
+    }
+
+    suspend fun setOttSkip(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_OTT_SKIP] = enabled }
     }
 }

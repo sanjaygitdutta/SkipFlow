@@ -1,15 +1,18 @@
-# SkipFlow ⏩ — Hands-Free Video Assistant for Android
+# SkipFlow ⏩ — Hands-Free Media Assistant for Android
 
-SkipFlow is a modern, battery-efficient Android application built with **Jetpack Compose**, **Material 3 (Material You)**, and **Android AccessibilityService**. It automatically detects and clicks the official "Skip Ad" button on YouTube when users' hands are busy (cooking, driving, working out, eating, washing dishes), with optional **Smart Ad Mute** and **Wave-to-Skip** hands-free proximity sensor gestures.
+SkipFlow is a modern, battery-efficient Android application built with **Jetpack Compose**, **Material 3 (Material You)**, and **Android AccessibilityService**. It automatically detects and clicks the official "Skip Ad" button and closes popup banners on **YouTube**, **Disney+ Hotstar**, **JioCinema**, **MX Player**, and **DailyMotion**, while silently muting background ads on **Spotify** when users' hands are busy (cooking, driving, working out, eating, washing dishes).
 
 ---
 
 ## 🌟 Features
 
-- ⏩ **Instant Auto-Skip**: Taps the official "Skip Ad" button immediately when YouTube's countdown finishes.
+- ⏩ **Instant Auto-Skip**: Taps the official "Skip Ad" button immediately when the countdown finishes across YouTube and top OTT streaming apps.
+- ❌ **Auto-Close Ad Banners**: Automatically taps "X" / "Close" on popup and overlay banners in both portrait mode and full-screen video playback without interrupting your video sound.
+- 🎧 **Spotify Smart Ad Muter**: Automatically and silently mutes promotional audio ads between songs in the background using zero extra battery (via Spotify's Device Broadcast Status).
+- 🎬 **Multi-Platform OTT Video Expansion**: Hands-free assistance for **Disney+ Hotstar (JioHotstar)**, **JioCinema & JioTV**, **MX Player**, **DailyMotion**, and **Twitch**.
 - 🔇 **Smart Audio Mute**: Automatically silences media volume (`STREAM_MUSIC`) during ad playback and restores the exact previous volume when the video resumes.
 - 👋 **Wave-to-Skip (Hands-Free Proximity Sensor)**: Wave your hand above your phone's front sensor without touching the screen with dirty, wet, or greasy hands.
-- 📊 **Real-Time Stats Dashboard**: Tracks total ads skipped, minutes saved, and daily usage streak.
+- 📊 **Real-Time Stats Dashboard**: Tracks total ads skipped, minutes saved, Spotify ads muted, and daily usage streak.
 - 🧪 **Interactive In-App Sandbox Simulator**: Test auto-skipping and audio muting directly inside the app without needing YouTube open.
 - 🔒 **100% On-Device & Private**: Zero data collection, no background network trackers, strictly runs locally on your device.
 - 🛡️ **Google Play Compliant**: Adheres to Google's Accessibility API policies with prominent in-app disclosure and policy-safe architecture.
@@ -21,14 +24,15 @@ SkipFlow is a modern, battery-efficient Android application built with **Jetpack
 ```
 com.adskiper.skipflow
 ├── audio/
-│   └── AdAudioController.kt          # Media stream volume controller (Smart Mute)
+│   ├── AdAudioController.kt          # Media stream volume controller (Smart Mute & Failsafe)
+│   └── SpotifyAdReceiver.kt          # Zero-battery Spotify broadcast metadata listener
 ├── data/
-│   ├── PreferencesRepository.kt      # Jetpack DataStore preferences
-│   └── StatsRepository.kt            # Tracks skips and time saved
+│   ├── PreferencesRepository.kt      # Jetpack DataStore preferences (YouTube, Spotify, OTT)
+│   └── StatsRepository.kt            # Tracks skips, Spotify muting, and time saved
 ├── sensor/
 │   └── ProximityWaveDetector.kt      # Proximity sensor listener for wave gestures
 ├── service/
-│   ├── DetectionDictionary.kt        # 35+ localized languages & YouTube resource IDs
+│   ├── DetectionDictionary.kt        # Multi-language dictionary & multi-platform view IDs
 │   └── SkipFlowAccessibilityService.kt # Core node inspection & click automation
 └── ui/
     ├── MainActivity.kt               # Launcher host activity with lifecycle checks

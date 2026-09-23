@@ -19,7 +19,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FrontHand
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.VolumeMute
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -55,6 +57,9 @@ fun DashboardScreen(
     isAutoCloseBannersEnabled: Boolean,
     isAutoMuteEnabled: Boolean,
     isWaveEnabled: Boolean,
+    isSpotifyMuteEnabled: Boolean,
+    isOttSkipEnabled: Boolean,
+    spotifyAdsMuted: Long,
     isSimulating: Boolean,
     simCountdown: Int,
     isSimMuted: Boolean,
@@ -63,6 +68,8 @@ fun DashboardScreen(
     onToggleAutoCloseBanners: (Boolean) -> Unit,
     onToggleAutoMute: (Boolean) -> Unit,
     onToggleWave: (Boolean) -> Unit,
+    onToggleSpotifyMute: (Boolean) -> Unit,
+    onToggleOttSkip: (Boolean) -> Unit,
     onStartSimulation: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
@@ -196,6 +203,30 @@ fun DashboardScreen(
                 isChecked = isWaveEnabled,
                 onCheckedChange = onToggleWave,
                 tag = "Hands-Free"
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            FeatureSwitchCard(
+                title = "Spotify Background Ad Muter",
+                description = "Silently mutes audio ads between songs. Requires Spotify 'Device Broadcast Status' enabled.",
+                icon = Icons.Default.Headphones,
+                accentColor = Color(0xFF1DB954),
+                isChecked = isSpotifyMuteEnabled,
+                onCheckedChange = onToggleSpotifyMute,
+                tag = if (spotifyAdsMuted > 0) "${spotifyAdsMuted} Muted" else "Spotify"
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            FeatureSwitchCard(
+                title = "OTT Video Auto-Skip",
+                description = "Auto-skips ads & closes banners on Hotstar, JioCinema, MX Player & DailyMotion",
+                icon = Icons.Default.Tv,
+                accentColor = Color(0xFF8B5CF6),
+                isChecked = isOttSkipEnabled,
+                onCheckedChange = onToggleOttSkip,
+                tag = "OTT Media"
             )
 
             Spacer(modifier = Modifier.height(24.dp))

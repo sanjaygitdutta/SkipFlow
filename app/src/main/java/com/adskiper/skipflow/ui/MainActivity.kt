@@ -77,6 +77,9 @@ private fun MainAppContent(
     val isAutoCloseBannersEnabled by viewModel.isAutoCloseBannersEnabled.collectAsState()
     val isAutoMuteEnabled by viewModel.isAutoMuteEnabled.collectAsState()
     val isWaveEnabled by viewModel.isWaveToSkipEnabled.collectAsState()
+    val isSpotifyMuteEnabled by viewModel.isSpotifyMuteEnabled.collectAsState()
+    val isOttSkipEnabled by viewModel.isOttSkipEnabled.collectAsState()
+    val spotifyAdsMuted by viewModel.spotifyAdsMuted.collectAsState()
     val skipDelayMs by viewModel.skipDelayMs.collectAsState()
 
     val isSimulating by viewModel.isSimulatingAd.collectAsState()
@@ -95,6 +98,9 @@ private fun MainAppContent(
                     isAutoCloseBannersEnabled = isAutoCloseBannersEnabled,
                     isAutoMuteEnabled = isAutoMuteEnabled,
                     isWaveEnabled = isWaveEnabled,
+                    isSpotifyMuteEnabled = isSpotifyMuteEnabled,
+                    isOttSkipEnabled = isOttSkipEnabled,
+                    spotifyAdsMuted = spotifyAdsMuted,
                     isSimulating = isSimulating,
                     simCountdown = simCountdown,
                     isSimMuted = isSimMuted,
@@ -103,6 +109,8 @@ private fun MainAppContent(
                     onToggleAutoCloseBanners = { viewModel.toggleAutoCloseBanners(it) },
                     onToggleAutoMute = { viewModel.toggleAutoMute(it) },
                     onToggleWave = { viewModel.toggleWaveToSkip(it) },
+                    onToggleSpotifyMute = { viewModel.toggleSpotifyMute(it) },
+                    onToggleOttSkip = { viewModel.toggleOttSkip(it) },
                     onStartSimulation = { viewModel.triggerInteractiveSimulator() },
                     onNavigateToSettings = { currentScreen = Screen.SETTINGS }
                 )

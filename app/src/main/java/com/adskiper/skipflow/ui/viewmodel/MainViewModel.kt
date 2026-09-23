@@ -47,6 +47,12 @@ class MainViewModel(
     val isWaveToSkipEnabled: StateFlow<Boolean> = preferencesRepo.isWaveToSkipEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    val isSpotifyMuteEnabled: StateFlow<Boolean> = preferencesRepo.isSpotifyMuteEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val isOttSkipEnabled: StateFlow<Boolean> = preferencesRepo.isOttSkipEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     val skipDelayMs: StateFlow<Long> = preferencesRepo.skipDelayMs
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
@@ -54,6 +60,9 @@ class MainViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
     val totalSecondsSaved: StateFlow<Long> = statsRepo.totalSecondsSaved
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+
+    val spotifyAdsMuted: StateFlow<Long> = statsRepo.spotifyAdsMuted
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
     val activeDaysCount: StateFlow<Int> = statsRepo.activeDaysCount
@@ -177,6 +186,14 @@ class MainViewModel(
 
     fun toggleWaveToSkip(enabled: Boolean) {
         viewModelScope.launch { preferencesRepo.setWaveToSkip(enabled) }
+    }
+
+    fun toggleSpotifyMute(enabled: Boolean) {
+        viewModelScope.launch { preferencesRepo.setSpotifyMute(enabled) }
+    }
+
+    fun toggleOttSkip(enabled: Boolean) {
+        viewModelScope.launch { preferencesRepo.setOttSkip(enabled) }
     }
 
     fun setSkipDelay(delayMs: Long) {

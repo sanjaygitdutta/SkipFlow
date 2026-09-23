@@ -14,7 +14,7 @@ class AdAudioController(context: Context) {
 
     companion object {
         private const val TAG = "AdAudioController"
-        private const val MAX_MUTE_DURATION_MS = 25_000L // 25s failsafe watchdog
+        private const val MAX_MUTE_DURATION_MS = 45_000L // 45s failsafe watchdog
         private const val DEFAULT_FALLBACK_VOLUME = 6
     }
 

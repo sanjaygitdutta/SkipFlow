@@ -2,38 +2,92 @@ package com.adskiper.skipflow.service
 
 object DetectionDictionary {
 
-    val TARGET_PACKAGES = setOf(
+    val YOUTUBE_PACKAGES = setOf(
         "com.google.android.youtube",
         "com.google.android.apps.youtube.music",
         "com.google.android.apps.youtube.kids"
     )
 
-    // IDs that strictly belong to in-stream video ad skip buttons and countdowns
+    val OTT_PACKAGES = setOf(
+        "in.startv.hotstar",                // Disney+ Hotstar / JioHotstar
+        "com.jio.media.ondemand",          // JioCinema
+        "com.jio.jioplay.tv",              // JioTV
+        "com.mxtech.videoplayer.ad",       // MX Player Free
+        "com.mxtech.videoplayer.pro",      // MX Player Pro
+        "com.dailymotion.dailymotion",     // DailyMotion
+        "tv.twitch.android.app",           // Twitch
+        "com.crunchyroll.crunchyroll"      // Crunchyroll
+    )
+
+    val TARGET_PACKAGES = YOUTUBE_PACKAGES + OTT_PACKAGES
+
+    // IDs that strictly belong to in-stream video ad skip buttons across YouTube and OTT players
     val IN_STREAM_SKIP_BUTTON_IDS = setOf(
+        // YouTube
         "com.google.android.youtube:id/skip_ad_button",
         "com.google.android.youtube:id/modern_skip_ad_button",
         "com.google.android.youtube:id/skip_ad_button_text",
         "com.google.android.apps.youtube.music:id/skip_ad_button",
         "skip_ad_button",
-        "modern_skip_ad_button"
+        "modern_skip_ad_button",
+        // Hotstar
+        "in.startv.hotstar:id/btn_skip",
+        "in.startv.hotstar:id/skip_btn",
+        "in.startv.hotstar:id/skip_ad_btn",
+        // JioCinema
+        "com.jio.media.ondemand:id/ad_skip",
+        "com.jio.media.ondemand:id/skip_ad",
+        "com.jio.media.ondemand:id/ad_skip_button",
+        // MX Player
+        "com.mxtech.videoplayer.ad:id/ad_skip",
+        "com.mxtech.videoplayer.ad:id/btn_skip",
+        "com.mxtech.videoplayer.ad:id/skip_button",
+        // DailyMotion & Twitch
+        "com.dailymotion.dailymotion:id/skip_button",
+        "tv.twitch.android.app:id/ad_skip_button",
+        // Common generic IDs
+        "btn_skip",
+        "skip_button",
+        "skipAdButton",
+        "skip_ad",
+        "ad_skip"
     )
 
-    // IDs that indicate an in-stream video ad is playing (NOT banners below video)
+    // IDs that indicate an in-stream video ad is playing
     val IN_STREAM_AD_COUNTDOWN_IDS = setOf(
         "com.google.android.youtube:id/ad_countdown",
-        "com.google.android.youtube:id/ad_progress_text"
+        "com.google.android.youtube:id/ad_progress_text",
+        "in.startv.hotstar:id/ad_timer",
+        "com.jio.media.ondemand:id/ad_timer",
+        "ad_countdown",
+        "ad_timer"
     )
 
     // IDs for closing overlay/popup ad banners in portrait and full-screen video
     val BANNER_CLOSE_BUTTON_IDS = setOf(
+        // YouTube
         "com.google.android.youtube:id/close_button",
         "com.google.android.youtube:id/ad_close_button",
         "com.google.android.youtube:id/dismiss_button",
         "com.google.android.youtube:id/cancel_button",
         "com.google.android.youtube:id/action_close",
+        // Hotstar
+        "in.startv.hotstar:id/close_btn",
+        "in.startv.hotstar:id/btn_close",
+        // JioCinema
+        "com.jio.media.ondemand:id/close",
+        "com.jio.media.ondemand:id/iv_close",
+        // MX Player
+        "com.mxtech.videoplayer.ad:id/ad_close",
+        "com.mxtech.videoplayer.ad:id/close",
+        "com.mxtech.videoplayer.ad:id/interstitial_close",
+        // Common generic IDs
         "close_button",
         "ad_close_button",
-        "dismiss_button"
+        "dismiss_button",
+        "btn_close",
+        "iv_close",
+        "action_close"
     )
 
     // Strict multi-language phrases that appear on the Skip button

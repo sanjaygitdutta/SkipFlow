@@ -18,8 +18,10 @@ class StatsRepository(private val context: Context) {
         val KEY_TOTAL_SECONDS_SAVED = longPreferencesKey("stats_total_seconds_saved")
         val KEY_ACTIVE_DAYS_COUNT = intPreferencesKey("stats_active_days_count")
         val KEY_LAST_ACTIVE_DATE = stringPreferencesKey("stats_last_active_date")
+        val KEY_SPOTIFY_ADS_MUTED = longPreferencesKey("stats_spotify_ads_muted")
 
         const val ESTIMATED_SECONDS_SAVED_PER_AD = 12L
+        const val ESTIMATED_SECONDS_MUTED_SPOTIFY = 30L
 
         @Volatile
         private var INSTANCE: StatsRepository? = null
@@ -39,6 +41,10 @@ class StatsRepository(private val context: Context) {
         preferences[KEY_TOTAL_SECONDS_SAVED] ?: 0L
     }
 
+    val spotifyAdsMuted: Flow<Long> = context.dataStore.data.map { preferences ->
+        preferences[KEY_SPOTIFY_ADS_MUTED] ?: 0L
+    }
+
     val activeDaysCount: Flow<Int> = context.dataStore.data.map { preferences ->
         preferences[KEY_ACTIVE_DAYS_COUNT] ?: 1
     }
@@ -52,6 +58,26 @@ class StatsRepository(private val context: Context) {
             val currentDays = prefs[KEY_ACTIVE_DAYS_COUNT] ?: 0
 
             prefs[KEY_TOTAL_ADS_SKIPPED] = currentSkips + 1
+            prefs[KEY_TOTAL_SECONDS_SAVED] = currentSeconds + secondsSaved
+
+            if (lastDate != today) {
+                prefs[KEY_LAST_ACTIVE_DATE] = today
+                prefs[KEY_ACTIVE_DAYS_COUNT] = currentDays + 1
+            }
+        }
+    }
+
+    suspend fun recordSpotifyAdMuted(secondsSaved: Long = ESTIMATED_SECONDS_MUTED_SPOTIFY) {
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        context.dataStore.edit { prefs ->
+            val currentSkips = prefs[KEY_TOTAL_ADS_SKIPPED] ?: 0L
+            val currentSpotify = prefs[KEY_SPOTIFY_ADS_MUTED] ?: 0L
+            val currentSeconds = prefs[KEY_TOTAL_SECONDS_SAVED] ?: 0L
+            val lastDate = prefs[KEY_LAST_ACTIVE_DATE] ?: ""
+            val currentDays = prefs[KEY_ACTIVE_DAYS_COUNT] ?: 0
+
+            prefs[KEY_TOTAL_ADS_SKIPPED] = currentSkips + 1
+            prefs[KEY_SPOTIFY_ADS_MUTED] = currentSpotify + 1
             prefs[KEY_TOTAL_SECONDS_SAVED] = currentSeconds + secondsSaved
 
             if (lastDate != today) {

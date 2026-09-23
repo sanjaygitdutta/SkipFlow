@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Policy
 import androidx.compose.material.icons.filled.Timer
@@ -70,7 +71,9 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     var showResetDialog by remember { mutableStateOf(false) }
+    var showSpotifyGuideDialog by remember { mutableStateOf(false) }
     var sliderValue by remember { mutableFloatStateOf(currentDelayMs.toFloat()) }
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -150,7 +153,17 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            SettingsSectionHeader(title = "BACKGROUND RELIABILITY")
+            SettingsSectionHeader(title = "BACKGROUND RELIABILITY & SPOTIFY")
+
+            SettingsActionCard(
+                title = "Spotify Ad Muter Setup",
+                description = "Enable 'Device Broadcast Status' in Spotify for seamless ad muting.",
+                icon = Icons.Default.Headphones,
+                accentColor = Color(0xFF1DB954),
+                onClick = { showSpotifyGuideDialog = true }
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             SettingsActionCard(
                 title = "Disable Battery Optimization",
@@ -168,7 +181,17 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(8.dp))
             SupportedAppRow(name = "YouTube Music", enabled = true)
             Spacer(modifier = Modifier.height(8.dp))
-            SupportedAppRow(name = "YouTube Kids", enabled = true)
+            SupportedAppRow(name = "Spotify", enabled = true)
+            Spacer(modifier = Modifier.height(8.dp))
+            SupportedAppRow(name = "Disney+ Hotstar (JioHotstar)", enabled = true)
+            Spacer(modifier = Modifier.height(8.dp))
+            SupportedAppRow(name = "JioCinema & JioTV", enabled = true)
+            Spacer(modifier = Modifier.height(8.dp))
+            SupportedAppRow(name = "MX Player", enabled = true)
+            Spacer(modifier = Modifier.height(8.dp))
+            SupportedAppRow(name = "DailyMotion", enabled = true)
+            Spacer(modifier = Modifier.height(8.dp))
+            SupportedAppRow(name = "Twitch", enabled = true)
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -196,11 +219,11 @@ fun SettingsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text("SkipFlow v1.0.0", fontWeight = FontWeight.SemiBold)
+                        Text("SkipFlow v1.1.0", fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "100% on-device hands-free accessibility controller. Zero analytics or personal data collected.",
+                        text = "100% on-device hands-free accessibility media controller. Zero analytics or personal data collected.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp
@@ -209,6 +232,62 @@ fun SettingsScreen(
             }
 
             Spacer(modifier = Modifier.height(30.dp))
+        }
+
+        if (showSpotifyGuideDialog) {
+            AlertDialog(
+                onDismissRequest = { showSpotifyGuideDialog = false },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Headphones, contentDescription = null, tint = Color(0xFF1DB954))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Spotify Setup Guide")
+                    }
+                },
+                text = {
+                    Column {
+                        Text(
+                            text = "To allow SkipFlow to automatically mute Spotify ads without draining battery, enable broadcast status:",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("1. Open Spotify and tap Settings ⚙️", fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("2. Scroll down to 'Device Broadcast Status'", fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("3. Turn the switch ON", fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "SkipFlow will now silently mute ads and automatically restore music volume when songs resume!",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showSpotifyGuideDialog = false
+                            try {
+                                val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
+                                if (launchIntent != null) {
+                                    context.startActivity(launchIntent)
+                                }
+                            } catch (e: Exception) {
+                                // ignore
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1DB954))
+                    ) {
+                        Text("Open Spotify", color = Color.White)
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(onClick = { showSpotifyGuideDialog = false }) {
+                        Text("Got It")
+                    }
+                }
+            )
         }
 
         if (showResetDialog) {
