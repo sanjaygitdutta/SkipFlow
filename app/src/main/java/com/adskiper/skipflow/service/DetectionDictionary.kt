@@ -105,13 +105,22 @@ object DetectionDictionary {
         "visit_advertiser_button"
     )
 
-    // IDs strictly indicating regular content is currently active on screen (used to confirm regular playback)
-    val REGULAR_CONTENT_IDS = setOf(
-        "com.google.android.youtube:id/time_bar",
-        "com.google.android.youtube:id/current_time",
-        "com.google.android.youtube:id/total_time",
-        "time_bar",
-        "current_time"
+    // IDs for YouTube floating miniplayer / PiP container views
+    val YOUTUBE_MINIPLAYER_IDS = setOf(
+        "com.google.android.youtube:id/miniplayer",
+        "com.google.android.youtube:id/miniplayer_view",
+        "com.google.android.youtube:id/floaty_bar",
+        "com.google.android.youtube:id/player_view",
+        "com.google.android.youtube:id/watch_player",
+        "miniplayer",
+        "miniplayer_view",
+        "floaty_bar"
+    )
+
+    // Cues indicating a feed recommendation / shopping card rather than an in-stream video ad
+    val FEED_SHOPPING_KEYWORDS = setOf(
+        "shop now", "buy now", "order now", "install now", "get offer", "visit store",
+        "ratings", "reviews", "free delivery"
     )
 
     // IDs for closing overlay/popup ad banners in portrait and full-screen video

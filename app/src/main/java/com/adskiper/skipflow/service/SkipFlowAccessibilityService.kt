@@ -214,23 +214,13 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             // 2. In-stream video ad detection (audio muting) - active for YouTube & OTT platforms
             if ((isYouTube || isOtt) && isAutoMuteEnabled) {
                 val inStreamAdActive = inspectInStreamAdState(rootNode, isYouTube)
-                val regularContentActive = isRegularContentPlaying(rootNode)
 
-                if (inStreamAdActive && !regularContentActive) {
+                if (inStreamAdActive) {
                     cancelPendingUnmute()
                     audioController.muteAdAudio()
                     startActiveMutePoller(isYouTube, isOtt)
                 } else if (audioController.isCurrentlyMuted()) {
-                    if (regularContentActive) {
-                        Log.i(TAG, "Regular content playing confirmed! Immediately restoring audio.")
-                        cancelPendingUnmute()
-                        audioController.unmuteAdAudio()
-                        stopActiveMutePoller()
-                    } else {
-                        // In-stream ad not detected, but regular content controls are not yet visible.
-                        // Debounce unmute by 350ms to prevent audio flicker during ad ticks / frame transitions.
-                        scheduleDebouncedUnmute(isYouTube)
-                    }
+                    scheduleDebouncedUnmute(isYouTube)
                 }
             }
 
@@ -245,25 +235,6 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         }
     }
 
-    /**
-     * Checks if regular video player controls or progress are visible (confirming normal content playback).
-     */
-    private fun isRegularContentPlaying(root: AccessibilityNodeInfo): Boolean {
-        for (contentId in DetectionDictionary.REGULAR_CONTENT_IDS) {
-            val nodes = root.findAccessibilityNodeInfosByViewId(contentId)
-            if (!nodes.isNullOrEmpty()) {
-                for (node in nodes) {
-                    if (node.isVisibleToUser) {
-                        node.recycle()
-                        return true
-                    }
-                    node.recycle()
-                }
-            }
-        }
-        return false
-    }
-
     private fun scheduleDebouncedUnmute(isYouTube: Boolean = true) {
         if (pendingUnmuteRunnable != null) return
 
@@ -271,19 +242,17 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             pendingUnmuteRunnable = null
             // Final verification check before restoring audio
             val root = rootInActiveWindow
-            val (adStillPlaying, regularPlaying) = if (root != null) {
+            val adStillPlaying = if (root != null) {
                 try {
-                    Pair(inspectInStreamAdState(root, isYouTube), isRegularContentPlaying(root))
+                    inspectInStreamAdState(root, isYouTube)
                 } catch (e: Exception) {
-                    Pair(false, false)
+                    false
                 } finally {
                     root.recycle()
                 }
-            } else {
-                Pair(false, false)
-            }
+            } else false
 
-            if ((!adStillPlaying || regularPlaying) && audioController.isCurrentlyMuted()) {
+            if (!adStillPlaying && audioController.isCurrentlyMuted()) {
                 Log.i(TAG, "Ad ended confirmed after hysteresis debounce. Restoring volume.")
                 audioController.unmuteAdAudio()
                 stopActiveMutePoller()
@@ -324,7 +293,6 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 val root = rootInActiveWindow
                 if (root != null) {
                     consecutiveNullRoots = 0
-                    val regularPlaying = isRegularContentPlaying(root)
                     val adStillPlaying = try {
                         if (isAutoSkipEnabled) {
                             scanAndSkip(root, isYouTube)
@@ -336,13 +304,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         root.recycle()
                     }
 
-                    if (regularPlaying) {
-                        Log.i(TAG, "Active poller detected regular content. Immediately restoring audio!")
-                        cancelPendingUnmute()
-                        audioController.unmuteAdAudio()
-                        stopActiveMutePoller()
-                        return
-                    } else if (!adStillPlaying) {
+                    if (!adStillPlaying) {
                         scheduleDebouncedUnmute(isYouTube)
                     } else {
                         // Confirmed ad is still actively playing on screen: renew watchdog (for long 35-60s ads)
@@ -428,51 +390,100 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Dynamically calculates the player's bottom screen coordinate in portrait mode
-     * based on standard 16:9 player + minimal status bar padding.
-     * Bounded strictly between 28% and 33% so in-stream countdowns and buttons at the player's bottom edge are captured,
-     * while completely excluding recommendation cards, shopping carousels, and channel bars in the feed below (>40%).
-     * In landscape / full-screen, the player occupies the entire screen.
+     * Checks strictly for IN-STREAM video ads playing across ALL YouTube viewing modes:
+     * Mode 1: Full-Screen (Landscape or Fullscreen portrait - 100% canvas)
+     * Mode 2: Half-Screen / Top Player (Standard portrait 16:9 / 18:9)
+     * Mode 3: Minimized / Corner Floating Mini-Player (Bottom corner docked player)
+     *
+     * Reliably differentiates genuine in-stream video ads from static feed shopping cards.
      */
-    private fun getPlayerBottomBound(isYouTube: Boolean): Int {
+    private fun inspectInStreamAdState(root: AccessibilityNodeInfo, isYouTube: Boolean = true): Boolean {
         val screenHeight = Resources.getSystem().displayMetrics.heightPixels
         val screenWidth = Resources.getSystem().displayMetrics.widthPixels
         val isPortrait = screenHeight > screenWidth
-        if (!isPortrait || !isYouTube) return screenHeight
 
-        val dynamicHeight = (screenWidth * 9f / 16f) + (screenHeight * 0.04f)
-        val minCap = (screenHeight * 0.28f).toInt()
-        val maxCap = (screenHeight * 0.33f).toInt()
-        return dynamicHeight.toInt().coerceIn(minCap, maxCap)
-    }
+        // 1. Detect if YouTube is currently in Floating Corner Mini-Player mode
+        var miniplayerBounds: Rect? = null
+        if (isYouTube) {
+            for (miniId in DetectionDictionary.YOUTUBE_MINIPLAYER_IDS) {
+                val mNodes = root.findAccessibilityNodeInfosByViewId(miniId)
+                if (!mNodes.isNullOrEmpty()) {
+                    for (mNode in mNodes) {
+                        if (mNode.isVisibleToUser) {
+                            val r = Rect()
+                            mNode.getBoundsInScreen(r)
+                            // Miniplayer is small and typically at bottom or right corner
+                            if (r.width() in 50..(screenWidth * 0.95f).toInt() &&
+                                r.height() in 40..(screenHeight * 0.55f).toInt() &&
+                                r.bottom > (screenHeight * 0.5f).toInt()
+                            ) {
+                                miniplayerBounds = r
+                                mNode.recycle()
+                                break
+                            }
+                        }
+                        mNode.recycle()
+                    }
+                    if (miniplayerBounds != null) break
+                }
+            }
+        }
 
-    /**
-     * Checks strictly for IN-STREAM video ads playing in the video player area.
-     * Excludes static banner ads, sponsored products in the feed below, and normal video intros ("Skip intro").
-     */
-    private fun inspectInStreamAdState(root: AccessibilityNodeInfo, isYouTube: Boolean = true): Boolean {
-        val maxPlayerBottomY = getPlayerBottomBound(isYouTube)
+        // 2. Compute the valid video canvas bounds based on the detected mode:
+        // - In Landscape or Full-screen: entire screen is the video canvas
+        // - In Corner Mini-player: the miniplayer container bounds
+        // - In Standard Half-screen Portrait: top player canvas up to 42% of screen height
+        val validAdBounds = when {
+            !isPortrait || !isYouTube -> Rect(0, 0, screenWidth, screenHeight)
+            miniplayerBounds != null -> miniplayerBounds
+            else -> {
+                val dynamicHeight = (screenWidth * 9f / 16f) + (screenHeight * 0.06f)
+                val maxCap = (screenHeight * 0.42f).toInt()
+                val minCap = (screenHeight * 0.35f).toInt()
+                Rect(0, 0, screenWidth, dynamicHeight.toInt().coerceIn(minCap, maxCap))
+            }
+        }
 
-        // Helper to validate a node is genuinely visible on screen with real non-zero dimensions strictly inside player canvas
-        fun isValidOnScreenNode(node: AccessibilityNodeInfo, minW: Int = 14, minH: Int = 10): Rect? {
+        // Helper to validate a node is genuinely visible and resides within the active video canvas
+        fun isValidAdNode(node: AccessibilityNodeInfo, minW: Int = 10, minH: Int = 10): Rect? {
             if (!node.isVisibleToUser) return null
             val rect = Rect()
             node.getBoundsInScreen(rect)
             if (rect.width() < minW || rect.height() < minH) return null
             if (rect.left < 0 || rect.top < 0) return null
-            // Strictly enforce node is within video player boundaries (prevents matching feed/product cards below player)
-            if (rect.bottom > maxPlayerBottomY) return null
+
+            // Node must intersect the active video player canvas
+            if (!Rect.intersects(rect, validAdBounds)) return null
+
+            // In standard portrait mode, ensure node center does not leak into the feed below
+            if (isPortrait && isYouTube && miniplayerBounds == null) {
+                if (rect.centerY() > validAdBounds.bottom) return null
+            }
+
             return rect
         }
 
-        // 1. Check in-stream countdown & badge IDs (these IDs strictly belong to ad countdown timers and ad badges)
+        // Helper to check if a node is a static feed/shopping card rather than an in-stream video ad
+        fun isFeedShoppingCard(node: AccessibilityNodeInfo): Boolean {
+            val text = node.text?.toString()?.lowercase() ?: ""
+            val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+            val combined = "$text $desc"
+
+            val hasPrice = combined.contains("₹") || combined.contains("$") || combined.contains("€") || combined.contains("£")
+            val hasRating = combined.contains("★") || combined.contains("rating") || combined.contains("reviews")
+            val hasShopCues = DetectionDictionary.FEED_SHOPPING_KEYWORDS.any { combined.contains(it) }
+
+            return hasPrice || hasRating || hasShopCues
+        }
+
+        // Strategy 1: Check in-stream countdown & badge IDs inside active video bounds
         for (countdownId in DetectionDictionary.IN_STREAM_AD_COUNTDOWN_IDS) {
             val nodes = root.findAccessibilityNodeInfosByViewId(countdownId)
             if (!nodes.isNullOrEmpty()) {
                 var matched = false
                 for (node in nodes) {
-                    val rect = isValidOnScreenNode(node, minW = 10, minH = 10)
-                    if (rect != null) {
+                    val rect = isValidAdNode(node, minW = 10, minH = 10)
+                    if (rect != null && !isFeedShoppingCard(node)) {
                         val text = node.text?.toString()?.trim() ?: ""
                         val desc = node.contentDescription?.toString()?.trim() ?: ""
                         // Require actual non-blank text content (e.g., "0:05", "Ad 1 of 2", "5s")
@@ -486,14 +497,14 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             }
         }
 
-        // 2. Check if the Skip Ad button is visible in player area by View ID
+        // Strategy 2: Check if the Skip Ad button is visible in active player area by View ID
         for (skipId in DetectionDictionary.IN_STREAM_SKIP_BUTTON_IDS) {
             if (skipId.contains("container")) continue
             val nodes = root.findAccessibilityNodeInfosByViewId(skipId)
             if (!nodes.isNullOrEmpty()) {
                 var matched = false
                 for (node in nodes) {
-                    val rect = isValidOnScreenNode(node, minW = 15, minH = 15)
+                    val rect = isValidAdNode(node, minW = 15, minH = 15)
                     if (rect != null) {
                         val text = node.text?.toString()?.trim()?.lowercase() ?: ""
                         val desc = node.contentDescription?.toString()?.trim()?.lowercase() ?: ""
@@ -512,14 +523,14 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             }
         }
 
-        // 2b. Check Skip Ad button by text (for Jetpack Compose / Litho nodes lacking Android view IDs)
+        // Strategy 2b: Check Skip Ad button by text (for Jetpack Compose / Litho nodes lacking Android view IDs)
         for (keyword in DetectionDictionary.SKIP_BUTTON_TEXTS) {
             if (keyword.length >= 6 || keyword == "skip >" || keyword == "skip >>") {
                 val nodes = root.findAccessibilityNodeInfosByText(keyword)
                 if (!nodes.isNullOrEmpty()) {
                     var matched = false
                     for (node in nodes) {
-                        val rect = isValidOnScreenNode(node, minW = 15, minH = 15)
+                        val rect = isValidAdNode(node, minW = 15, minH = 15)
                         if (rect != null) {
                             val text = node.text?.toString()?.trim()?.lowercase() ?: ""
                             val desc = node.contentDescription?.toString()?.trim()?.lowercase() ?: ""
@@ -537,15 +548,14 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             }
         }
 
-        // 3. Check for in-stream countdown text markers & badges (e.g. "Sponsored · 0:15", "Ad 1 of 2", "Skip in 5s", "Sponsored")
-        val screenW = Resources.getSystem().displayMetrics.widthPixels
+        // Strategy 3: Check for in-stream countdown text markers & badges inside active video bounds
         for (marker in DetectionDictionary.IN_STREAM_COUNTDOWN_MARKERS) {
             val nodes = root.findAccessibilityNodeInfosByText(marker)
             if (!nodes.isNullOrEmpty()) {
                 var matched = false
                 for (node in nodes) {
-                    val rect = isValidOnScreenNode(node, minW = 10, minH = 10)
-                    if (rect != null) {
+                    val rect = isValidAdNode(node, minW = 10, minH = 10)
+                    if (rect != null && !isFeedShoppingCard(node)) {
                         val text = node.text?.toString()?.trim()?.lowercase() ?: ""
                         val desc = node.contentDescription?.toString()?.trim()?.lowercase() ?: ""
                         // Exclude track controls, channel controls, and subscriptions
@@ -559,23 +569,18 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                             val hasAdBullet = combined.contains("·") || combined.contains("•") || combined.contains(":")
                             val isMultiAd = combined.contains("1 of") || combined.contains("2 of") || combined.contains("1 sur") || combined.contains("1 de")
                             val isCountdownPhrase = marker.startsWith("skip in") || marker.startsWith("reward in") || marker.startsWith("ad will end in")
-                            val isCompactBadge = rect.width() < screenW * 0.65f && rect.height() < maxPlayerBottomY * 0.5f
+                            val isCompactBadge = rect.width() < screenWidth * 0.65f && rect.height() < validAdBounds.height() * 0.55f
                             val len = if (text.isNotEmpty()) text.length else desc.length
 
                             if (isCountdownPhrase) {
-                                if (hasDigits) {
-                                    matched = true
-                                }
+                                if (hasDigits) matched = true
                             } else if (marker.startsWith("video will play after") || marker.startsWith("your video will begin")) {
                                 matched = true
                             } else if (isMultiAd) {
                                 matched = true
                             } else if (hasAdBullet || hasDigits || marker.contains("·") || marker.contains("•")) {
-                                if (len in 1..40) {
-                                    matched = true
-                                }
+                                if (len in 1..40) matched = true
                             } else if (isCompactBadge && len in 1..40) {
-                                // For in-stream ad badges without countdown digits or bullets (e.g. lengthy ads showing just "Sponsored" or localized badge)
                                 val isSponsoredBadge = text == "sponsored" || desc == "sponsored" ||
                                         combined.startsWith("sponsored") ||
                                         text == "gesponsert" || desc == "gesponsert" ||
@@ -583,9 +588,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                                         text == "patrocinado" || desc == "patrocinado" ||
                                         text == "реклама" || desc == "реклама" ||
                                         text == "प्रायोजित" || desc == "प्रायोजित"
-                                if (isSponsoredBadge) {
-                                    matched = true
-                                }
+                                if (isSponsoredBadge) matched = true
                             }
                         }
                     }
@@ -595,15 +598,15 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             }
         }
 
-        // 3b. Check for exact in-stream "Ad" badges inside the video player canvas (crucial for lengthy ads without countdown)
+        // Strategy 3b: Check for exact in-stream "Ad" badges inside active video bounds
         val adBadgeMarkers = listOf("ad", "ad.", "ad:", "ad ·", "ad •")
         for (marker in adBadgeMarkers) {
             val nodes = root.findAccessibilityNodeInfosByText(marker)
             if (!nodes.isNullOrEmpty()) {
                 var matched = false
                 for (node in nodes) {
-                    val rect = isValidOnScreenNode(node, minW = 10, minH = 10)
-                    if (rect != null) {
+                    val rect = isValidAdNode(node, minW = 10, minH = 10)
+                    if (rect != null && !isFeedShoppingCard(node)) {
                         val text = node.text?.toString()?.trim()?.lowercase() ?: ""
                         val desc = node.contentDescription?.toString()?.trim()?.lowercase() ?: ""
                         if (!text.contains("intro") && !desc.contains("intro") &&
@@ -611,15 +614,13 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                             !text.contains("prev") && !desc.contains("prev") &&
                             !text.contains("subscribe") && !desc.contains("subscribe")
                         ) {
-                            val isCompactBadge = rect.width() < screenW * 0.65f && rect.height() < maxPlayerBottomY * 0.5f
+                            val isCompactBadge = rect.width() < screenWidth * 0.65f && rect.height() < validAdBounds.height() * 0.55f
                             val isExactAd = text == "ad" || desc == "ad" ||
                                     text.startsWith("ad ") || desc.startsWith("ad ") ||
                                     text.startsWith("ad ·") || desc.startsWith("ad ·") ||
                                     text.startsWith("ad •") || desc.startsWith("ad •") ||
                                     text.startsWith("ad:") || desc.startsWith("ad:")
-                            if (isCompactBadge && isExactAd) {
-                                matched = true
-                            }
+                            if (isCompactBadge && isExactAd) matched = true
                         }
                     }
                     node.recycle()
@@ -717,8 +718,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         val screenHeight = Resources.getSystem().displayMetrics.heightPixels
         val screenWidth = Resources.getSystem().displayMetrics.widthPixels
         val isPortrait = screenHeight > screenWidth
-        // Allow skip button anywhere within top 88% of screen in portrait (supporting 16:9, 1:1, 4:3, and vertical video ads)
-        val maxSkipBottomY = if (isPortrait && isYouTube) (screenHeight * 0.88f).toInt() else screenHeight
+        // Allow skip button anywhere on screen across all viewing modes (fullscreen, half-screen, and corner miniplayer)
+        val maxSkipBottomY = screenHeight
 
         // Strategy 1: Check known Skip Button IDs (these IDs only exist on ad skip buttons)
         for (viewId in DetectionDictionary.IN_STREAM_SKIP_BUTTON_IDS) {
