@@ -19,7 +19,7 @@ class AdAudioController(context: Context) {
 
     companion object {
         private const val TAG = "AdAudioController"
-        private const val DEFAULT_MUTE_WATCHDOG_MS = 120_000L // 120s (2 min) failsafe watchdog (safe for lengthier 45s-120s ads & back-to-back ads)
+        private const val DEFAULT_MUTE_WATCHDOG_MS = 35_000L // 35s failsafe watchdog (safe for all ads; active poller dynamically extends for lengthier 45s-120s ads)
         private const val DEFAULT_FALLBACK_VOLUME = 8
     }
 

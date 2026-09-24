@@ -32,7 +32,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         private const val TAG = "SkipFlowService"
         private const val CLICK_DEBOUNCE_MS = 250L
         private const val BANNER_DEBOUNCE_MS = 1200L
-        private const val UNMUTE_CONFIRMATION_DELAY_MS = 350L // Fast 350ms hysteresis prevents transient audio blips during countdown ticks while restoring volume promptly
+        private const val UNMUTE_CONFIRMATION_DELAY_MS = 250L // Fast 250ms hysteresis prevents transient audio blips during countdown ticks while restoring volume promptly
         private const val ACTIVE_MUTE_POLL_INTERVAL_MS = 150L // Rapid 150ms check ensures instant skip execution the millisecond the button appears
 
         private val _isServiceActive = MutableStateFlow(false)
@@ -429,9 +429,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
     /**
      * Dynamically calculates the player's bottom screen coordinate in portrait mode
-     * based on a standard 16:9, 18:9, or square 1:1 player + status bar/header padding.
-     * Bounded strictly between 36% and 48% so in-stream countdowns and buttons at the player's bottom edge are never missed,
-     * while safely excluding recommendation and product cards in the feed below.
+     * based on standard 16:9 player + minimal status bar padding.
+     * Bounded strictly between 28% and 33% so in-stream countdowns and buttons at the player's bottom edge are captured,
+     * while completely excluding recommendation cards, shopping carousels, and channel bars in the feed below (>40%).
      * In landscape / full-screen, the player occupies the entire screen.
      */
     private fun getPlayerBottomBound(isYouTube: Boolean): Int {
@@ -440,9 +440,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         val isPortrait = screenHeight > screenWidth
         if (!isPortrait || !isYouTube) return screenHeight
 
-        val dynamicHeight = (screenWidth * 9f / 16f) + (screenHeight * 0.08f)
-        val minCap = (screenHeight * 0.36f).toInt()
-        val maxCap = (screenHeight * 0.48f).toInt()
+        val dynamicHeight = (screenWidth * 9f / 16f) + (screenHeight * 0.04f)
+        val minCap = (screenHeight * 0.28f).toInt()
+        val maxCap = (screenHeight * 0.33f).toInt()
         return dynamicHeight.toInt().coerceIn(minCap, maxCap)
     }
 
@@ -465,7 +465,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             return rect
         }
 
-        // 1. Check in-stream countdown & overlay IDs (these IDs strictly belong to ad countdown timers and ad badges)
+        // 1. Check in-stream countdown & badge IDs (these IDs strictly belong to ad countdown timers and ad badges)
         for (countdownId in DetectionDictionary.IN_STREAM_AD_COUNTDOWN_IDS) {
             val nodes = root.findAccessibilityNodeInfosByViewId(countdownId)
             if (!nodes.isNullOrEmpty()) {
@@ -475,8 +475,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     if (rect != null) {
                         val text = node.text?.toString()?.trim() ?: ""
                         val desc = node.contentDescription?.toString()?.trim() ?: ""
-                        // Require actual non-blank content (e.g., "0:05", "Ad 1 of 2", "5s") or container with children
-                        if (text.isNotBlank() || desc.isNotBlank() || node.childCount > 0) {
+                        // Require actual non-blank text content (e.g., "0:05", "Ad 1 of 2", "5s")
+                        if (text.isNotBlank() || desc.isNotBlank()) {
                             matched = true
                         }
                     }
@@ -501,7 +501,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                             !text.contains("next") && !desc.contains("next") &&
                             !text.contains("prev") && !desc.contains("prev")
                         ) {
-                            if (text.isNotBlank() || desc.isNotBlank() || node.childCount > 0) {
+                            if (text.isNotBlank() || desc.isNotBlank()) {
                                 matched = true
                             }
                         }
@@ -553,15 +553,22 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                             !text.contains("prev") && !desc.contains("prev") &&
                             !text.contains("subscribe") && !desc.contains("subscribe")
                         ) {
-                            if (marker.startsWith("skip in") || marker.startsWith("reward in") || marker.startsWith("ad will end in")) {
-                                if (text.any { it.isDigit() } || desc.any { it.isDigit() }) {
+                            val combined = "$text $desc"
+                            val hasDigits = combined.any { it.isDigit() }
+                            val hasAdBullet = combined.contains("·") || combined.contains("•") || combined.contains(":")
+                            val isMultiAd = combined.contains("1 of") || combined.contains("2 of") || combined.contains("1 sur") || combined.contains("1 de")
+                            val isCountdownPhrase = marker.startsWith("skip in") || marker.startsWith("reward in") || marker.startsWith("ad will end in")
+
+                            if (isCountdownPhrase) {
+                                if (hasDigits) {
                                     matched = true
                                 }
-                            } else {
-                                // For short badges like "sponsored", "ad ·", "ad •", "patrocinado", etc.
-                                // Ensure it's a short badge label (<= 30 chars), not a regular video title/paragraph
+                            } else if (marker.startsWith("video will play after") || marker.startsWith("your video will begin")) {
+                                matched = true
+                            } else if (hasAdBullet || hasDigits || isMultiAd || marker.contains("·") || marker.contains("•")) {
+                                // For in-stream ad badges (short, length <= 35, containing separator bullet or countdown digits)
                                 val len = if (text.isNotEmpty()) text.length else desc.length
-                                if (len in 1..30) {
+                                if (len in 1..35) {
                                     matched = true
                                 }
                             }
@@ -843,7 +850,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         }
         if (isAutoMuteEnabled) {
             cancelPendingUnmute()
-            // Schedule prompt verification check after 350ms:
+            // Schedule prompt verification check after 200ms:
             // Checks if the ad actually ended, or if Ad 2 of 2 is playing.
             // If ad is confirmed gone, restores audio immediately!
             mainHandler.postDelayed({
@@ -863,7 +870,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     audioController.unmuteAdAudio()
                     stopActiveMutePoller()
                 }
-            }, 350L)
+            }, 200L)
         }
     }
 
