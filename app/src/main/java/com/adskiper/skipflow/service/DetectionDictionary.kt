@@ -79,6 +79,10 @@ object DetectionDictionary {
         "com.google.android.youtube:id/ad_progress_text",
         "com.google.android.youtube:id/ad_countdown_text",
         "com.google.android.youtube:id/ad_time_remaining",
+        "com.google.android.youtube:id/countdown_text",
+        "com.google.android.youtube:id/ad_badge",
+        "com.google.android.youtube:id/instream_ad_player_overlay",
+        "com.google.android.youtube:id/ad_player_overlay",
         "in.startv.hotstar:id/ad_timer",
         "in.startv.hotstar:id/ad_countdown",
         "com.jio.media.ondemand:id/ad_timer",
@@ -90,7 +94,9 @@ object DetectionDictionary {
         "ad_progress_text",
         "ad_countdown_text",
         "ad_time_remaining",
-        "ad_timer"
+        "countdown_text",
+        "ad_timer",
+        "ad_badge"
     )
 
     // IDs strictly indicating regular content is currently active on screen (used to confirm regular playback)
@@ -188,21 +194,59 @@ object DetectionDictionary {
 
     // Exact in-stream countdown phrases that only appear during in-stream video ads
     val IN_STREAM_COUNTDOWN_MARKERS = setOf(
+        // Modern YouTube single ad & countdown badges
+        "sponsored ·",
+        "sponsored •",
+        "sponsored",
+        "ad ·",
+        "ad •",
+        "ad:",
+        "ad :",
+        // Multi-ad indicators
         "ad 1 of",
         "ad 2 of",
         "ad 3 of",
         "ad 1 of 1",
         "ad 1 of 2",
         "ad 2 of 2",
+        // General in-stream video ad status phrases
         "video will play after ad",
+        "video will play after",
         "your video will begin shortly",
+        "visit advertiser",
+        "advertisement",
         "skip in",
         "reward in",
         "ad will end in",
+        // Multi-language ad markers
         "anuncio 1 de 2",
         "anuncio 2 de 2",
+        "anuncio ·",
+        "patrocinado ·",
+        "patrocinado",
         "publicité 1 sur 2",
-        "werbung 1 von 2"
+        "publicité ·",
+        "sponsorisé ·",
+        "sponsorisé",
+        "werbung 1 von 2",
+        "werbung ·",
+        "gesponsert ·",
+        "gesponsert",
+        "реклама 1 из 2",
+        "реклама ·",
+        "реклама",
+        "спонсируется",
+        "प्रायोजित ·",
+        "प्रायोजित",
+        "광고 1/2",
+        "광고 ·",
+        "광고",
+        "广告 1/2",
+        "广告 ·",
+        "廣告 ·",
+        "広告 1/2",
+        "広告 ·",
+        "広告"
     )
 
     // Multi-language text and contentDescription for closing banner ads

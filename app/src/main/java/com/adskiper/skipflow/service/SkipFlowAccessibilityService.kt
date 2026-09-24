@@ -32,7 +32,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         private const val TAG = "SkipFlowService"
         private const val CLICK_DEBOUNCE_MS = 250L
         private const val BANNER_DEBOUNCE_MS = 1200L
-        private const val UNMUTE_CONFIRMATION_DELAY_MS = 500L // Fast 500ms hysteresis prevents transient audio blips while restoring volume promptly
+        private const val UNMUTE_CONFIRMATION_DELAY_MS = 350L // Fast 350ms hysteresis prevents transient audio blips during countdown ticks while restoring volume promptly
         private const val ACTIVE_MUTE_POLL_INTERVAL_MS = 150L // Rapid 150ms check ensures instant skip execution the millisecond the button appears
 
         private val _isServiceActive = MutableStateFlow(false)
@@ -214,15 +214,23 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             // 2. In-stream video ad detection (audio muting) - active for YouTube & OTT platforms
             if ((isYouTube || isOtt) && isAutoMuteEnabled) {
                 val inStreamAdActive = inspectInStreamAdState(rootNode, isYouTube)
-                if (inStreamAdActive) {
+                val regularContentActive = isRegularContentPlaying(rootNode)
+
+                if (inStreamAdActive && !regularContentActive) {
                     cancelPendingUnmute()
                     audioController.muteAdAudio()
                     startActiveMutePoller(isYouTube, isOtt)
                 } else if (audioController.isCurrentlyMuted()) {
-                    Log.i(TAG, "In-stream ad not active. Immediately restoring audio!")
-                    cancelPendingUnmute()
-                    audioController.unmuteAdAudio()
-                    stopActiveMutePoller()
+                    if (regularContentActive) {
+                        Log.i(TAG, "Regular content playing confirmed! Immediately restoring audio.")
+                        cancelPendingUnmute()
+                        audioController.unmuteAdAudio()
+                        stopActiveMutePoller()
+                    } else {
+                        // In-stream ad not detected, but regular content controls are not yet visible.
+                        // Debounce unmute by 350ms to prevent audio flicker during ad ticks / frame transitions.
+                        scheduleDebouncedUnmute(isYouTube)
+                    }
                 }
             }
 
@@ -263,17 +271,19 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             pendingUnmuteRunnable = null
             // Final verification check before restoring audio
             val root = rootInActiveWindow
-            val adStillPlaying = if (root != null) {
+            val (adStillPlaying, regularPlaying) = if (root != null) {
                 try {
-                    inspectInStreamAdState(root, isYouTube)
+                    Pair(inspectInStreamAdState(root, isYouTube), isRegularContentPlaying(root))
+                } catch (e: Exception) {
+                    Pair(false, false)
                 } finally {
                     root.recycle()
                 }
             } else {
-                false
+                Pair(false, false)
             }
 
-            if (!adStillPlaying && audioController.isCurrentlyMuted()) {
+            if ((!adStillPlaying || regularPlaying) && audioController.isCurrentlyMuted()) {
                 Log.i(TAG, "Ad ended confirmed after hysteresis debounce. Restoring volume.")
                 audioController.unmuteAdAudio()
                 stopActiveMutePoller()
@@ -326,14 +336,17 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         root.recycle()
                     }
 
-                    if (!adStillPlaying || regularPlaying) {
-                        Log.i(TAG, "Active poller detected regular content / ad ended. Immediately restoring audio!")
+                    if (regularPlaying) {
+                        Log.i(TAG, "Active poller detected regular content. Immediately restoring audio!")
                         cancelPendingUnmute()
                         audioController.unmuteAdAudio()
                         stopActiveMutePoller()
                         return
+                    } else if (!adStillPlaying) {
+                        scheduleDebouncedUnmute(isYouTube)
                     } else {
                         // Confirmed ad is still actively playing on screen: renew watchdog (for long 35-60s ads)
+                        cancelPendingUnmute()
                         audioController.renewWatchdogIfConfirmedAd(15_000L)
                     }
                 } else {
@@ -417,7 +430,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     /**
      * Dynamically calculates the player's bottom screen coordinate in portrait mode
      * based on a standard 16:9, 18:9, or square 1:1 player + status bar/header padding.
-     * Bounded strictly between 36% and 50% so in-stream countdowns and buttons at the player's bottom edge are never missed.
+     * Bounded strictly between 36% and 48% so in-stream countdowns and buttons at the player's bottom edge are never missed,
+     * while safely excluding recommendation and product cards in the feed below.
      * In landscape / full-screen, the player occupies the entire screen.
      */
     private fun getPlayerBottomBound(isYouTube: Boolean): Int {
@@ -428,29 +442,30 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
         val dynamicHeight = (screenWidth * 9f / 16f) + (screenHeight * 0.08f)
         val minCap = (screenHeight * 0.36f).toInt()
-        val maxCap = (screenHeight * 0.50f).toInt()
+        val maxCap = (screenHeight * 0.48f).toInt()
         return dynamicHeight.toInt().coerceIn(minCap, maxCap)
     }
 
     /**
      * Checks strictly for IN-STREAM video ads playing in the video player area.
-     * Excludes static banner ads, sponsored products, and normal video intros ("Skip intro").
+     * Excludes static banner ads, sponsored products in the feed below, and normal video intros ("Skip intro").
      */
     private fun inspectInStreamAdState(root: AccessibilityNodeInfo, isYouTube: Boolean = true): Boolean {
         val maxPlayerBottomY = getPlayerBottomBound(isYouTube)
 
-        // Helper to validate a node is genuinely visible on screen with real non-zero dimensions
-        fun isValidOnScreenNode(node: AccessibilityNodeInfo, minW: Int = 18, minH: Int = 14): Rect? {
+        // Helper to validate a node is genuinely visible on screen with real non-zero dimensions strictly inside player canvas
+        fun isValidOnScreenNode(node: AccessibilityNodeInfo, minW: Int = 14, minH: Int = 10): Rect? {
             if (!node.isVisibleToUser) return null
             val rect = Rect()
             node.getBoundsInScreen(rect)
             if (rect.width() < minW || rect.height() < minH) return null
             if (rect.left < 0 || rect.top < 0) return null
-            if (rect.top >= maxPlayerBottomY) return null
+            // Strictly enforce node is within video player boundaries (prevents matching feed/product cards below player)
+            if (rect.bottom > maxPlayerBottomY) return null
             return rect
         }
 
-        // 1. Check in-stream countdown IDs (these IDs strictly belong to ad countdown timers)
+        // 1. Check in-stream countdown & overlay IDs (these IDs strictly belong to ad countdown timers and ad badges)
         for (countdownId in DetectionDictionary.IN_STREAM_AD_COUNTDOWN_IDS) {
             val nodes = root.findAccessibilityNodeInfosByViewId(countdownId)
             if (!nodes.isNullOrEmpty()) {
@@ -460,8 +475,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     if (rect != null) {
                         val text = node.text?.toString()?.trim() ?: ""
                         val desc = node.contentDescription?.toString()?.trim() ?: ""
-                        // Require actual non-blank content (e.g., "0:05", "Ad 1 of 2", "5s")
-                        if (text.isNotBlank() || desc.isNotBlank()) {
+                        // Require actual non-blank content (e.g., "0:05", "Ad 1 of 2", "5s") or container with children
+                        if (text.isNotBlank() || desc.isNotBlank() || node.childCount > 0) {
                             matched = true
                         }
                     }
@@ -471,14 +486,14 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             }
         }
 
-        // 2. Check if the Skip Ad button is visible in player area
+        // 2. Check if the Skip Ad button is visible in player area by View ID
         for (skipId in DetectionDictionary.IN_STREAM_SKIP_BUTTON_IDS) {
             if (skipId.contains("container")) continue
             val nodes = root.findAccessibilityNodeInfosByViewId(skipId)
             if (!nodes.isNullOrEmpty()) {
                 var matched = false
                 for (node in nodes) {
-                    val rect = isValidOnScreenNode(node, minW = 20, minH = 15)
+                    val rect = isValidOnScreenNode(node, minW = 15, minH = 15)
                     if (rect != null) {
                         val text = node.text?.toString()?.trim()?.lowercase() ?: ""
                         val desc = node.contentDescription?.toString()?.trim()?.lowercase() ?: ""
@@ -497,26 +512,58 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             }
         }
 
-        // 3. Check for in-stream countdown text markers (e.g. "Ad 1 of 2", "Skip in 5s", "Video will play after ad")
+        // 2b. Check Skip Ad button by text (for Jetpack Compose / Litho nodes lacking Android view IDs)
+        for (keyword in DetectionDictionary.SKIP_BUTTON_TEXTS) {
+            if (keyword.length >= 6 || keyword == "skip >" || keyword == "skip >>") {
+                val nodes = root.findAccessibilityNodeInfosByText(keyword)
+                if (!nodes.isNullOrEmpty()) {
+                    var matched = false
+                    for (node in nodes) {
+                        val rect = isValidOnScreenNode(node, minW = 15, minH = 15)
+                        if (rect != null) {
+                            val text = node.text?.toString()?.trim()?.lowercase() ?: ""
+                            val desc = node.contentDescription?.toString()?.trim()?.lowercase() ?: ""
+                            if (!text.contains("intro") && !desc.contains("intro") &&
+                                !text.contains("next") && !desc.contains("next") &&
+                                !text.contains("prev") && !desc.contains("prev")
+                            ) {
+                                matched = true
+                            }
+                        }
+                        node.recycle()
+                    }
+                    if (matched) return true
+                }
+            }
+        }
+
+        // 3. Check for in-stream countdown text markers & badges (e.g. "Sponsored · 0:15", "Ad 1 of 2", "Skip in 5s")
         for (marker in DetectionDictionary.IN_STREAM_COUNTDOWN_MARKERS) {
             val nodes = root.findAccessibilityNodeInfosByText(marker)
             if (!nodes.isNullOrEmpty()) {
                 var matched = false
                 for (node in nodes) {
-                    val rect = isValidOnScreenNode(node, minW = 12, minH = 10)
+                    val rect = isValidOnScreenNode(node, minW = 10, minH = 10)
                     if (rect != null) {
                         val text = node.text?.toString()?.trim()?.lowercase() ?: ""
                         val desc = node.contentDescription?.toString()?.trim()?.lowercase() ?: ""
-                        // Exclude "Skip intro"
+                        // Exclude track controls, channel controls, and subscriptions
                         if (!text.contains("intro") && !desc.contains("intro") &&
-                            !text.contains("next") && !desc.contains("next")
+                            !text.contains("next") && !desc.contains("next") &&
+                            !text.contains("prev") && !desc.contains("prev") &&
+                            !text.contains("subscribe") && !desc.contains("subscribe")
                         ) {
-                            if (marker.startsWith("skip in") || marker.startsWith("reward in")) {
+                            if (marker.startsWith("skip in") || marker.startsWith("reward in") || marker.startsWith("ad will end in")) {
                                 if (text.any { it.isDigit() } || desc.any { it.isDigit() }) {
                                     matched = true
                                 }
                             } else {
-                                matched = true
+                                // For short badges like "sponsored", "ad ·", "ad •", "patrocinado", etc.
+                                // Ensure it's a short badge label (<= 30 chars), not a regular video title/paragraph
+                                val len = if (text.isNotEmpty()) text.length else desc.length
+                                if (len in 1..30) {
+                                    matched = true
+                                }
                             }
                         }
                     }

@@ -19,7 +19,7 @@ class AdAudioController(context: Context) {
 
     companion object {
         private const val TAG = "AdAudioController"
-        private const val DEFAULT_MUTE_WATCHDOG_MS = 35_000L // 35s failsafe watchdog (safe for all standard non-skippable ads)
+        private const val DEFAULT_MUTE_WATCHDOG_MS = 120_000L // 120s (2 min) failsafe watchdog (safe for lengthier 45s-120s ads & back-to-back ads)
         private const val DEFAULT_FALLBACK_VOLUME = 8
     }
 
@@ -40,6 +40,11 @@ class AdAudioController(context: Context) {
                 savedVolume = lastKnownUserVolume
             }
 
+            try {
+                audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
+            } catch (e: Exception) {
+                // ignore
+            }
             audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
             isMuted = true
             muteStartTime = SystemClock.elapsedRealtime()
@@ -59,6 +64,11 @@ class AdAudioController(context: Context) {
                 val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
                 if (currentVol == 0) {
                     val restoreVol = if (savedVolume > 0) savedVolume else lastKnownUserVolume
+                    try {
+                        audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
+                    } catch (e: Exception) {
+                        // ignore
+                    }
                     audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, restoreVol, 0)
                     Log.i(TAG, "Failsafe recovered silent stream volume to: $restoreVol")
                 }
@@ -70,6 +80,11 @@ class AdAudioController(context: Context) {
 
         try {
             val restoreVol = if (savedVolume > 0) savedVolume else lastKnownUserVolume
+            try {
+                audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
+            } catch (e: Exception) {
+                // ignore
+            }
             audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, restoreVol, 0)
             isMuted = false
             muteStartTime = 0L
@@ -118,8 +133,20 @@ class AdAudioController(context: Context) {
             if (currentVol > 0) {
                 savedVolume = currentVol
                 lastKnownUserVolume = currentVol
+                try {
+                    audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
+                } catch (e: Exception) {
+                    // ignore
+                }
                 audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
                 Log.i(TAG, "Re-enforced mute: silenced stream that raised to $currentVol")
+            } else {
+                try {
+                    audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
+                } catch (e: Exception) {
+                    // ignore
+                }
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
             }
         } catch (e: Exception) {
             // ignore
