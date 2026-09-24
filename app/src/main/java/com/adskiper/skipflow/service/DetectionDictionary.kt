@@ -79,12 +79,6 @@ object DetectionDictionary {
         "com.google.android.youtube:id/ad_progress_text",
         "com.google.android.youtube:id/ad_countdown_text",
         "com.google.android.youtube:id/ad_time_remaining",
-        "com.google.android.youtube:id/countdown_text",
-        "com.google.android.youtube:id/ad_badge",
-        "com.google.android.youtube:id/ad_badge_text",
-        "com.google.android.youtube:id/ad_headline",
-        "com.google.android.youtube:id/ad_info_button",
-        "com.google.android.youtube:id/visit_advertiser_button",
         "in.startv.hotstar:id/ad_timer",
         "in.startv.hotstar:id/ad_countdown",
         "com.jio.media.ondemand:id/ad_timer",
@@ -96,13 +90,7 @@ object DetectionDictionary {
         "ad_progress_text",
         "ad_countdown_text",
         "ad_time_remaining",
-        "countdown_text",
-        "ad_timer",
-        "ad_badge",
-        "ad_badge_text",
-        "ad_headline",
-        "ad_info_button",
-        "visit_advertiser_button"
+        "ad_timer"
     )
 
     // IDs for YouTube floating miniplayer / PiP container views
@@ -212,7 +200,6 @@ object DetectionDictionary {
         // Modern YouTube single ad & countdown badges
         "sponsored ·",
         "sponsored •",
-        "sponsored",
         "ad ·",
         "ad •",
         "ad:",
@@ -236,30 +223,22 @@ object DetectionDictionary {
         "anuncio 2 de 2",
         "anuncio ·",
         "patrocinado ·",
-        "patrocinado",
         "publicité 1 sur 2",
         "publicité ·",
         "sponsorisé ·",
-        "sponsorisé",
         "werbung 1 von 2",
         "werbung ·",
         "gesponsert ·",
-        "gesponsert",
         "реклама 1 из 2",
         "реклама ·",
-        "реклама",
-        "спонсируется",
         "प्रायोजित ·",
-        "प्रायोजित",
         "광고 1/2",
         "광고 ·",
-        "광고",
         "广告 1/2",
         "广告 ·",
         "廣告 ·",
         "広告 1/2",
-        "広告 ·",
-        "広告"
+        "広告 ·"
     )
 
     // Multi-language text and contentDescription for closing banner ads

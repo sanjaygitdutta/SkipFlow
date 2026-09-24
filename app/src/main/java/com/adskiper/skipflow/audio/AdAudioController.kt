@@ -58,28 +58,15 @@ class AdAudioController(context: Context) {
     @Synchronized
     fun unmuteAdAudio() {
         cancelAutonomousWatchdog()
-        if (!isMuted) {
-            // Failsafe: if stream volume is 0 when content is playing, recover it immediately
-            try {
-                val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-                if (currentVol == 0) {
-                    val restoreVol = if (savedVolume > 0) savedVolume else lastKnownUserVolume
-                    try {
-                        audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
-                    } catch (e: Exception) {
-                        // ignore
-                    }
-                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, restoreVol, 0)
-                    Log.i(TAG, "Failsafe recovered silent stream volume to: $restoreVol")
-                }
-            } catch (e: Exception) {
-                // ignore
-            }
-            return
-        }
-
         try {
-            val restoreVol = if (savedVolume > 0) savedVolume else lastKnownUserVolume
+            val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            val safeFallback = if (maxVol > 0) (maxVol * 0.6f).toInt().coerceAtLeast(5) else DEFAULT_FALLBACK_VOLUME
+            val restoreVol = when {
+                savedVolume > 0 -> savedVolume
+                lastKnownUserVolume > 0 -> lastKnownUserVolume
+                else -> safeFallback
+            }
+
             try {
                 audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
             } catch (e: Exception) {
@@ -88,7 +75,7 @@ class AdAudioController(context: Context) {
             audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, restoreVol, 0)
             isMuted = false
             muteStartTime = 0L
-            Log.i(TAG, "Restored audio volume to: $restoreVol")
+            Log.i(TAG, "Restored audio volume to: $restoreVol (isMuted cleared)")
         } catch (e: Exception) {
             Log.e(TAG, "Error unmuting ad audio", e)
         }
