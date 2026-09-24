@@ -432,14 +432,14 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         // 2. Compute the valid video canvas bounds based on the detected mode:
         // - In Landscape or Full-screen: entire screen is the video canvas
         // - In Corner Mini-player: the miniplayer container bounds
-        // - In Standard Half-screen Portrait: top player canvas up to 42% of screen height
+        // - In Standard Half-screen Portrait: top player canvas strictly bounded up to 33% of screen height
         val validAdBounds = when {
             !isPortrait || !isYouTube -> Rect(0, 0, screenWidth, screenHeight)
             miniplayerBounds != null -> miniplayerBounds
             else -> {
-                val dynamicHeight = (screenWidth * 9f / 16f) + (screenHeight * 0.06f)
-                val maxCap = (screenHeight * 0.42f).toInt()
-                val minCap = (screenHeight * 0.35f).toInt()
+                val dynamicHeight = (screenWidth * 9f / 16f) + (screenHeight * 0.04f)
+                val maxCap = (screenHeight * 0.33f).toInt()
+                val minCap = (screenHeight * 0.28f).toInt()
                 Rect(0, 0, screenWidth, dynamicHeight.toInt().coerceIn(minCap, maxCap))
             }
         }
@@ -578,17 +578,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                                 matched = true
                             } else if (isMultiAd) {
                                 matched = true
-                            } else if (hasAdBullet || hasDigits || marker.contains("·") || marker.contains("•")) {
+                            } else if (hasAdBullet || hasDigits || marker.contains("·") || marker.contains("•") || marker.contains(":")) {
                                 if (len in 1..40) matched = true
-                            } else if (isCompactBadge && len in 1..40) {
-                                val isSponsoredBadge = text == "sponsored" || desc == "sponsored" ||
-                                        combined.startsWith("sponsored") ||
-                                        text == "gesponsert" || desc == "gesponsert" ||
-                                        text == "sponsorisé" || desc == "sponsorisé" ||
-                                        text == "patrocinado" || desc == "patrocinado" ||
-                                        text == "реклама" || desc == "реклама" ||
-                                        text == "प्रायोजित" || desc == "प्रायोजित"
-                                if (isSponsoredBadge) matched = true
                             }
                         }
                     }
@@ -598,8 +589,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             }
         }
 
-        // Strategy 3b: Check for exact in-stream "Ad" badges inside active video bounds
-        val adBadgeMarkers = listOf("ad", "ad.", "ad:", "ad ·", "ad •")
+        // Strategy 3b: Check for in-stream "Ad" badges containing separator bullet or colon
+        val adBadgeMarkers = listOf("ad ·", "ad •", "ad:", "ad :", "sponsored ·", "sponsored •")
         for (marker in adBadgeMarkers) {
             val nodes = root.findAccessibilityNodeInfosByText(marker)
             if (!nodes.isNullOrEmpty()) {
@@ -608,19 +599,17 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     val rect = isValidAdNode(node, minW = 10, minH = 10)
                     if (rect != null && !isFeedShoppingCard(node)) {
                         val text = node.text?.toString()?.trim()?.lowercase() ?: ""
-                        val desc = node.contentDescription?.toString()?.trim()?.lowercase() ?: ""
+                        val desc = node.contentDescription?.toString()?.trim() ?: ""
                         if (!text.contains("intro") && !desc.contains("intro") &&
                             !text.contains("next") && !desc.contains("next") &&
                             !text.contains("prev") && !desc.contains("prev") &&
                             !text.contains("subscribe") && !desc.contains("subscribe")
                         ) {
-                            val isCompactBadge = rect.width() < screenWidth * 0.65f && rect.height() < validAdBounds.height() * 0.55f
-                            val isExactAd = text == "ad" || desc == "ad" ||
-                                    text.startsWith("ad ") || desc.startsWith("ad ") ||
-                                    text.startsWith("ad ·") || desc.startsWith("ad ·") ||
-                                    text.startsWith("ad •") || desc.startsWith("ad •") ||
-                                    text.startsWith("ad:") || desc.startsWith("ad:")
-                            if (isCompactBadge && isExactAd) matched = true
+                            val combined = "$text $desc"
+                            val hasBullet = combined.contains("·") || combined.contains("•") || combined.contains(":")
+                            if (hasBullet && combined.length in 1..40) {
+                                matched = true
+                            }
                         }
                     }
                     node.recycle()

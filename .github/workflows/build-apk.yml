@@ -41,41 +41,39 @@ jobs:
 
       - name: Prepare APKs for Release
         run: |
-          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.2.3.apk
-          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.2.3-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.2.4.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.2.4-debug.apk
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SkipFlow-v1.2.3-Release-APK
-          path: SkipFlow-v1.2.3.apk
+          name: SkipFlow-v1.2.4-Release-APK
+          path: SkipFlow-v1.2.4.apk
           retention-days: 30
 
       - name: Create GitHub Release with Direct APK Download
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.2.3
-          name: "SkipFlow v1.2.3 (Intelligent Multi-Mode Ad Detection: Fullscreen, Half-screen & Corner Miniplayer)"
+          tag_name: v1.2.4
+          name: "SkipFlow v1.2.4 (Permanent Fix: 100% Guaranteed Content Audio & In-Stream Ad Muting)"
           body: |
-            ### ⏩ SkipFlow v1.2.3 — Intelligent Multi-Mode Ad Detection
+            ### ⏩ SkipFlow v1.2.4 — Guaranteed Content Audio & In-Stream Ad Muting
 
-            #### 🌟 What's Fixed in v1.2.3:
-            - 📱 **Intelligent Multi-Mode Ad Detection (All YouTube Formats)**:
-              - **Mode 1: Full-Screen Mode** (Landscape or Rotated Fullscreen) — 100% video canvas coverage.
-              - **Mode 2: Half-Screen / Top Player** (Standard Portrait) — dynamic 16:9/18:9 boundary (`35%–42%`) capturing bottom-edge ad buttons without cutting off on tall screens.
-              - **Mode 3: Minimized / Corner Floating Mini-Player** — detects YouTube's floating miniplayer and docked PiP windows. Even when videos are shrunk into a tiny corner, ads are detected, muted, and skipped.
-            - 🚫 **Eliminated `time_bar` Mute Blocker**:
-              - Removed the conflict where YouTube's progress seekbar (`time_bar`) prevented real in-stream ads from muting. In-stream ad detection now takes absolute priority: **0ms instant mute**.
-            - 🛡️ **Intelligent Feed Shopping Card Filter**:
-              - Explicitly filters out static recommendation cards and sponsored products in the feed below by checking for shopping cues (prices `₹`/`$`, "Shop now", "Buy now", star ratings `★`) and viewport boundaries.
-            - ⚡ **Zero-Delay Post-Ad Audio Restoration (200ms)**:
-              - Restores the original video sound the instant the ad finishes or is skipped.
-            - 🎯 **Universal Skip Execution**:
-              - Actionable Skip Ad buttons are clicked anywhere on screen across all 3 viewing modes with dual hardware tap gestures.
+            #### 🌟 What's Fixed in v1.2.4:
+            - 🔊 **Guaranteed Content Audio Playback (Zero Phantom Muting)**:
+              - Fixed the issue where normal video sound was muted due to feed recommendation cards below the video player matching static "Sponsored" labels.
+              - In-stream ad badges now strictly require separator bullets (`·`, `•`, `:`) or countdown digits (`0:15`, `5s`) or multi-ad indicators (`1 of 2`). Static plain feed labels without bullets are completely ignored.
+              - Clamped the portrait player boundary strictly to 33% of the screen, physically excluding recommendation cards and shopping feeds below the player.
+            - ⚡ **Zero-Delay Audio Restoration (200ms)**:
+              - Normal video sound restores instantly (200ms) the moment an ad finishes or is skipped.
+            - ⏱️ **Full Support for Lengthy Ads (45s–120s+)**:
+              - Autonomous 150ms active poller keeps lengthy ads muted by dynamically extending the watchdog while confirming real in-stream ad indicators.
+            - 📱 **Multi-Mode Support**:
+              - Supports Fullscreen, Standard Portrait, and Corner Floating Mini-player.
 
-            > 💡 **Recommended**: Download **SkipFlow-v1.2.3.apk** (Release, Signed).
+            > 💡 **Recommended**: Download **SkipFlow-v1.2.4.apk** (Release, Signed).
           files: |
-            SkipFlow-v1.2.3.apk
-            SkipFlow-v1.2.3-debug.apk
+            SkipFlow-v1.2.4.apk
+            SkipFlow-v1.2.4-debug.apk
           prerelease: false
