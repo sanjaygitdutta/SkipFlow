@@ -101,6 +101,7 @@ class AdAudioController(context: Context) {
     @Synchronized
     fun renewWatchdogIfConfirmedAd(extensionMs: Long = 15_000L) {
         if (!isMuted) return
+        ensureMuted()
         muteStartTime = SystemClock.elapsedRealtime()
         scheduleAutonomousWatchdog(extensionMs)
     }

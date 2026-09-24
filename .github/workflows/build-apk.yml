@@ -41,39 +41,39 @@ jobs:
 
       - name: Prepare APKs for Release
         run: |
-          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.2.1.apk
-          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.2.1-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.2.2.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.2.2-debug.apk
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SkipFlow-v1.2.1-Release-APK
-          path: SkipFlow-v1.2.1.apk
+          name: SkipFlow-v1.2.2-Release-APK
+          path: SkipFlow-v1.2.2.apk
           retention-days: 30
 
       - name: Create GitHub Release with Direct APK Download
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.2.1
-          name: "SkipFlow v1.2.1 (Instant Content Audio & Lengthy Ad Support)"
+          tag_name: v1.2.2
+          name: "SkipFlow v1.2.2 (Continuous Muting for Lengthy Ads & Instant Content Audio)"
           body: |
-            ### ⏩ SkipFlow v1.2.1 — Instant Content Audio & Lengthy Ad Support
+            ### ⏩ SkipFlow v1.2.2 — Continuous Muting for Lengthy Ads & Instant Content Audio
 
-            #### 🌟 What's Fixed in v1.2.1:
-            - 🔊 **Permanent Fix for Post-Ad Audio Silence**:
-              - Clamped the video player inspection boundary strictly to the top **33%** of screen height in portrait mode. Feed items, shopping carousels, and channel bars below (>40%) are physically excluded.
-              - In-stream badges must now contain separator bullets (`·`, `•`, `:`) or countdown digits/time (`0:15`, `0:45`, `5s`). Static shopping cards without time or bullets are completely ignored.
-              - Removed ghost containers (`ad_player_overlay`, `instream_ad_player_overlay`). SkipFlow requires genuine, non-blank text.
-            - ⏱️ **Full Support for Lengthy Ads (45s–120s+)**:
-              - Autonomous 150ms active poller dynamically extends the watchdog as long as a real ad is counting down on screen.
-              - Even 60s, 90s, or 2-minute ads stay 100% muted throughout their entire duration.
-            - ⚡ **Instant Sound Restoration on Skip Click**:
-              - When "Skip Ad" is tapped, audio is verified and restored in 200ms with zero wait.
-              - Base watchdog safely reset to 35s, guaranteeing content is never muted for minutes.
+            #### 🌟 What's Fixed in v1.2.2:
+            - ⏱️ **Guaranteed Continuous Muting for Lengthy Ads (Even Without Countdown Ticking)**:
+              - Added dedicated support for long-format ads (1m, 2m, 3m+) that do not display countdown ticking.
+              - In-stream ad badges (`"Sponsored"`, `"Ad"`, `"Ad 1 of 2"`, localized badges) inside the video player canvas are now detected even without digits or separator bullets, provided they match compact overlay badge dimensions (`<65% width`, `<50% player height`).
+              - Added support for in-stream ad IDs (`ad_badge_text`, `ad_headline`, `ad_info_button`, `visit_advertiser_button`).
+            - 🔊 **Active Volume Stream Shield**:
+              - Autonomous 150ms poller re-enforces `ensureMuted()` on every confirmed ad tick. Even if physical volume rockers are accidentally pressed during an ad, the music stream is immediately kept silent while saving the user's volume preference.
+            - ⚡ **Zero-Delay Content Audio Restoration**:
+              - Audio restores immediately (200ms) the instant the ad finishes or regular video content (`time_bar`) appears.
+              - Normal video playback is never muted.
+              - Feed recommendation cards and shopping carousels below the 33% player threshold remain physically excluded.
 
-            > 💡 **Recommended**: Download **SkipFlow-v1.2.1.apk** (Release, Signed).
+            > 💡 **Recommended**: Download **SkipFlow-v1.2.2.apk** (Release, Signed).
           files: |
-            SkipFlow-v1.2.1.apk
-            SkipFlow-v1.2.1-debug.apk
+            SkipFlow-v1.2.2.apk
+            SkipFlow-v1.2.2-debug.apk
           prerelease: false

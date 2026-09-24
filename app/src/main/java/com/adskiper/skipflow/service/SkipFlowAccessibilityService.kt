@@ -537,7 +537,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             }
         }
 
-        // 3. Check for in-stream countdown text markers & badges (e.g. "Sponsored · 0:15", "Ad 1 of 2", "Skip in 5s")
+        // 3. Check for in-stream countdown text markers & badges (e.g. "Sponsored · 0:15", "Ad 1 of 2", "Skip in 5s", "Sponsored")
+        val screenW = Resources.getSystem().displayMetrics.widthPixels
         for (marker in DetectionDictionary.IN_STREAM_COUNTDOWN_MARKERS) {
             val nodes = root.findAccessibilityNodeInfosByText(marker)
             if (!nodes.isNullOrEmpty()) {
@@ -558,6 +559,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                             val hasAdBullet = combined.contains("·") || combined.contains("•") || combined.contains(":")
                             val isMultiAd = combined.contains("1 of") || combined.contains("2 of") || combined.contains("1 sur") || combined.contains("1 de")
                             val isCountdownPhrase = marker.startsWith("skip in") || marker.startsWith("reward in") || marker.startsWith("ad will end in")
+                            val isCompactBadge = rect.width() < screenW * 0.65f && rect.height() < maxPlayerBottomY * 0.5f
+                            val len = if (text.isNotEmpty()) text.length else desc.length
 
                             if (isCountdownPhrase) {
                                 if (hasDigits) {
@@ -565,12 +568,57 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                                 }
                             } else if (marker.startsWith("video will play after") || marker.startsWith("your video will begin")) {
                                 matched = true
-                            } else if (hasAdBullet || hasDigits || isMultiAd || marker.contains("·") || marker.contains("•")) {
-                                // For in-stream ad badges (short, length <= 35, containing separator bullet or countdown digits)
-                                val len = if (text.isNotEmpty()) text.length else desc.length
-                                if (len in 1..35) {
+                            } else if (isMultiAd) {
+                                matched = true
+                            } else if (hasAdBullet || hasDigits || marker.contains("·") || marker.contains("•")) {
+                                if (len in 1..40) {
                                     matched = true
                                 }
+                            } else if (isCompactBadge && len in 1..40) {
+                                // For in-stream ad badges without countdown digits or bullets (e.g. lengthy ads showing just "Sponsored" or localized badge)
+                                val isSponsoredBadge = text == "sponsored" || desc == "sponsored" ||
+                                        combined.startsWith("sponsored") ||
+                                        text == "gesponsert" || desc == "gesponsert" ||
+                                        text == "sponsorisé" || desc == "sponsorisé" ||
+                                        text == "patrocinado" || desc == "patrocinado" ||
+                                        text == "реклама" || desc == "реклама" ||
+                                        text == "प्रायोजित" || desc == "प्रायोजित"
+                                if (isSponsoredBadge) {
+                                    matched = true
+                                }
+                            }
+                        }
+                    }
+                    node.recycle()
+                }
+                if (matched) return true
+            }
+        }
+
+        // 3b. Check for exact in-stream "Ad" badges inside the video player canvas (crucial for lengthy ads without countdown)
+        val adBadgeMarkers = listOf("ad", "ad.", "ad:", "ad ·", "ad •")
+        for (marker in adBadgeMarkers) {
+            val nodes = root.findAccessibilityNodeInfosByText(marker)
+            if (!nodes.isNullOrEmpty()) {
+                var matched = false
+                for (node in nodes) {
+                    val rect = isValidOnScreenNode(node, minW = 10, minH = 10)
+                    if (rect != null) {
+                        val text = node.text?.toString()?.trim()?.lowercase() ?: ""
+                        val desc = node.contentDescription?.toString()?.trim()?.lowercase() ?: ""
+                        if (!text.contains("intro") && !desc.contains("intro") &&
+                            !text.contains("next") && !desc.contains("next") &&
+                            !text.contains("prev") && !desc.contains("prev") &&
+                            !text.contains("subscribe") && !desc.contains("subscribe")
+                        ) {
+                            val isCompactBadge = rect.width() < screenW * 0.65f && rect.height() < maxPlayerBottomY * 0.5f
+                            val isExactAd = text == "ad" || desc == "ad" ||
+                                    text.startsWith("ad ") || desc.startsWith("ad ") ||
+                                    text.startsWith("ad ·") || desc.startsWith("ad ·") ||
+                                    text.startsWith("ad •") || desc.startsWith("ad •") ||
+                                    text.startsWith("ad:") || desc.startsWith("ad:")
+                            if (isCompactBadge && isExactAd) {
+                                matched = true
                             }
                         }
                     }
