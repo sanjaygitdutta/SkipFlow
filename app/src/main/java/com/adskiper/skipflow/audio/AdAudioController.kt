@@ -57,6 +57,8 @@ class AdAudioController(context: Context) {
 
     @Synchronized
     fun unmuteAdAudio() {
+        val currentVol = try { audioManager.getStreamVolume(AudioManager.STREAM_MUSIC) } catch (e: Exception) { -1 }
+        if (!isMuted && currentVol > 0) return
         cancelAutonomousWatchdog()
         try {
             val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
@@ -119,15 +121,17 @@ class AdAudioController(context: Context) {
         try {
             val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
             if (currentVol > 0) {
-                savedVolume = currentVol
-                lastKnownUserVolume = currentVol
+                if (savedVolume <= 0) {
+                    savedVolume = currentVol
+                    lastKnownUserVolume = currentVol
+                }
                 try {
                     audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
                 } catch (e: Exception) {
                     // ignore
                 }
                 audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
-                Log.i(TAG, "Re-enforced mute: silenced stream that raised to $currentVol")
+                Log.i(TAG, "Re-enforced mute: silenced stream that raised to $currentVol (preserved savedVolume: $savedVolume)")
             } else {
                 try {
                     audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
@@ -152,5 +156,6 @@ class AdAudioController(context: Context) {
         }
     }
 
+    @Synchronized
     fun isCurrentlyMuted(): Boolean = isMuted
 }
