@@ -89,6 +89,12 @@ object DetectionDictionary {
         "com.google.android.youtube:id/ad_timer_text",
         "com.google.android.youtube:id/ad_progress",
         "com.google.android.youtube:id/ad_duration",
+        "com.google.android.youtube:id/ad_text",
+        "com.google.android.youtube:id/ad_title",
+        "com.google.android.youtube:id/ad_source",
+        "com.google.android.youtube:id/skip_ad_countdown",
+        "com.google.android.youtube:id/brand_interaction_view",
+        "com.google.android.youtube:id/in_video_ad_badge",
         "in.startv.hotstar:id/ad_timer",
         "in.startv.hotstar:id/ad_countdown",
         "com.jio.media.ondemand:id/ad_timer",
@@ -109,7 +115,13 @@ object DetectionDictionary {
         "ad_view",
         "advertiser_view",
         "ad_progress",
-        "ad_duration"
+        "ad_duration",
+        "ad_text",
+        "ad_title",
+        "ad_source",
+        "skip_ad_countdown",
+        "brand_interaction_view",
+        "in_video_ad_badge"
     )
 
     // IDs for YouTube floating miniplayer / PiP container views
@@ -131,13 +143,12 @@ object DetectionDictionary {
     )
 
     // IDs for closing overlay/popup ad banners in portrait and full-screen video
+    // (Strictly excludes video player control IDs like close_button to avoid touching playback overlay)
     val BANNER_CLOSE_BUTTON_IDS = setOf(
-        // YouTube
-        "com.google.android.youtube:id/close_button",
+        // YouTube ad overlay banners
         "com.google.android.youtube:id/ad_close_button",
         "com.google.android.youtube:id/dismiss_button",
         "com.google.android.youtube:id/cancel_button",
-        "com.google.android.youtube:id/action_close",
         // Hotstar
         "in.startv.hotstar:id/close_btn",
         "in.startv.hotstar:id/btn_close",
@@ -151,13 +162,12 @@ object DetectionDictionary {
         // SonyLIV & Zee5
         "com.sonyliv:id/close",
         "com.graymatrix.did:id/close",
-        // Common generic IDs
-        "close_button",
+        // Common specific ad banner IDs
         "ad_close_button",
+        "interstitial_close",
         "dismiss_button",
         "btn_close",
-        "iv_close",
-        "action_close"
+        "iv_close"
     )
 
     // Strict multi-language phrases that appear on the Skip button
@@ -292,12 +302,11 @@ object DetectionDictionary {
     )
 
     // Multi-language text and contentDescription for closing banner ads
+    // (Strictly excludes generic "close" to prevent matching player controls hide buttons)
     val BANNER_CLOSE_TEXTS = setOf(
         "close ad", "dismiss ad", "hide ad",
-        "close", "dismiss",
         "cerrar anuncio", "fermer l'annonce", "schließen",
         "fechar anúncio", "chiudi annuncio",
-        "закрыть", "閉じる", "닫기", "关闭", "關閉",
-        "विज्ञापन बंद करें", "बंद करें"
+        "закрыть рекламу", "閉じる", "विज्ञापन बंद करें"
     )
 }
