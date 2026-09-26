@@ -41,40 +41,41 @@ jobs:
 
       - name: Prepare APKs for Release
         run: |
-          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.2.5.apk
-          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.2.5-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.2.7.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.2.7-debug.apk
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SkipFlow-v1.2.5-Release-APK
-          path: SkipFlow-v1.2.5.apk
+          name: SkipFlow-v1.2.7-Release-APK
+          path: SkipFlow-v1.2.7.apk
           retention-days: 30
 
       - name: Create GitHub Release with Direct APK Download
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.2.5
-          name: "SkipFlow v1.2.5 (Instant 0ms Content Audio & Zero Feed False Positives)"
+          tag_name: v1.2.7
+          name: "SkipFlow v1.2.7 (Zero Audio Flapping, Instant 0ms Content Volume & Clean View)"
           body: |
-            ### ⏩ SkipFlow v1.2.5 — Instant 0ms Content Audio & Ad Muting
+            ### ⏩ SkipFlow v1.2.7 — Instant 0ms Content Audio, Zero Audio Flapping & Clean View
 
-            #### 🌟 What's New & Fixed in v1.2.5:
+            #### 🌟 What's New & Fixed in v1.2.7:
             - ⚡ **Instant 0ms Content Audio Restoration**:
-              - Restores volume IMMEDIATELY with 0ms delay the very millisecond the Skip button is clicked or an ad concludes.
-              - Completely eliminated artificial delay and hysteresis debounce during ad skips.
-            - 🛡️ **Zero Feed False Positives**:
-              - Cleaned countdown view IDs: removed static feed banner IDs (`ad_headline`, `ad_info_button`, `visit_advertiser_button`, `countdown_text`).
-              - Real in-stream ad countdowns strictly require numeric progress or separator bullets.
-              - Portrait video canvas is clamped strictly to the 16:9 player boundaries (`playerCanvasHeight <= 32%`), physically ignoring all feed cards below.
-            - 🔊 **Unconditional Volume Recovery**:
-              - `unmuteAdAudio()` now unconditionally guarantees that the media stream is unmuted and restored to the previous user volume (safe fallback of 60% max volume if volume was 0).
-            - 📱 **Multi-Mode Support**:
-              - Supports Fullscreen, Standard Half-screen Portrait, and Corner Floating Mini-player.
+              - Restores volume IMMEDIATELY with 0ms delay the very millisecond the Skip button is clicked.
+              - Post-skip transition grace period shields content startup from residual ad view re-muting.
+            - 🔇 **Zero Mid-Ad Flapping**:
+              - Extended absence confirmation to 1000ms prevents countdown redraw transitions (e.g., 5s ➔ 4s) or overlay auto-fades from prematurely unmuting ad audio.
+            - 🎯 **Instant 0s Ad Start Muting**:
+              - Detects ads instantly on frame 1 even during overlay fade-in animations.
+              - Added exact standalone "Ad" badge support and prioritized player containers in hierarchy traversal.
+            - ⏩ **Smart Consecutive Ad Detection**:
+              - Catches back-to-back ads (Ad 2 of 2) immediately on frame 1 without delay.
+            - 🖥️ **Clean Video View**:
+              - Strict playback control immunity prevents the service from touching YouTube's Forward 10s / Backward 10s / Pause controls.
 
-            > 💡 **Recommended**: Download **SkipFlow-v1.2.5.apk** (Release, Signed).
+            > 💡 **Recommended**: Download **SkipFlow-v1.2.7.apk** (Release, Signed).
           files: |
-            SkipFlow-v1.2.5.apk
-            SkipFlow-v1.2.5-debug.apk
+            SkipFlow-v1.2.7.apk
+            SkipFlow-v1.2.7-debug.apk
           prerelease: false
