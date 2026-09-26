@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.adskiper.skipflow.ui.components.HandsFreeStoryCarousel
 import com.adskiper.skipflow.ui.theme.CyberCyan
 import com.adskiper.skipflow.ui.theme.EmeraldAccent
 import com.adskiper.skipflow.ui.theme.HeroGradient
@@ -172,6 +173,40 @@ fun OnboardingWelcomeScreen(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Eye-Catching Main Headline
+                Text(
+                    text = "Hands-Free Streaming.\nEnjoy More Content.",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 32.sp,
+                    lineHeight = 38.sp,
+                    textAlign = TextAlign.Center,
+                    color = Color.White,
+                    letterSpacing = (-0.5).sp
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Cooking, dining, or driving? SkipFlow automatically skips ads and silences commercial noise across your favorite apps without lifting a finger.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontSize = 14.sp,
+                    lineHeight = 21.sp,
+                    textAlign = TextAlign.Center,
+                    color = Color(0xFF94A3B8)
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // High-Quality Lifestyle Hands-Free Carousel (1.5s Auto-Swipe Stay)
+                HandsFreeStoryCarousel(
+                    heightDp = 240,
+                    autoSwipeDelayMs = 1500L,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
                 Spacer(modifier = Modifier.height(20.dp))
 
                 // Dynamic Design: Floating Interactive Media Matrix (Headphones, YouTube, Phone, TV)
@@ -227,31 +262,6 @@ fun OnboardingWelcomeScreen(
                         )
                     }
                 }
-
-                Spacer(modifier = Modifier.height(26.dp))
-
-                // Eye-Catching Main Headline
-                Text(
-                    text = "Save Time.\nEnjoy More Content.",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 32.sp,
-                    lineHeight = 38.sp,
-                    textAlign = TextAlign.Center,
-                    color = Color.White,
-                    letterSpacing = (-0.5).sp
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Text(
-                    text = "Cooking, working out, or driving? SkipFlow automatically skips ads and silences commercial noise across your favorite apps without lifting a finger.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontSize = 14.sp,
-                    lineHeight = 21.sp,
-                    textAlign = TextAlign.Center,
-                    color = Color(0xFF94A3B8)
-                )
 
                 Spacer(modifier = Modifier.height(22.dp))
 

@@ -49,6 +49,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.adskiper.skipflow.ui.components.FeatureSwitchCard
+import com.adskiper.skipflow.ui.components.HandsFreeStoryCarousel
+import com.adskiper.skipflow.ui.components.PlatformProtectionCarousel
 import com.adskiper.skipflow.ui.components.ServiceStatusCard
 import com.adskiper.skipflow.ui.components.SimulatorCard
 import com.adskiper.skipflow.ui.components.StatCardsRow
@@ -156,7 +158,7 @@ fun DashboardScreen(
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Text(
-                                            text = "v1.2.8",
+                                            text = "v1.2.9",
                                             color = IndigoLight,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.ExtraBold
@@ -235,10 +237,18 @@ fun DashboardScreen(
                     onEnableClicked = onEnableServiceClicked
                 )
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-            // 2. Metrics & Analytics 2x2 Grid
-            StatCardsRow(
+                // Real-Life Hands-Free Lifestyle Story Reel (1.5s Auto-Swipe Stay)
+                HandsFreeStoryCarousel(
+                    heightDp = 175,
+                    autoSwipeDelayMs = 1500L
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 2. Metrics & Analytics 2x2 Grid
+                StatCardsRow(
                 totalAdsSkipped = totalAdsSkipped,
                 totalSecondsSaved = totalSecondsSaved,
                 spotifyAdsMuted = spotifyAdsMuted,
@@ -247,7 +257,31 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 3. Quick Launch Bar
+            // 3. 3D Swipe & Drag-to-Lock Platform Protection Carousel
+            PlatformProtectionCarousel(
+                isYouTubeLocked = isAutoSkipEnabled && isAutoMuteEnabled,
+                isHotstarLocked = isOttSkipEnabled,
+                isJioLocked = isOttSkipEnabled,
+                isSpotifyLocked = isSpotifyMuteEnabled,
+                onTogglePlatformLock = { platformId, shouldLock ->
+                    when (platformId) {
+                        "youtube" -> {
+                            onToggleAutoSkip(shouldLock)
+                            onToggleAutoMute(shouldLock)
+                        }
+                        "hotstar", "jiocinema" -> {
+                            onToggleOttSkip(shouldLock)
+                        }
+                        "spotify" -> {
+                            onToggleSpotifyMute(shouldLock)
+                        }
+                    }
+                }
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 4. Quick Launch Bar
             SectionHeader(title = "QUICK LAUNCH PROTECTED APPS")
             QuickAppLauncherRow(context = context)
 

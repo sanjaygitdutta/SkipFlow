@@ -213,18 +213,13 @@ object DetectionDictionary {
         "sponsored •",
         "ad ·",
         "ad •",
-        "ad:",
-        "ad :",
-        // Multi-ad indicators
+        // Multi-ad indicators (strictly require "ad" prefix to avoid matching "Part 1 of 2" in normal video titles)
         "ad 1 of",
         "ad 2 of",
         "ad 3 of",
         "ad 1 of 1",
         "ad 1 of 2",
         "ad 2 of 2",
-        "1 of 2",
-        "2 of 2",
-        "1 of 1",
         // General in-stream video ad status phrases
         "video will play after ad",
         "video will play after ads",
