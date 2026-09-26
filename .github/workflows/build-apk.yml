@@ -41,41 +41,43 @@ jobs:
 
       - name: Prepare APKs for Release
         run: |
-          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.2.9.apk
-          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.2.9-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.2.10.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.2.10-debug.apk
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SkipFlow-v1.2.9-Release-APK
-          path: SkipFlow-v1.2.9.apk
+          name: SkipFlow-v1.2.10-Release-APK
+          path: SkipFlow-v1.2.10.apk
           retention-days: 30
 
       - name: Create GitHub Release with Direct APK Download
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.2.9' }}
-          name: "SkipFlow v1.2.9 (3D Swipe & Drag-to-Lock Carousel, Zero Start Delay & Audio Immunity)"
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.2.10' }}
+          name: "SkipFlow v1.2.10 (Exact Matching Lifestyle Stories, Large Hero Carousel & 1.5s Auto-Swipe)"
           body: |
-            ### 🚀 SkipFlow v1.2.9 — 3D Swipe & Drag-to-Lock Platform Protection + Zero Audio Delay
+            ### 🚀 SkipFlow v1.2.10 — Exact Matching Catchy Words, Large Hero Carousel & 1.5s Auto-Swipe
 
-            #### 🌟 What's New & Fixed in v1.2.9:
-            - 🛡️ **Zero Delay When Content Starts (Fixes 10s–50s Silent Playback)**:
-              - Fixed an issue where YouTube's player controls overlay (Forward 10s, Rewind 10s buttons with "10", time display, and empty ad view placeholders) was falsely recognized as an early ad countdown.
-              - Added strict **Playback Control & Video Title Immunity**: Forward 10s, Rewind 10s, Pause/Play, chapter markers, and video titles (e.g. "Part 1 of 2", "Download:") can NEVER trigger ad detection or muting.
-              - Empty view containers and ghost views in YouTube's layout with blank text are strictly ignored.
-            - ⚡ **Instant 0ms Content Audio Recovery**:
-              - The exact moment normal content playback is confirmed on screen (via video title, play/pause, or time bar), volume is restored IMMEDIATELY with 0ms delay.
-            - 🔒 **3D Swipe & Drag-to-Lock Platform Protection**:
-              - New interactive 3D perspective card carousel on the Dashboard inspired by modern tactile card drawers.
-              - Horizontal swipe through YouTube, Disney+ Hotstar, JioCinema, and Spotify.
-              - Tactile drag-down gesture with amber/gold pedestal illumination and haptic feedback to lock and protect ad skipping and audio muting.
-            - ⏱️ **Optimized Failsafe Watchdog**:
-              - Watchdog failsafe trimmed to 35s (renewed dynamically while confirmed ads are actively playing) so audio can never be held hostage.
+            #### 🌟 What's New & Fixed in v1.2.10:
+            - 🎯 **100% Accurate Visual Pairing (Image + Catchy Headline & Subtitle)**:
+              - **Dining & Meals**: Shows person eating food at the dining table with smartphone -> *"Hands-Free Enjoy Content: Never drop your spoon or grease your screen to skip ads while eating"*.
+              - **Safe Commute & Drive**: Shows driver's hands gripping car steering wheel -> *"Eyes on Road, Ears on Flow: Keep both hands on the wheel — video & audio ads auto-skipped safely"*.
+              - **Kitchen & Cooking**: Shows woman chopping vegetables while watching recipe tutorial on laptop -> *"Messy Hands? Zero Touch: Follow recipes & cooking tutorials without touching screen with wet hands"*.
+              - **Couch & Movie Night**: Shows friends sharing popcorn on sofa watching laptop -> *"Non-Stop Cinema Magic: Grab your popcorn, relax on the sofa, and stream without commercial breaks"*.
+              - **Music & Podcasts**: Shows smiling man with earphones enjoying audio beats -> *"Seamless Audio Beats: Smart audio ad muter lets your workout beats & podcast episodes flow"*.
+              - **Family & Bedtime**: Shows parents and toddler in bed watching tablet screen together -> *"Peace of Mind Streaming: Enjoy bedtime stories and cartoons together free from loud sudden ads"*.
+            - 🖼️ **Increased Image Size & Immersive Single-Card Display**:
+              - Enlarged hero lifestyle card to **290dp** on the Welcome / First Screen and **205dp** on Dashboard.
+              - Showcases exactly **one clean, full-bleed card at once** without awkward clipping.
+            - ⏱️ **1.5s Auto-Swipe Stay + Story Progress Indicators**:
+              - Smooth 1.5-second story timer with top progress dashes and instant left/right tap navigation.
+            - 🛡️ **Zero Start Delay & Immunity**:
+              - All v1.2.9 optimizations preserved: 0ms audio recovery, YouTube player overlay immunity, 3D Swipe & Drag-to-Lock platform protection.
 
-            > 💡 **Recommended**: Download **SkipFlow-v1.2.9.apk** (Release, Signed).
+            > 💡 **Recommended**: Download **SkipFlow-v1.2.10.apk** (Release, Signed).
           files: |
-            SkipFlow-v1.2.9.apk
-            SkipFlow-v1.2.9-debug.apk
+            SkipFlow-v1.2.10.apk
+            SkipFlow-v1.2.10-debug.apk
           prerelease: false

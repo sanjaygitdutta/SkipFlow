@@ -36,25 +36,35 @@ class SpotifyAdReceiver(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var isCurrentlyMutingSpotify = false
+    @Volatile
+    private var isSpotifyMuteEnabled = true
 
-    override fun onReceive(context: Context, intent: Intent) {
-        val action = intent.action ?: return
-        Log.d(TAG, "Received Spotify broadcast action: $action")
-
+    init {
         scope.launch {
-            val isEnabled = preferencesRepo.isSpotifyMuteEnabled.first()
-            if (!isEnabled) {
-                if (isCurrentlyMutingSpotify) {
+            preferencesRepo.isSpotifyMuteEnabled.collect { enabled ->
+                isSpotifyMuteEnabled = enabled
+                if (!enabled && isCurrentlyMutingSpotify) {
                     audioController.unmuteAdAudio()
                     isCurrentlyMutingSpotify = false
                 }
-                return@launch
             }
+        }
+    }
 
-            when (action) {
-                ACTION_METADATA_CHANGED -> handleMetadataChanged(intent)
-                ACTION_PLAYBACK_STATE_CHANGED -> handlePlaybackStateChanged(intent)
+    override fun onReceive(context: Context, intent: Intent) {
+        val action = intent.action ?: return
+        if (!isSpotifyMuteEnabled) {
+            if (isCurrentlyMutingSpotify) {
+                audioController.unmuteAdAudio()
+                isCurrentlyMutingSpotify = false
             }
+            return
+        }
+
+        // Process immediately on the delivery thread for true 0ms audio muting & unmuting
+        when (action) {
+            ACTION_METADATA_CHANGED -> handleMetadataChanged(intent)
+            ACTION_PLAYBACK_STATE_CHANGED -> handlePlaybackStateChanged(intent)
         }
     }
 

@@ -53,6 +53,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.adskiper.skipflow.R
 import com.adskiper.skipflow.ui.components.HandsFreeStoryCarousel
 import com.adskiper.skipflow.ui.theme.CyberCyan
 import com.adskiper.skipflow.ui.theme.EmeraldAccent
@@ -105,6 +109,42 @@ fun OnboardingWelcomeScreen(
         color = Color(0xFF090D16)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
+            // Full-Screen Immersive Photographic Background (Yellow Hoodie Laptop Streaming)
+            Image(
+                painter = painterResource(id = R.drawable.welcome_bg),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                alignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // Cinematic Multi-Stop Dark Scrim (Preserves image visual while guaranteeing 100% text readability)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0.0f to Color(0xFF070B14).copy(alpha = 0.82f),
+                            0.20f to Color(0xFF070B14).copy(alpha = 0.58f),
+                            0.50f to Color(0xFF070B14).copy(alpha = 0.82f),
+                            0.80f to Color(0xFF070B14).copy(alpha = 0.94f),
+                            1.0f to Color(0xFF070B14).copy(alpha = 0.98f)
+                        )
+                    )
+            )
+
+            // Edge Vignette Scrim
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.horizontalGradient(
+                            0.0f to Color(0xFF070B14).copy(alpha = 0.45f),
+                            0.5f to Color.Transparent,
+                            1.0f to Color(0xFF070B14).copy(alpha = 0.45f)
+                        )
+                    )
+            )
             // Ambient atmospheric gradient glow orbs
             Box(
                 modifier = Modifier
@@ -200,9 +240,9 @@ fun OnboardingWelcomeScreen(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // High-Quality Lifestyle Hands-Free Carousel (1.5s Auto-Swipe Stay)
+                // High-Quality Lifestyle Hands-Free Carousel (1.5s Auto-Swipe Stay, Large Immersive Hero)
                 HandsFreeStoryCarousel(
-                    heightDp = 240,
+                    heightDp = 290,
                     autoSwipeDelayMs = 1500L,
                     modifier = Modifier.fillMaxWidth()
                 )

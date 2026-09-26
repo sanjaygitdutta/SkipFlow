@@ -48,6 +48,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.adskiper.skipflow.R
 import com.adskiper.skipflow.ui.components.FeatureSwitchCard
 import com.adskiper.skipflow.ui.components.HandsFreeStoryCarousel
 import com.adskiper.skipflow.ui.components.PlatformProtectionCarousel
@@ -98,6 +102,28 @@ fun DashboardScreen(
             .fillMaxSize()
             .background(Color(0xFF090D16))
     ) {
+        // Full-Screen Immersive Photographic Dashboard Background (Father & Son with Headphones Dancing)
+        Image(
+            painter = painterResource(id = R.drawable.dashboard_bg),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            alignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // Dark Atmospheric Scrim (Ensures cards, stats & 3D carousel remain vivid with maximum contrast)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        0.0f to Color(0xFF070B14).copy(alpha = 0.85f),
+                        0.25f to Color(0xFF070B14).copy(alpha = 0.68f),
+                        0.60f to Color(0xFF070B14).copy(alpha = 0.85f),
+                        1.0f to Color(0xFF070B14).copy(alpha = 0.98f)
+                    )
+                )
+        )
         // Atmospheric gradient glow orbs
         Box(
             modifier = Modifier
@@ -158,7 +184,7 @@ fun DashboardScreen(
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Text(
-                                            text = "v1.2.9",
+                                            text = "v1.2.10",
                                             color = IndigoLight,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.ExtraBold
@@ -239,9 +265,9 @@ fun DashboardScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Real-Life Hands-Free Lifestyle Story Reel (1.5s Auto-Swipe Stay)
+                // Real-Life Hands-Free Lifestyle Story Reel (1.5s Auto-Swipe Stay, Immersive Showcase)
                 HandsFreeStoryCarousel(
-                    heightDp = 175,
+                    heightDp = 205,
                     autoSwipeDelayMs = 1500L
                 )
 

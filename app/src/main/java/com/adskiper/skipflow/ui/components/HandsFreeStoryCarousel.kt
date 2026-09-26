@@ -74,52 +74,52 @@ data class LifestyleSlide(
 @Composable
 fun HandsFreeStoryCarousel(
     modifier: Modifier = Modifier,
-    heightDp: Int = 230,
+    heightDp: Int = 265,
     autoSwipeDelayMs: Long = 1500L
 ) {
     val slides = remember {
         listOf(
             LifestyleSlide(
-                drawableRes = R.drawable.lifestyle_cooking,
-                badge = "KITCHEN & COOKING",
-                headline = "Messy Hands? Zero Touch.",
-                subtitle = "Follow recipes & videos without touching screen with dirty hands",
-                accentColor = Color(0xFFFF9500)
-            ),
-            LifestyleSlide(
-                drawableRes = R.drawable.lifestyle_eating,
+                drawableRes = R.drawable.lifestyle_dining,
                 badge = "DINING & MEALS",
                 headline = "Hands-Free Enjoy Content",
-                subtitle = "Never pause your meal or drop your spoon to skip annoying ads",
+                subtitle = "Never pause your meal or drop your spoon to skip ads while eating",
                 accentColor = Color(0xFF10B981)
             ),
             LifestyleSlide(
                 drawableRes = R.drawable.lifestyle_driving,
-                badge = "SAFE DRIVING",
-                headline = "Eyes on the Road, Ears on the Flow",
-                subtitle = "Safe commute — media ads automatically skipped in the background",
+                badge = "SAFE COMMUTE & DRIVE",
+                headline = "Eyes on Road, Ears on Flow",
+                subtitle = "Keep both hands on the wheel — video & audio ads auto-skipped safely",
                 accentColor = Color(0xFF00D2FF)
+            ),
+            LifestyleSlide(
+                drawableRes = R.drawable.lifestyle_cooking,
+                badge = "KITCHEN & COOKING",
+                headline = "Messy Hands? Zero Touch.",
+                subtitle = "Follow recipes & cooking tutorials without touching screen with wet hands",
+                accentColor = Color(0xFFFF9500)
             ),
             LifestyleSlide(
                 drawableRes = R.drawable.lifestyle_popcorn,
                 badge = "SOFA & MOVIE NIGHT",
                 headline = "Non-Stop Cinema Magic",
-                subtitle = "Grab your popcorn, relax on couch, and stream without interruption",
+                subtitle = "Grab your popcorn, relax on the sofa, and stream without commercial breaks",
                 accentColor = Color(0xFFFF2A6D)
             ),
             LifestyleSlide(
                 drawableRes = R.drawable.lifestyle_music,
-                badge = "WORKOUT & COMMUTE",
+                badge = "MUSIC & PODCASTS",
                 headline = "Seamless Audio Beats",
-                subtitle = "Commercial audio silencing lets your music and podcast vibes flow",
+                subtitle = "Smart audio ad muter lets your workout beats & podcast episodes flow",
                 accentColor = Color(0xFF1DB954)
             ),
             LifestyleSlide(
                 drawableRes = R.drawable.lifestyle_family,
-                badge = "COZY BEDTIME",
+                badge = "FAMILY & BEDTIME",
                 headline = "Peace of Mind Streaming",
-                subtitle = "Cozy family bedtime stories free from loud commercial interruptions",
-                accentColor = Color(0xFF8B5CF6)
+                subtitle = "Enjoy bedtime stories and cartoons together free from loud sudden ads",
+                accentColor = Color(0xFFA855F7)
             )
         )
     }
@@ -155,18 +155,18 @@ fun HandsFreeStoryCarousel(
         label = "badgeAlpha"
     )
 
-    // Master Hero Container
+    // Master Hero Container - Shows One Immersive Card At Once With Increased Size
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(heightDp.dp)
-            .shadow(16.dp, RoundedCornerShape(26.dp), spotColor = Color(0xFFFF9500).copy(alpha = 0.3f))
+            .shadow(18.dp, RoundedCornerShape(26.dp), spotColor = Color(0xFFFF9500).copy(alpha = 0.35f))
             .clip(RoundedCornerShape(26.dp))
             .border(
                 1.2.dp,
                 Brush.verticalGradient(
                     listOf(
-                        Color.White.copy(alpha = 0.28f),
+                        Color.White.copy(alpha = 0.32f),
                         Color(0xFF2A2D3A).copy(alpha = 0.6f),
                         Color.Transparent
                     )
@@ -174,9 +174,11 @@ fun HandsFreeStoryCarousel(
                 RoundedCornerShape(26.dp)
             )
     ) {
-        // High Quality Full-bleed Horizontal Pager
+        // High Quality Full-bleed Horizontal Pager (1 Slide At Once)
         HorizontalPager(
             state = pagerState,
+            pageSpacing = 0.dp,
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
             modifier = Modifier.fillMaxSize()
         ) { page ->
             val slide = slides[page]
@@ -186,6 +188,7 @@ fun HandsFreeStoryCarousel(
                     painter = painterResource(id = slide.drawableRes),
                     contentDescription = slide.headline,
                     contentScale = ContentScale.Crop,
+                    alignment = Alignment.Center,
                     modifier = Modifier.fillMaxSize()
                 )
 
@@ -195,10 +198,10 @@ fun HandsFreeStoryCarousel(
                         .fillMaxSize()
                         .background(
                             Brush.verticalGradient(
-                                0.0f to Color.Black.copy(alpha = 0.45f),
-                                0.40f to Color.Black.copy(alpha = 0.18f),
-                                0.70f to Color.Black.copy(alpha = 0.75f),
-                                1.0f to Color.Black.copy(alpha = 0.94f)
+                                0.0f to Color.Black.copy(alpha = 0.42f),
+                                0.30f to Color.Transparent,
+                                0.60f to Color.Black.copy(alpha = 0.68f),
+                                1.0f to Color.Black.copy(alpha = 0.95f)
                             )
                         )
                 )
@@ -209,74 +212,74 @@ fun HandsFreeStoryCarousel(
                         .fillMaxSize()
                         .background(
                             Brush.horizontalGradient(
-                                0.0f to Color.Black.copy(alpha = 0.4f),
+                                0.0f to Color.Black.copy(alpha = 0.35f),
                                 0.5f to Color.Transparent,
-                                1.0f to Color.Black.copy(alpha = 0.4f)
+                                1.0f to Color.Black.copy(alpha = 0.35f)
                             )
                         )
                 )
 
-                // Bottom Content Overlay
+                // Bottom Content Overlay - Crisp, readable exact matching catchy words
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .fillMaxWidth()
-                        .padding(horizontal = 18.dp, vertical = 14.dp)
+                        .padding(horizontal = 20.dp, vertical = 16.dp)
                 ) {
                     // Tag Badge with Live Indicator
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .background(
-                                slide.accentColor.copy(alpha = 0.25f),
+                                slide.accentColor.copy(alpha = 0.28f),
                                 RoundedCornerShape(8.dp)
                             )
                             .border(
-                                0.8.dp,
-                                slide.accentColor.copy(alpha = 0.75f),
+                                1.dp,
+                                slide.accentColor.copy(alpha = 0.85f),
                                 RoundedCornerShape(8.dp)
                             )
-                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                            .padding(horizontal = 9.dp, vertical = 4.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(6.dp)
+                                .size(7.dp)
                                 .clip(CircleShape)
                                 .background(slide.accentColor)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = slide.badge,
-                            color = slide.accentColor,
-                            fontSize = 9.sp,
+                            color = Color.White,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.ExtraBold,
                             letterSpacing = 0.8.sp
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(7.dp))
 
-                    // Catchy Main Title
+                    // Catchy Main Title (High-Impact Typography)
                     Text(
                         text = slide.headline,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Black,
                         color = Color.White,
-                        fontSize = 17.sp,
+                        fontSize = 19.sp,
                         letterSpacing = (-0.3).sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
 
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
 
-                    // Contextual Subtitle
+                    // Contextual Subtitle describing exact real-life scene
                     Text(
                         text = slide.subtitle,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFE2E8F0),
-                        fontSize = 11.sp,
-                        lineHeight = 15.sp,
+                        color = Color(0xFFF1F5F9),
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )

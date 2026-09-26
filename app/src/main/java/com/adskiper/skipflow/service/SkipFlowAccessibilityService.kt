@@ -32,9 +32,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         private const val TAG = "SkipFlowService"
         private const val CLICK_DEBOUNCE_MS = 250L
         private const val BANNER_DEBOUNCE_MS = 1200L
-        private const val POST_SKIP_GRACE_PERIOD_MS = 1200L // 1.2s grace window after skip click to prevent lingering ad layouts from re-muting new content
-        private const val UNMUTE_CONFIRMATION_DELAY_MS = 1500L // 1.5s confirmation prevents premature unmuting during dual ads & overlay auto-fades
-        private const val ACTIVE_MUTE_POLL_INTERVAL_MS = 100L // Rapid 100ms check ensures instant skip execution the millisecond the button appears
+        private const val POST_SKIP_GRACE_PERIOD_MS = 1000L // 1.0s grace window after skip click to prevent lingering ad layouts from re-muting new content
+        private const val UNMUTE_CONFIRMATION_DELAY_MS = 100L // 100ms instant confirmation prevents audible lag when content starts
+        private const val ACTIVE_MUTE_POLL_INTERVAL_MS = 50L // Rapid 50ms poll (20Hz) for true 0ms ad detection & instant content return
 
         private val _isServiceActive = MutableStateFlow(false)
         val isServiceActive = _isServiceActive.asStateFlow()
@@ -187,11 +187,11 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             return
         }
 
-        // Handle content change events with deferred scheduling so no skip event is dropped
+        // Handle content change events: when unmuted, process with ZERO delay (0ms) to silence ads instantly!
         if (eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
-            val minInterval = if (audioController.isCurrentlyMuted()) 100L else 60L
+            val minInterval = if (audioController.isCurrentlyMuted()) 40L else 0L
             val elapsed = now - lastScanTimestamp
-            if (elapsed < minInterval) {
+            if (minInterval > 0 && elapsed < minInterval) {
                 scheduleDeferredScan(minInterval - elapsed, isYouTube, isOtt)
                 return
             }
@@ -300,6 +300,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
     private fun isNormalContentPlaying(root: AccessibilityNodeInfo): Boolean {
         val contentIds = listOf(
+            "com.google.android.youtube:id/player_view",
+            "com.google.android.youtube:id/watch_player",
+            "com.google.android.youtube:id/inline_player_layout",
             "com.google.android.youtube:id/time_current",
             "com.google.android.youtube:id/current_time",
             "com.google.android.youtube:id/time_bar",
@@ -310,7 +313,10 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             "time_current",
             "current_time",
             "time_bar",
-            "time_total"
+            "time_total",
+            "exo_time",
+            "exo_duration",
+            "exo_progress"
         )
         for (id in contentIds) {
             val nodes = root.findAccessibilityNodeInfosByViewId(id)
@@ -425,14 +431,11 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
             // 2. In-stream video ad detection (audio muting) - active for YouTube & OTT platforms
             if ((isYouTube || isOtt) && isAutoMuteEnabled) {
-                val isContentActive = isNormalContentPlaying(rootNode)
-
                 // If in post-skip grace period, only re-mute if there is a distinct secondary ad (e.g. Ad 2 of 2)
-                // If normal content is actively playing, ONLY mute if there is an explicit, unmistakable ad marker (countdown or skip button)
-                val inStreamAdActive = when {
-                    inGracePeriod -> hasDistinctSecondaryAd(rootNode)
-                    isContentActive -> hasExplicitInStreamAdMarker(rootNode)
-                    else -> inspectInStreamAdState(rootNode, isYouTube)
+                val inStreamAdActive = if (inGracePeriod) {
+                    hasDistinctSecondaryAd(rootNode)
+                } else {
+                    inspectInStreamAdState(rootNode, isYouTube)
                 }
 
                 if (inStreamAdActive) {
@@ -445,15 +448,15 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         audioController.unmuteAdAudio()
                     }
                 } else if (audioController.isCurrentlyMuted()) {
-                    // If normal video content is actively confirmed on screen with no secondary ad, restore audio INSTANTLY (0ms delay)
-                    if (isNormalContentPlaying(rootNode) && !hasDistinctSecondaryAd(rootNode)) {
-                        Log.i(TAG, "Normal content confirmed active! Restoring audio instantly with 0ms delay.")
+                    // Ad is no longer active on screen!
+                    // If no secondary ad (e.g. Ad 2 of 2) is present, restore audio INSTANTLY (0ms delay)
+                    if (!hasDistinctSecondaryAd(rootNode)) {
+                        Log.i(TAG, "Ad ended confirmed! Restoring content audio instantly with 0ms delay.")
                         cancelPendingUnmute()
                         stopActiveMutePoller()
                         audioController.unmuteAdAudio()
                     } else {
-                        // Do not unmute immediately on transient frame drop or black screen between dual ads!
-                        // Debounce confirmation prevents mid-ad audio flapping
+                        // Secondary ad in transition: brief 100ms debounce
                         scheduleDebouncedUnmute(isYouTube)
                     }
                 }
@@ -560,19 +563,10 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
                     if (!adStillPlaying) {
                         consecutiveAdAbsentPolls++
-                        // If normal content playback is confirmed active on screen, restore audio INSTANTLY (0ms delay)
-                        if (contentActive) {
-                            Log.i(TAG, "Ad ended and normal content confirmed active by poller! Restoring audio instantly with 0ms delay.")
-                            cancelPendingUnmute()
-                            stopActiveMutePoller()
-                            audioController.unmuteAdAudio()
-                            return
-                        }
-
-                        // If controls are hidden or uncertain (e.g. black transition frame between dual ads),
-                        // require 12 polls (~1200ms) to safely bridge dual ad transitions without audio flapping
-                        if (consecutiveAdAbsentPolls >= 12) {
-                            Log.i(TAG, "Ad ended confirmed by active poller ($consecutiveAdAbsentPolls checks). Restoring content audio.")
+                        // If normal content playback is confirmed active OR ad has been absent for 2 polls (~100ms),
+                        // restore content audio INSTANTLY (0ms delay)!
+                        if (contentActive || consecutiveAdAbsentPolls >= 2) {
+                            Log.i(TAG, "Ad ended confirmed by active poller. Restoring audio instantly with 0ms delay.")
                             cancelPendingUnmute()
                             stopActiveMutePoller()
                             audioController.unmuteAdAudio()
@@ -586,8 +580,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     }
                 } else {
                     consecutiveNullRoots++
-                    // If root has been null 20 consecutive checks (~2000ms) while muted, ad overlay is gone
-                    if (consecutiveNullRoots >= 20) {
+                    // If root has been null 4 consecutive checks (~200ms) while muted, ad overlay is gone
+                    if (consecutiveNullRoots >= 4) {
                         Log.i(TAG, "Active window returned null repeatedly ($consecutiveNullRoots times). Ad overlay cleared. Restoring audio.")
                         cancelPendingUnmute()
                         audioController.unmuteAdAudio()

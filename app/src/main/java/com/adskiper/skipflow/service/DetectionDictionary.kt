@@ -103,7 +103,21 @@ object DetectionDictionary {
         "ad_timer_text",
         "ad_progress",
         "ad_duration",
-        "skip_ad_countdown"
+        "skip_ad_countdown",
+        "com.google.android.youtube:id/ad_view",
+        "com.google.android.youtube:id/ad_presenter",
+        "com.google.android.youtube:id/player_learn_more_button",
+        "com.google.android.youtube:id/ad_headline",
+        "com.google.android.youtube:id/ad_title",
+        "com.google.android.youtube:id/ad_text",
+        "com.google.android.youtube:id/ad_info",
+        "com.google.android.youtube:id/ad_advertiser",
+        "ad_view",
+        "ad_presenter",
+        "ad_headline",
+        "ad_title",
+        "ad_text",
+        "ad_info"
     )
 
     // IDs for YouTube floating miniplayer / PiP container views

@@ -40,12 +40,13 @@ class AdAudioController(context: Context) {
                 savedVolume = lastKnownUserVolume
             }
 
+            // Instantly silence audio stream at hardware level (0ms)
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
             try {
                 audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
             } catch (e: Exception) {
                 // ignore
             }
-            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
             isMuted = true
             muteStartTime = SystemClock.elapsedRealtime()
             scheduleAutonomousWatchdog(DEFAULT_MUTE_WATCHDOG_MS)
@@ -69,12 +70,13 @@ class AdAudioController(context: Context) {
                 else -> safeFallback
             }
 
+            // Instantly restore volume at hardware level (0ms)
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, restoreVol, 0)
             try {
                 audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
             } catch (e: Exception) {
                 // ignore
             }
-            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, restoreVol, 0)
             isMuted = false
             muteStartTime = 0L
             Log.i(TAG, "Restored audio volume to: $restoreVol (isMuted cleared)")
