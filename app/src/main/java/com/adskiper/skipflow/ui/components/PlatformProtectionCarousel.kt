@@ -150,7 +150,7 @@ fun PlatformProtectionCarousel(
 
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { platforms.size })
     val coroutineScope = rememberCoroutineScope()
-    val haptic = LocalHapticFeedback()
+    val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
 
     // Drag offset for the currently focused center card
