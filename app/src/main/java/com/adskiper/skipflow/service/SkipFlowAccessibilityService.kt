@@ -33,7 +33,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         private const val CLICK_DEBOUNCE_MS = 250L
         private const val BANNER_DEBOUNCE_MS = 1200L
         private const val POST_SKIP_GRACE_PERIOD_MS = 1200L // 1.2s grace window after skip click to prevent lingering ad layouts from re-muting new content
-        private const val UNMUTE_CONFIRMATION_DELAY_MS = 1000L // 1.0s confirmation prevents transient audio flapping during countdown transitions
+        private const val UNMUTE_CONFIRMATION_DELAY_MS = 2500L // 2.5s confirmation prevents premature unmuting during dual ads & overlay auto-fades
         private const val ACTIVE_MUTE_POLL_INTERVAL_MS = 100L // Rapid 100ms check ensures instant skip execution the millisecond the button appears
 
         private val _isServiceActive = MutableStateFlow(false)
@@ -220,6 +220,18 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun isCaptionOrSubtitleNode(node: AccessibilityNodeInfo): Boolean {
+        val viewId = node.viewIdResourceName?.lowercase() ?: ""
+        if (viewId.contains("caption") || viewId.contains("subtitle") || viewId.contains("timed_text")) {
+            return true
+        }
+        val className = node.className?.toString()?.lowercase() ?: ""
+        if (className.contains("caption") || className.contains("subtitle")) {
+            return true
+        }
+        return false
+    }
+
     private fun hasDistinctSecondaryAd(root: AccessibilityNodeInfo): Boolean {
         val secondaryMarkers = listOf(
             "2 of 2", "ad 2 of", "ad 2 of 2", "2 de 2", "2 sur 2", "2 von 2",
@@ -229,8 +241,14 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         for (marker in secondaryMarkers) {
             val nodes = root.findAccessibilityNodeInfosByText(marker)
             if (!nodes.isNullOrEmpty()) {
-                nodes.forEach { it.recycle() }
-                return true
+                var found = false
+                for (node in nodes) {
+                    if (node.isVisibleToUser && !isCaptionOrSubtitleNode(node)) {
+                        found = true
+                    }
+                    node.recycle()
+                }
+                if (found) return true
             }
         }
         return false
@@ -376,9 +394,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
                     if (!adStillPlaying) {
                         consecutiveAdAbsentPolls++
-                        // Require at least 10 consecutive polls (~1000ms) of absence before restoring audio
-                        // Prevents countdown ticks (5s -> 4s -> 3s) and overlay auto-fades from falsely unmuting mid-ad
-                        if (consecutiveAdAbsentPolls >= 10) {
+                        // Require at least 25 consecutive polls (~2500ms) of sustained absence before restoring audio
+                        // Prevents countdown ticks, overlay auto-fades, and the gap between dual back-to-back ads from prematurely unmuting mid-ad
+                        if (consecutiveAdAbsentPolls >= 25) {
                             Log.i(TAG, "Ad ended confirmed by active poller ($consecutiveAdAbsentPolls checks). Restoring content audio.")
                             cancelPendingUnmute()
                             stopActiveMutePoller()
@@ -389,12 +407,12 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         consecutiveAdAbsentPolls = 0
                         // Confirmed ad is still actively playing on screen: renew watchdog (for long 35-60s ads)
                         cancelPendingUnmute()
-                        audioController.renewWatchdogIfConfirmedAd(30_000L)
+                        audioController.renewWatchdogIfConfirmedAd(45_000L)
                     }
                 } else {
                     consecutiveNullRoots++
-                    // If root has been null 8 consecutive checks (approx 800ms) while muted, ad overlay is gone
-                    if (consecutiveNullRoots >= 8) {
+                    // If root has been null 20 consecutive checks (~2000ms) while muted, ad overlay is gone
+                    if (consecutiveNullRoots >= 20) {
                         Log.i(TAG, "Active window returned null repeatedly ($consecutiveNullRoots times). Ad overlay cleared. Restoring audio.")
                         cancelPendingUnmute()
                         audioController.unmuteAdAudio()
@@ -547,10 +565,41 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         // 2. Compute the valid video canvas bounds based on the detected mode:
         // - In Landscape or Full-screen: entire screen is the video canvas
         // - In Corner Mini-player: the miniplayer container bounds
-        // - In Standard Half-screen Portrait: top player canvas safely accommodates up to ~48% of screen height
-        //   (covers 16:9, 18:9, 4:3 videos, status bar, and advertiser pill/header directly below video).
+        // - In Standard Half-screen Portrait: strictly bounds the top player view (typically ~30-38% of screen height)
+        //   so channel description, comments, shopping shelf, and info cards below are completely excluded.
+        var dynamicPlayerHeight = -1
+        if (isPortrait && isYouTube) {
+            val playerIds = listOf(
+                "com.google.android.youtube:id/player_view",
+                "com.google.android.youtube:id/watch_player",
+                "com.google.android.youtube:id/inline_player_layout"
+            )
+            for (pId in playerIds) {
+                val pNodes = root.findAccessibilityNodeInfosByViewId(pId)
+                if (!pNodes.isNullOrEmpty()) {
+                    for (pNode in pNodes) {
+                        if (pNode.isVisibleToUser) {
+                            val r = Rect()
+                            pNode.getBoundsInScreen(r)
+                            if (r.height() in (screenWidth * 0.4f).toInt()..(screenHeight * 0.55f).toInt() && r.top <= 100) {
+                                dynamicPlayerHeight = r.bottom
+                                pNode.recycle()
+                                break
+                            }
+                        }
+                        pNode.recycle()
+                    }
+                    if (dynamicPlayerHeight > 0) break
+                }
+            }
+        }
+
         val playerCanvasHeight = if (isPortrait && isYouTube) {
-            (screenHeight * 0.52f).toInt()
+            if (dynamicPlayerHeight > 0) {
+                dynamicPlayerHeight
+            } else {
+                minOf((screenWidth * 0.82f).toInt(), (screenHeight * 0.38f).toInt())
+            }
         } else {
             screenHeight
         }
@@ -562,9 +611,10 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         }
 
         // Helper to validate a node resides within the active video canvas
-        // requireVisible is false by default so alpha fade-in animations at ad start or overlay auto-fades don't block muting
-        fun isValidAdNode(node: AccessibilityNodeInfo, minW: Int = 6, minH: Int = 6, requireVisible: Boolean = false): Rect? {
+        // requireVisible is true by default so invisible/recycled ad views in memory never trigger false mutes
+        fun isValidAdNode(node: AccessibilityNodeInfo, minW: Int = 6, minH: Int = 6, requireVisible: Boolean = true): Rect? {
             if (requireVisible && !node.isVisibleToUser) return null
+            if (isCaptionOrSubtitleNode(node)) return null
             val rect = Rect()
             node.getBoundsInScreen(rect)
             if (rect.width() < minW || rect.height() < minH) return null
@@ -575,24 +625,32 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
             // In standard portrait mode, strictly ensure node does not belong to the feed below
             if (isPortrait && isYouTube && miniplayerBounds == null) {
-                if (rect.top >= playerCanvasHeight) return null
+                if (rect.top >= playerCanvasHeight - 15) return null
+                if (rect.bottom > playerCanvasHeight + 25) return null
                 if (rect.centerY() > playerCanvasHeight) return null
             }
 
             return rect
         }
 
-        // Helper to check if a node is a static feed/shopping card rather than an in-stream video ad
+        // Helper to check if a node is a static feed/shopping card, poster ad, or creator info rather than an in-stream video ad
         fun isFeedShoppingCard(node: AccessibilityNodeInfo): Boolean {
             val text = node.text?.toString()?.lowercase() ?: ""
             val desc = node.contentDescription?.toString()?.lowercase() ?: ""
-            val combined = "$text $desc"
+            val viewId = node.viewIdResourceName?.lowercase() ?: ""
+            val combined = "$text $desc $viewId"
+
+            val isPosterOrFeedId = viewId.contains("feed") || viewId.contains("shelf") ||
+                    viewId.contains("headline") || viewId.contains("cta_button") ||
+                    viewId.contains("advertiser") || viewId.contains("banner") ||
+                    viewId.contains("promoted") || viewId.contains("item_ad")
 
             val hasPrice = combined.contains("₹") || combined.contains("$") || combined.contains("€") || combined.contains("£")
             val hasRating = combined.contains("★") || combined.contains("rating") || combined.contains("reviews")
             val hasShopCues = DetectionDictionary.FEED_SHOPPING_KEYWORDS.any { combined.contains(it) }
+            val isCreatorPromo = combined.contains("paid promotion") || combined.contains("includes paid promotion")
 
-            return hasPrice || hasRating || hasShopCues
+            return isPosterOrFeedId || hasPrice || hasRating || hasShopCues || isCreatorPromo
         }
 
         // Strategy 1: Check in-stream countdown & badge IDs inside active video bounds
@@ -601,7 +659,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             if (!nodes.isNullOrEmpty()) {
                 var matched = false
                 for (node in nodes) {
-                    val rect = isValidAdNode(node, minW = 6, minH = 6, requireVisible = false)
+                    val rect = isValidAdNode(node, minW = 6, minH = 6, requireVisible = true)
                     if (rect != null && !isFeedShoppingCard(node)) {
                         matched = true
                     }
@@ -611,14 +669,13 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             }
         }
 
-        // Strategy 2: Check if the Skip Ad button is visible in active player area by View ID
+        // Strategy 2: Check if the Skip Ad button or container is visible in active player area by View ID
         for (skipId in DetectionDictionary.IN_STREAM_SKIP_BUTTON_IDS) {
-            if (skipId.contains("container")) continue
             val nodes = root.findAccessibilityNodeInfosByViewId(skipId)
             if (!nodes.isNullOrEmpty()) {
                 var matched = false
                 for (node in nodes) {
-                    val rect = isValidAdNode(node, minW = 8, minH = 8, requireVisible = false)
+                    val rect = isValidAdNode(node, minW = 8, minH = 8, requireVisible = true)
                     if (rect != null) {
                         val text = node.text?.toString()?.trim()?.lowercase() ?: ""
                         val desc = node.contentDescription?.toString()?.trim()?.lowercase() ?: ""
@@ -649,7 +706,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             val current = queue.poll() ?: continue
             inspectedCount++
 
-            val rect = isValidAdNode(current, minW = 6, minH = 6, requireVisible = false)
+            val rect = isValidAdNode(current, minW = 6, minH = 6, requireVisible = true)
             if (rect != null && !isFeedShoppingCard(current)) {
                 val text = current.text?.toString()?.trim()?.lowercase() ?: ""
                 val desc = current.contentDescription?.toString()?.trim()?.lowercase() ?: ""
@@ -657,26 +714,49 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 val combined = "$text $desc"
 
                 val isExcluded = combined.contains("intro") || combined.contains("subscribe") ||
-                        combined.contains("next") || combined.contains("prev") || combined.contains("channel")
+                        combined.contains("next") || combined.contains("prev") || combined.contains("channel") ||
+                        combined.contains("paid promotion") || combined.contains("includes paid promotion")
 
                 if (!isExcluded) {
                     val isActionable = isActionableSkipButton(current)
-                    val isExactAdBadge = text == "ad" || desc == "ad" || text == "ad " || text == " ad"
-                    val isCountdownOrBadge = isExactAdBadge || combined.contains("sponsored") ||
+                    val isExactAdBadge = text == "ad" || desc == "ad" || text == "ad " || text == " ad" ||
+                            text == "anuncio" || desc == "anuncio" ||
+                            text == "werbung" || desc == "werbung" ||
+                            text == "publicité" || desc == "publicité" ||
+                            text == "sponsorisé" || desc == "sponsorisé" ||
+                            text == "gesponsert" || desc == "gesponsert" ||
+                            text == "реклама" || desc == "реклама" ||
+                            text == "प्रायोजित" || desc == "प्रायोजित" ||
+                            text == "광고" || desc == "광고" ||
+                            text == "스폰서" || desc == "스폰서" ||
+                            text == "广告" || desc == "广告" ||
+                            text == "廣告" || desc == "廣告" ||
+                            text == "広告" || desc == "広告" ||
+                            text == "スポンサー" || desc == "スポンサー"
+
+                    val isCountdownOrBadge = isExactAdBadge ||
                             combined.contains("skip in") || combined.contains("skip ad") ||
                             combined.contains("video will play after") || combined.contains("playback will resume") ||
                             combined.contains("your video will begin") || combined.contains("ad will end in") ||
+                            combined.contains("ad ends in") ||
                             combined.contains("ad 1 of") || combined.contains("ad 2 of") ||
                             combined.contains("1 of 2") || combined.contains("2 of 2") ||
                             combined.contains("ad ·") || combined.contains("ad •") || combined.contains("ad:") ||
-                            combined.contains("patrocinado") || combined.contains("publicité") || combined.contains("werbung") ||
-                            combined.contains("реклама") || combined.contains("광고") || combined.contains("広告")
+                            combined.contains("sponsored ·") || combined.contains("sponsored •") ||
+                            combined.contains("anuncio 1 de") || combined.contains("publicité 1 sur") ||
+                            combined.contains("werbung 1 von") || combined.contains("광고 1/") ||
+                            combined.contains("广告 1/") || combined.contains("広告 1/")
+
+                    val cleanText = text.replace("s", "").trim()
+                    val isCountdownNumber = cleanText.isNotEmpty() && cleanText.length <= 2 &&
+                            cleanText.all { it.isDigit() } && cleanText != "0"
+                    val isEarlyAdCountdown = isCountdownNumber && (viewId.contains("skip") || viewId.contains("countdown") || viewId.contains("timer") || viewId.contains("ad") || viewId.contains("button"))
 
                     val hasAdViewId = viewId.contains("skip_ad") || viewId.contains("ad_badge") ||
                             viewId.contains("ad_timer") || viewId.contains("ad_countdown") ||
-                            viewId.contains("ad_progress") || viewId.contains("advertiser")
+                            viewId.contains("ad_progress")
 
-                    if (isActionable || isCountdownOrBadge || hasAdViewId) {
+                    if (isActionable || isCountdownOrBadge || hasAdViewId || isEarlyAdCountdown) {
                         bfsFoundAd = true
                     }
                 }
@@ -710,15 +790,16 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             if (!nodes.isNullOrEmpty()) {
                 var matched = false
                 for (node in nodes) {
-                    val rect = isValidAdNode(node, minW = 6, minH = 6, requireVisible = false)
+                    val rect = isValidAdNode(node, minW = 6, minH = 6, requireVisible = true)
                     if (rect != null && !isFeedShoppingCard(node)) {
                         val text = node.text?.toString()?.trim()?.lowercase() ?: ""
                         val desc = node.contentDescription?.toString()?.trim()?.lowercase() ?: ""
-                        // Exclude track controls, channel controls, and subscriptions
+                        // Exclude track controls, channel controls, subscriptions, and creator promotions
                         if (!text.contains("intro") && !desc.contains("intro") &&
                             !text.contains("next") && !desc.contains("next") &&
                             !text.contains("prev") && !desc.contains("prev") &&
-                            !text.contains("subscribe") && !desc.contains("subscribe")
+                            !text.contains("subscribe") && !desc.contains("subscribe") &&
+                            !text.contains("paid promotion") && !desc.contains("paid promotion")
                         ) {
                             matched = true
                         }

@@ -76,6 +76,7 @@ fun SettingsScreen(
 ) {
     var showResetDialog by remember { mutableStateOf(false) }
     var showSpotifyGuideDialog by remember { mutableStateOf(false) }
+    var showYouTubeControlsGuideDialog by remember { mutableStateOf(false) }
     var sliderValue by remember { mutableFloatStateOf(currentDelayMs.toFloat()) }
     val context = LocalContext.current
 
@@ -165,6 +166,16 @@ fun SettingsScreen(
                 icon = Icons.Default.Headphones,
                 accentColor = Color(0xFF1DB954),
                 onClick = { showSpotifyGuideDialog = true }
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            SettingsActionCard(
+                title = "Clean Screen (Hide Player Controls)",
+                description = "Remove stuck pause, rewind, and forward buttons from your YouTube screen.",
+                icon = Icons.Default.PlayArrow,
+                accentColor = Color(0xFFFF0000),
+                onClick = { showYouTubeControlsGuideDialog = true }
             )
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -298,6 +309,64 @@ fun SettingsScreen(
                 },
                 dismissButton = {
                     OutlinedButton(onClick = { showSpotifyGuideDialog = false }) {
+                        Text("Got It")
+                    }
+                }
+            )
+        }
+
+        if (showYouTubeControlsGuideDialog) {
+            AlertDialog(
+                onDismissRequest = { showYouTubeControlsGuideDialog = false },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFFFF0000))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Clean Screen Setup")
+                    }
+                },
+                text = {
+                    Column {
+                        Text(
+                            text = "When any accessibility service is enabled on Android, YouTube automatically locks the player controls (pause, rewind 10s, forward 10s) permanently on screen.\n\nTo make your screen completely clear:",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("1. Open YouTube and tap your Profile icon 👤 or Settings ⚙️", fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text("2. Tap 'Accessibility'", fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text("3. Turn OFF 'Accessibility player'", fontWeight = FontWeight.Bold, color = IndigoPrimary)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text("(Or change 'Hide player controls' to 'After 3 seconds')", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "The forward, backward, and pause buttons will now automatically fade out after 3 seconds, leaving your video screen 100% clean and clear!",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showYouTubeControlsGuideDialog = false
+                            try {
+                                val launchIntent = context.packageManager.getLaunchIntentForPackage("com.google.android.youtube")
+                                if (launchIntent != null) {
+                                    context.startActivity(launchIntent)
+                                }
+                            } catch (e: Exception) {
+                                // ignore
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF0000))
+                    ) {
+                        Text("Open YouTube", color = Color.White)
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(onClick = { showYouTubeControlsGuideDialog = false }) {
                         Text("Got It")
                     }
                 }

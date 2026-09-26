@@ -74,6 +74,7 @@ object DetectionDictionary {
     )
 
     // IDs that strictly indicate an in-stream video ad timer or active ad progress is active in the video player
+    // (Feed poster ads, shopping shelves, and cards below the video are strictly excluded)
     val IN_STREAM_AD_COUNTDOWN_IDS = setOf(
         "com.google.android.youtube:id/ad_countdown",
         "com.google.android.youtube:id/ad_progress_text",
@@ -81,20 +82,10 @@ object DetectionDictionary {
         "com.google.android.youtube:id/ad_time_remaining",
         "com.google.android.youtube:id/ad_badge",
         "com.google.android.youtube:id/ad_badge_text",
-        "com.google.android.youtube:id/ad_headline",
-        "com.google.android.youtube:id/ad_cta_button",
-        "com.google.android.youtube:id/advertiser_view",
-        "com.google.android.youtube:id/ad_view",
-        "com.google.android.youtube:id/ad_compact_view",
         "com.google.android.youtube:id/ad_timer_text",
         "com.google.android.youtube:id/ad_progress",
         "com.google.android.youtube:id/ad_duration",
-        "com.google.android.youtube:id/ad_text",
-        "com.google.android.youtube:id/ad_title",
-        "com.google.android.youtube:id/ad_source",
         "com.google.android.youtube:id/skip_ad_countdown",
-        "com.google.android.youtube:id/brand_interaction_view",
-        "com.google.android.youtube:id/in_video_ad_badge",
         "in.startv.hotstar:id/ad_timer",
         "in.startv.hotstar:id/ad_countdown",
         "com.jio.media.ondemand:id/ad_timer",
@@ -106,22 +97,13 @@ object DetectionDictionary {
         "ad_progress_text",
         "ad_countdown_text",
         "ad_time_remaining",
-        "ad_timer",
         "ad_badge",
         "ad_badge_text",
-        "ad_headline",
-        "ad_cta_button",
+        "ad_timer",
         "ad_timer_text",
-        "ad_view",
-        "advertiser_view",
         "ad_progress",
         "ad_duration",
-        "ad_text",
-        "ad_title",
-        "ad_source",
-        "skip_ad_countdown",
-        "brand_interaction_view",
-        "in_video_ad_badge"
+        "skip_ad_countdown"
     )
 
     // IDs for YouTube floating miniplayer / PiP container views
@@ -227,7 +209,6 @@ object DetectionDictionary {
     // Exact in-stream countdown phrases that only appear during in-stream video ads
     val IN_STREAM_COUNTDOWN_MARKERS = setOf(
         // Modern YouTube single ad & countdown badges
-        "sponsored",
         "sponsored ·",
         "sponsored •",
         "ad ·",
@@ -258,47 +239,43 @@ object DetectionDictionary {
         "playback will resume",
         "ad will end in",
         "ad ends in",
-        "ends in",
         "skip in",
         "skip ad in",
         "reward in",
         "visit advertiser",
-        "learn more",
-        // Multi-language ad markers
+        // Multi-language specific ad markers
         "anuncio 1 de 2",
         "anuncio 2 de 2",
         "anuncio ·",
-        "anuncio",
+        "anuncio •",
         "patrocinado ·",
-        "patrocinado",
+        "patrocinado •",
         "publicité 1 sur 2",
         "publicité ·",
-        "publicité",
+        "publicité •",
         "sponsorisé ·",
-        "sponsorisé",
+        "sponsorisé •",
         "werbung 1 von 2",
         "werbung ·",
-        "werbung",
+        "werbung •",
         "gesponsert ·",
-        "gesponsert",
+        "gesponsert •",
         "реклама 1 из 2",
         "реклама ·",
-        "реклама",
+        "реклама •",
         "प्रायोजित ·",
-        "प्रायोजित",
+        "प्रायोजित •",
         "광고 1/2",
         "광고 ·",
-        "광고",
-        "스폰서",
+        "광고 •",
         "广告 1/2",
         "广告 ·",
-        "广告",
+        "广告 •",
         "廣告 ·",
-        "廣告",
+        "廣告 •",
         "広告 1/2",
         "広告 ·",
-        "広告",
-        "スポンサー"
+        "広告 •"
     )
 
     // Multi-language text and contentDescription for closing banner ads
