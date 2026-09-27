@@ -20,13 +20,18 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Policy
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -41,6 +46,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -58,20 +65,32 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.adskiper.skipflow.billing.BillingConstants
+import com.adskiper.skipflow.ui.theme.AmberWarning
+import com.adskiper.skipflow.ui.theme.CyberCyan
 import com.adskiper.skipflow.ui.theme.EmeraldAccent
+import com.adskiper.skipflow.ui.theme.HeroGradient
 import com.adskiper.skipflow.ui.theme.IndigoLight
 import com.adskiper.skipflow.ui.theme.IndigoPrimary
 import com.adskiper.skipflow.ui.theme.RoseError
+import com.adskiper.skipflow.ui.theme.VioletNeon
 import kotlin.math.roundToLong
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     currentDelayMs: Long,
+    isUnlimited: Boolean,
+    freeSkipsUsed: Int,
+    isReviewerBypassEnabled: Boolean,
     onDelayChanged: (Long) -> Unit,
     onDisableBatteryOptClicked: () -> Unit,
     onResetStatsClicked: () -> Unit,
     onShowOnboardingClicked: () -> Unit,
+    onOpenPaywall: () -> Unit,
+    onRestorePurchases: () -> Unit,
+    onToggleReviewerBypass: (Boolean) -> Unit,
+    onResetFreeSkips: () -> Unit,
     onBack: () -> Unit
 ) {
     var showResetDialog by remember { mutableStateOf(false) }
@@ -210,6 +229,162 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            SettingsSectionHeader(title = "SUBSCRIPTION & GOOGLE PLAY BILLING")
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenPaywall)
+                    .border(
+                        1.dp,
+                        if (isUnlimited) EmeraldAccent.copy(alpha = 0.5f) else CyberCyan.copy(alpha = 0.4f),
+                        RoundedCornerShape(16.dp)
+                    ),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (isUnlimited) Icons.Default.AutoAwesome else Icons.Default.Stars,
+                                contentDescription = null,
+                                tint = if (isUnlimited) EmeraldAccent else CyberCyan
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = if (isUnlimited) "SkipFlow Unlimited" else "Free Tier (15 Skips Included)",
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    (if (isUnlimited) EmeraldAccent else IndigoPrimary).copy(alpha = 0.2f),
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = if (isUnlimited) "ACTIVE" else "$freeSkipsUsed / ${BillingConstants.FREE_TIER_MAX_SKIPS} USED",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (isUnlimited) EmeraldAccent else CyberCyan
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = if (isUnlimited) {
+                            "You have unlimited 0ms ad skipping and audio immunity active across all supported apps."
+                        } else {
+                            "Monthly unlimited (₹29) & Yearly unlimited (₹299) subscriptions available through Google Play."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Button(
+                        onClick = onOpenPaywall,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isUnlimited) Color(0xFF1E293B) else IndigoPrimary
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = if (isUnlimited) "Manage / View Subscription" else "Upgrade to Unlimited (from ₹29)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            SettingsActionCard(
+                title = "Restore Google Play Purchases",
+                description = "Re-check and restore active subscriptions on this device.",
+                icon = Icons.Default.Refresh,
+                accentColor = CyberCyan,
+                onClick = onRestorePurchases
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            SettingsSectionHeader(title = "DEVELOPER & PLAY STORE REVIEWER")
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(16.dp)),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Reviewer Bypass Mode",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Allows Google Play review team to evaluate unlimited ad skip features without live billing credentials.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Switch(
+                            checked = isReviewerBypassEnabled,
+                            onCheckedChange = onToggleReviewerBypass,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = AmberWarning,
+                                checkedTrackColor = AmberWarning.copy(alpha = 0.5f)
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedButton(
+                        onClick = onResetFreeSkips,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.RestartAlt,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Reset Free Skips Counter (0 / 15)",
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
             SettingsSectionHeader(title = "DATA & PRIVACY")
 
             SettingsActionCard(
@@ -244,7 +419,7 @@ fun SettingsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text("SkipFlow v1.2.10", fontWeight = FontWeight.SemiBold)
+                        Text("SkipFlow v1.2.11", fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(

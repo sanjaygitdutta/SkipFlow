@@ -71,17 +71,37 @@ class AdAudioController(context: Context) {
             }
 
             // Instantly restore volume at hardware level (0ms)
-            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, restoreVol, 0)
+            // Clear mute stream gate first, then immediately apply restored volume level
             try {
                 audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
             } catch (e: Exception) {
                 // ignore
             }
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, restoreVol, 0)
             isMuted = false
             muteStartTime = 0L
             Log.i(TAG, "Restored audio volume to: $restoreVol (isMuted cleared)")
         } catch (e: Exception) {
             Log.e(TAG, "Error unmuting ad audio", e)
+        }
+    }
+
+    /**
+     * Actively records user's manual volume changes during normal content playback
+     * so restoration is always calibrated to the user's latest preferred volume.
+     */
+    @Synchronized
+    fun recordUserVolume() {
+        if (!isMuted) {
+            try {
+                val vol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                if (vol > 0) {
+                    lastKnownUserVolume = vol
+                    savedVolume = vol
+                }
+            } catch (e: Exception) {
+                // ignore
+            }
         }
     }
 

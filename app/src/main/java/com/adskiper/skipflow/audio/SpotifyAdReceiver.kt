@@ -16,7 +16,8 @@ import kotlinx.coroutines.launch
 class SpotifyAdReceiver(
     private val audioController: AdAudioController,
     private val statsRepo: StatsRepository,
-    private val preferencesRepo: PreferencesRepository
+    private val preferencesRepo: PreferencesRepository,
+    private val onStateChanged: ((Boolean) -> Unit)? = null
 ) : BroadcastReceiver() {
 
     companion object {
@@ -83,6 +84,7 @@ class SpotifyAdReceiver(
                 Log.i(TAG, "Detected Spotify Ad ($track)! Muting media audio stream.")
                 audioController.muteAdAudio()
                 isCurrentlyMutingSpotify = true
+                onStateChanged?.invoke(true)
                 scope.launch {
                     statsRepo.recordSpotifyAdMuted()
                 }
@@ -92,6 +94,7 @@ class SpotifyAdReceiver(
                 Log.i(TAG, "Spotify normal track resumed ($track by $artist). Restoring audio.")
                 audioController.unmuteAdAudio()
                 isCurrentlyMutingSpotify = false
+                onStateChanged?.invoke(false)
             }
         }
     }
@@ -102,6 +105,7 @@ class SpotifyAdReceiver(
             // When paused, restore volume so user's phone isn't left at 0 volume
             audioController.unmuteAdAudio()
             isCurrentlyMutingSpotify = false
+            onStateChanged?.invoke(false)
         }
     }
 

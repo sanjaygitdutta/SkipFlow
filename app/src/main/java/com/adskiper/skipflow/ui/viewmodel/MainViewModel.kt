@@ -24,9 +24,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+import android.app.Activity
+import com.adskiper.skipflow.billing.BillingConstants
+import com.adskiper.skipflow.billing.BillingManager
+
 class MainViewModel(
     private val preferencesRepo: PreferencesRepository,
-    private val statsRepo: StatsRepository
+    private val statsRepo: StatsRepository,
+    private val billingManager: BillingManager
 ) : ViewModel() {
 
     private val _isAccessibilityEnabled = MutableStateFlow(false)
@@ -34,6 +39,22 @@ class MainViewModel(
 
     private val _showDisclosure = MutableStateFlow(false)
     val showDisclosure: StateFlow<Boolean> = _showDisclosure.asStateFlow()
+
+    val freeSkipsUsed: StateFlow<Int> = preferencesRepo.freeSkipsUsed
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val isUnlimitedUnlocked: StateFlow<Boolean> = preferencesRepo.isUnlimitedUnlocked
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val isPremiumActive: StateFlow<Boolean> = preferencesRepo.isPremiumActive
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val isReviewerBypassEnabled: StateFlow<Boolean> = preferencesRepo.isReviewerBypassEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val monthlyPrice: StateFlow<String> = billingManager.monthlyPrice
+    val yearlyPrice: StateFlow<String> = billingManager.yearlyPrice
+    val isBillingReady: StateFlow<Boolean> = billingManager.isBillingReady
 
     val isAutoSkipEnabled: StateFlow<Boolean> = preferencesRepo.isAutoSkipEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
@@ -84,6 +105,7 @@ class MainViewModel(
     private var simulatorJob: Job? = null
 
     init {
+        billingManager.startBillingConnection()
         viewModelScope.launch {
             SkipFlowAccessibilityService.isServiceActive.collect { active ->
                 if (active) {
@@ -236,5 +258,39 @@ class MainViewModel(
             _isSimulatingAd.value = false
             statsRepo.recordAdSkipped()
         }
+    }
+
+    fun launchSubscription(activity: Activity, isYearly: Boolean) {
+        val productId = if (isYearly) {
+            BillingConstants.PRODUCT_YEARLY_SUBSCRIPTION
+        } else {
+            BillingConstants.PRODUCT_MONTHLY_SUBSCRIPTION
+        }
+        billingManager.launchBillingFlow(activity, productId)
+    }
+
+    fun restorePurchases(onResult: (Boolean, String) -> Unit) {
+        billingManager.restorePurchases(onResult)
+    }
+
+    fun toggleReviewerBypass(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepo.setReviewerBypass(enabled)
+        }
+    }
+
+    fun resetFreeSkips() {
+        viewModelScope.launch {
+            preferencesRepo.resetFreeSkips()
+        }
+    }
+
+    fun checkPurchases() {
+        billingManager.queryActivePurchases()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        billingManager.destroy()
     }
 }

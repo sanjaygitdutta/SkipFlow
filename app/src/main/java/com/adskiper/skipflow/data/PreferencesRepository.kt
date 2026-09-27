@@ -5,10 +5,18 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.adskiper.skipflow.billing.BillingConstants
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "skipflow_settings")
 
@@ -26,12 +34,38 @@ class PreferencesRepository(private val context: Context) {
         val KEY_OTT_SKIP = booleanPreferencesKey("pref_ott_skip")
         val KEY_ONBOARDING_COMPLETED = booleanPreferencesKey("pref_onboarding_completed")
 
+        // Google Play Billing & Free Tier Limit Keys
+        val KEY_FREE_SKIPS_USED = intPreferencesKey("pref_free_skips_used")
+        val KEY_IS_PREMIUM_ACTIVE = booleanPreferencesKey("pref_is_premium_active")
+        val KEY_ACTIVE_PLAN_ID = stringPreferencesKey("pref_active_plan_id")
+        val KEY_REVIEWER_BYPASS = booleanPreferencesKey("pref_reviewer_bypass")
+
         @Volatile
         private var INSTANCE: PreferencesRepository? = null
 
         fun getInstance(context: Context): PreferencesRepository {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: PreferencesRepository(context.applicationContext).also { INSTANCE = it }
+            }
+        }
+    }
+
+    private val repoScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // Ultra-fast memory cache for 0ms non-blocking checks in AccessibilityService
+    @Volatile
+    private var cachedFreeSkipsUsed: Int = 0
+    @Volatile
+    private var cachedIsPremiumActive: Boolean = false
+    @Volatile
+    private var cachedIsReviewerBypass: Boolean = false
+
+    init {
+        repoScope.launch {
+            context.dataStore.data.collect { prefs ->
+                cachedFreeSkipsUsed = prefs[KEY_FREE_SKIPS_USED] ?: 0
+                cachedIsPremiumActive = prefs[KEY_IS_PREMIUM_ACTIVE] ?: false
+                cachedIsReviewerBypass = prefs[KEY_REVIEWER_BYPASS] ?: false
             }
         }
     }
@@ -74,6 +108,71 @@ class PreferencesRepository(private val context: Context) {
 
     val isOnboardingCompleted: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[KEY_ONBOARDING_COMPLETED] ?: false
+    }
+
+    // Free tier & Google Play Billing flows
+    val freeSkipsUsed: Flow<Int> = context.dataStore.data.map { preferences ->
+        preferences[KEY_FREE_SKIPS_USED] ?: 0
+    }
+
+    val isPremiumActive: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[KEY_IS_PREMIUM_ACTIVE] ?: false
+    }
+
+    val activePlanId: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[KEY_ACTIVE_PLAN_ID] ?: ""
+    }
+
+    val isReviewerBypassEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[KEY_REVIEWER_BYPASS] ?: false
+    }
+
+    val isUnlimitedUnlocked: Flow<Boolean> = combine(isPremiumActive, isReviewerBypassEnabled) { premium, bypass ->
+        premium || bypass
+    }
+
+    // 0ms synchronous accessors for AccessibilityService
+    fun canAutoSkipSync(): Boolean {
+        return isUnlimitedUnlockedSync() || (cachedFreeSkipsUsed < BillingConstants.FREE_TIER_MAX_SKIPS)
+    }
+
+    fun isUnlimitedUnlockedSync(): Boolean {
+        return cachedIsPremiumActive || cachedIsReviewerBypass
+    }
+
+    fun getFreeSkipsUsedSync(): Int = cachedFreeSkipsUsed
+
+    suspend fun incrementFreeSkips(): Int {
+        var updated = 0
+        context.dataStore.edit { prefs ->
+            val cur = prefs[KEY_FREE_SKIPS_USED] ?: 0
+            updated = cur + 1
+            prefs[KEY_FREE_SKIPS_USED] = updated
+        }
+        cachedFreeSkipsUsed = updated
+        return updated
+    }
+
+    suspend fun resetFreeSkips() {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_FREE_SKIPS_USED] = 0
+        }
+        cachedFreeSkipsUsed = 0
+    }
+
+    suspend fun setPremiumActive(active: Boolean, planId: String = "") {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_IS_PREMIUM_ACTIVE] = active
+            prefs[KEY_ACTIVE_PLAN_ID] = planId
+        }
+        cachedIsPremiumActive = active
+    }
+
+    suspend fun setReviewerBypass(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_REVIEWER_BYPASS] = enabled
+        }
+        cachedIsReviewerBypass = enabled
     }
 
     suspend fun setAutoSkip(enabled: Boolean) {

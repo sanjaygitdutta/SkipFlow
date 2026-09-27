@@ -12,8 +12,8 @@ android {
         applicationId = "com.adskiper.skipflow"
         minSdk = 26
         targetSdk = 34
-        versionCode = 23
-        versionName = "1.2.10"
+        versionCode = 24
+        versionName = "1.2.11"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -75,6 +75,7 @@ dependencies {
 
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.play.billing.ktx)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

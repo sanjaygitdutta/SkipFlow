@@ -118,30 +118,30 @@ fun OnboardingWelcomeScreen(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Cinematic Multi-Stop Dark Scrim (Preserves image visual while guaranteeing 100% text readability)
+            // Cinematic Multi-Stop Dark Scrim (Balanced for high image visibility & sharp text contrast)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            0.0f to Color(0xFF070B14).copy(alpha = 0.82f),
-                            0.20f to Color(0xFF070B14).copy(alpha = 0.58f),
-                            0.50f to Color(0xFF070B14).copy(alpha = 0.82f),
-                            0.80f to Color(0xFF070B14).copy(alpha = 0.94f),
-                            1.0f to Color(0xFF070B14).copy(alpha = 0.98f)
+                            0.0f to Color(0xFF070B14).copy(alpha = 0.50f),
+                            0.25f to Color(0xFF070B14).copy(alpha = 0.32f),
+                            0.55f to Color(0xFF070B14).copy(alpha = 0.48f),
+                            0.80f to Color(0xFF070B14).copy(alpha = 0.68f),
+                            1.0f to Color(0xFF070B14).copy(alpha = 0.82f)
                         )
                     )
             )
 
-            // Edge Vignette Scrim
+            // Soft Edge Vignette
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         Brush.horizontalGradient(
-                            0.0f to Color(0xFF070B14).copy(alpha = 0.45f),
+                            0.0f to Color(0xFF070B14).copy(alpha = 0.20f),
                             0.5f to Color.Transparent,
-                            1.0f to Color(0xFF070B14).copy(alpha = 0.45f)
+                            1.0f to Color(0xFF070B14).copy(alpha = 0.20f)
                         )
                     )
             )

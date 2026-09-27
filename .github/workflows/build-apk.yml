@@ -41,43 +41,48 @@ jobs:
 
       - name: Prepare APKs for Release
         run: |
-          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.2.10.apk
-          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.2.10-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.2.11.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.2.11-debug.apk
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SkipFlow-v1.2.10-Release-APK
-          path: SkipFlow-v1.2.10.apk
+          name: SkipFlow-v1.2.11-Release-APK
+          path: SkipFlow-v1.2.11.apk
           retention-days: 30
 
       - name: Create GitHub Release with Direct APK Download
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.2.10' }}
-          name: "SkipFlow v1.2.10 (Exact Matching Lifestyle Stories, Large Hero Carousel & 1.5s Auto-Swipe)"
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.2.11' }}
+          name: "SkipFlow v1.2.11 (Google Play Billing, 15 Free Skips, 0ms Audio Mute & Persistent Notification)"
           body: |
-            ### 🚀 SkipFlow v1.2.10 — Exact Matching Catchy Words, Large Hero Carousel & 1.5s Auto-Swipe
+            ### 🚀 SkipFlow v1.2.11 — Google Play Billing, 15 Free Skips, 0ms Audio Silencing & Persistent Protection
 
-            #### 🌟 What's New & Fixed in v1.2.10:
-            - 🎯 **100% Accurate Visual Pairing (Image + Catchy Headline & Subtitle)**:
-              - **Dining & Meals**: Shows person eating food at the dining table with smartphone -> *"Hands-Free Enjoy Content: Never drop your spoon or grease your screen to skip ads while eating"*.
-              - **Safe Commute & Drive**: Shows driver's hands gripping car steering wheel -> *"Eyes on Road, Ears on Flow: Keep both hands on the wheel — video & audio ads auto-skipped safely"*.
-              - **Kitchen & Cooking**: Shows woman chopping vegetables while watching recipe tutorial on laptop -> *"Messy Hands? Zero Touch: Follow recipes & cooking tutorials without touching screen with wet hands"*.
-              - **Couch & Movie Night**: Shows friends sharing popcorn on sofa watching laptop -> *"Non-Stop Cinema Magic: Grab your popcorn, relax on the sofa, and stream without commercial breaks"*.
-              - **Music & Podcasts**: Shows smiling man with earphones enjoying audio beats -> *"Seamless Audio Beats: Smart audio ad muter lets your workout beats & podcast episodes flow"*.
-              - **Family & Bedtime**: Shows parents and toddler in bed watching tablet screen together -> *"Peace of Mind Streaming: Enjoy bedtime stories and cartoons together free from loud sudden ads"*.
-            - 🖼️ **Increased Image Size & Immersive Single-Card Display**:
-              - Enlarged hero lifestyle card to **290dp** on the Welcome / First Screen and **205dp** on Dashboard.
-              - Showcases exactly **one clean, full-bleed card at once** without awkward clipping.
-            - ⏱️ **1.5s Auto-Swipe Stay + Story Progress Indicators**:
-              - Smooth 1.5-second story timer with top progress dashes and instant left/right tap navigation.
-            - 🛡️ **Zero Start Delay & Immunity**:
-              - All v1.2.9 optimizations preserved: 0ms audio recovery, YouTube player overlay immunity, 3D Swipe & Drag-to-Lock platform protection.
+            #### 🌟 What's New & Upgraded in v1.2.11:
+            - 🔇 **Strict 0ms Instant Sound Muting & Content Unmuting**:
+              - Instantaneous 0ms hardware-level ad silencer on ad onset and mid-roll ads.
+              - Instantaneous 0ms sound restoration when normal content starts or resumes mid-video.
+              - Rule never breaks during the middle of ads or content with 30ms ultra-rapid watchdog poller.
+            - 📌 **Persistent Ongoing Protection Notification**:
+              - Pinned ongoing status notification in Android notification drawer that stays visible until SkipFlow is closed.
+              - Dynamically displays real-time protection status ("Ad Audio Muted (0ms)" vs "0ms Instant Ad Silencing Active").
+            - 💳 **Official Google Play Billing 7.1.1 Integration**:
+              - Secure in-app subscriptions compliant with Google Play Monetization policies.
+              - **Monthly Plan**: `monthly_unlimited_skips` (₹29 / month).
+              - **Yearly Plan**: `yearly_unlimited_skips` (₹299 / year — Save 14%, ~₹24.9/mo).
+            - 🎁 **15 Free Ad Skips Counter**:
+              - 15 free automatic ad skips to experience hands-free flow.
+              - Once 15 free skips are used, auto-click prompts subscription while 0ms audio muting continues.
+            - ✨ **Ultra-Sleek In-App Paywall & Subscription Hub**:
+              - Real-time free skips progress bar (`X / 15 used`).
+              - Detailed feature comparison, one-tap "Restore Purchases" button, and Developer/Reviewer bypass mode.
+            - 🎨 **Enhanced Background Visibility & Streamlined Dashboard**:
+              - Clean, non-repetitive dashboard layout with high-visibility background images.
 
-            > 💡 **Recommended**: Download **SkipFlow-v1.2.10.apk** (Release, Signed).
+            > 💡 **Recommended**: Download **SkipFlow-v1.2.11.apk** (Release, Signed).
           files: |
-            SkipFlow-v1.2.10.apk
-            SkipFlow-v1.2.10-debug.apk
+            SkipFlow-v1.2.11.apk
+            SkipFlow-v1.2.11-debug.apk
           prerelease: false

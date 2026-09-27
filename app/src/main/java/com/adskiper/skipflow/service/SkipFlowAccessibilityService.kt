@@ -2,20 +2,30 @@ package com.adskiper.skipflow.service
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
 import android.content.res.Resources
 import android.graphics.Path
 import android.graphics.Rect
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.adskiper.skipflow.R
 import com.adskiper.skipflow.audio.AdAudioController
 import com.adskiper.skipflow.audio.SpotifyAdReceiver
+import com.adskiper.skipflow.billing.BillingConstants
 import com.adskiper.skipflow.data.PreferencesRepository
 import com.adskiper.skipflow.data.StatsRepository
 import com.adskiper.skipflow.sensor.ProximityWaveDetector
+import com.adskiper.skipflow.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -34,7 +44,10 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         private const val BANNER_DEBOUNCE_MS = 1200L
         private const val POST_SKIP_GRACE_PERIOD_MS = 1000L // 1.0s grace window after skip click to prevent lingering ad layouts from re-muting new content
         private const val UNMUTE_CONFIRMATION_DELAY_MS = 100L // 100ms instant confirmation prevents audible lag when content starts
-        private const val ACTIVE_MUTE_POLL_INTERVAL_MS = 50L // Rapid 50ms poll (20Hz) for true 0ms ad detection & instant content return
+        private const val ACTIVE_MUTE_POLL_INTERVAL_MS = 30L // Rapid 30ms poll (~33Hz) for true 0ms ad detection & instant content return
+
+        private const val PERSISTENT_NOTIFICATION_CHANNEL_ID = "skipflow_persistent_service"
+        private const val PERSISTENT_NOTIFICATION_ID = 1001
 
         private val _isServiceActive = MutableStateFlow(false)
         val isServiceActive = _isServiceActive.asStateFlow()
@@ -78,9 +91,11 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             handleHandsFreeWave()
         }
 
-        // Register Spotify background ad muter receiver
+        // Register Spotify background ad muter receiver with dynamic status callback
         try {
-            spotifyAdReceiver = SpotifyAdReceiver(audioController, statsRepo, preferencesRepo)
+            spotifyAdReceiver = SpotifyAdReceiver(audioController, statsRepo, preferencesRepo) { isMuted ->
+                updatePersistentNotification(isMuted)
+            }
             ContextCompat.registerReceiver(
                 applicationContext,
                 spotifyAdReceiver,
@@ -91,6 +106,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to register SpotifyAdReceiver", e)
         }
+
+        // Show ongoing persistent notification: stays pinned until app/service is closed
+        showPersistentNotification(isMuted = false)
 
         observePreferences()
     }
@@ -162,6 +180,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     stopActiveMutePoller()
                     if (audioController.isCurrentlyMuted()) {
                         audioController.unmuteAdAudio()
+                        updatePersistentNotification(isMuted = false)
                     }
                 }
             }
@@ -187,16 +206,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             return
         }
 
-        // Handle content change events: when unmuted, process with ZERO delay (0ms) to silence ads instantly!
-        if (eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
-            val minInterval = if (audioController.isCurrentlyMuted()) 40L else 0L
-            val elapsed = now - lastScanTimestamp
-            if (minInterval > 0 && elapsed < minInterval) {
-                scheduleDeferredScan(minInterval - elapsed, isYouTube, isOtt)
-                return
-            }
-        }
-
+        // Process content changes instantly with ZERO delay (0ms) to silence ads & restore content without lag
         lastScanTimestamp = now
         cancelDeferredScan()
         processActiveWindow(isYouTube, isOtt)
@@ -309,6 +319,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             "com.google.android.youtube:id/time_total",
             "com.google.android.youtube:id/player_video_title",
             "com.google.android.youtube:id/video_title",
+            "com.google.android.youtube:id/title",
             "com.google.android.youtube:id/play_pause_button",
             "time_current",
             "current_time",
@@ -316,7 +327,13 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             "time_total",
             "exo_time",
             "exo_duration",
-            "exo_progress"
+            "exo_progress",
+            "exo_content_frame",
+            "exo_player",
+            "player_view",
+            "video_view",
+            "player_container",
+            "surface_view"
         )
         for (id in contentIds) {
             val nodes = root.findAccessibilityNodeInfosByViewId(id)
@@ -440,12 +457,16 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
                 if (inStreamAdActive) {
                     cancelPendingUnmute()
-                    audioController.muteAdAudio()
+                    if (!audioController.isCurrentlyMuted()) {
+                        audioController.muteAdAudio()
+                        updatePersistentNotification(isMuted = true)
+                    }
                     startActiveMutePoller(isYouTube, isOtt)
                 } else if (inGracePeriod) {
                     // In post-skip grace period and no secondary ad: ensure audio stays unmuted for content
                     if (audioController.isCurrentlyMuted()) {
                         audioController.unmuteAdAudio()
+                        updatePersistentNotification(isMuted = false)
                     }
                 } else if (audioController.isCurrentlyMuted()) {
                     // Ad is no longer active on screen!
@@ -455,10 +476,14 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         cancelPendingUnmute()
                         stopActiveMutePoller()
                         audioController.unmuteAdAudio()
+                        updatePersistentNotification(isMuted = false)
                     } else {
-                        // Secondary ad in transition: brief 100ms debounce
-                        scheduleDebouncedUnmute(isYouTube)
+                        // Secondary ad in transition: ensure mute remains applied
+                        audioController.muteAdAudio()
                     }
+                } else {
+                    // Normal content playing and unmuted: actively calibrate user volume preferences
+                    audioController.recordUserVolume()
                 }
             }
 
@@ -494,6 +519,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 Log.i(TAG, "Ad ended confirmed after debounced check. Restoring volume.")
                 stopActiveMutePoller()
                 audioController.unmuteAdAudio()
+                updatePersistentNotification(isMuted = false)
             }
         }
 
@@ -509,12 +535,10 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     }
 
     private var consecutiveNullRoots = 0
-    private var consecutiveAdAbsentPolls = 0
 
     private fun startActiveMutePoller(isYouTube: Boolean, isOtt: Boolean) {
         if (activeMutePollerRunnable != null) return
         consecutiveNullRoots = 0
-        consecutiveAdAbsentPolls = 0
 
         val poller = object : Runnable {
             override fun run() {
@@ -527,6 +551,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     Log.i(TAG, "User left media app during mute. Restoring audio.")
                     stopActiveMutePoller()
                     audioController.unmuteAdAudio()
+                    updatePersistentNotification(isMuted = false)
                     return
                 }
 
@@ -545,52 +570,49 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         Log.i(TAG, "Skip executed inside poller. Audio unmuted instantly with 0ms delay.")
                         stopActiveMutePoller()
                         root.recycle()
+                        updatePersistentNotification(isMuted = false)
                         return
                     }
 
-                    var contentActive = false
                     val adStillPlaying = try {
-                        val adPlaying = inspectInStreamAdState(root, isYouTube)
-                        if (!adPlaying) {
-                            contentActive = isNormalContentPlaying(root)
-                        }
-                        adPlaying
+                        inspectInStreamAdState(root, isYouTube)
                     } catch (e: Exception) {
                         false
-                    } finally {
-                        root.recycle()
                     }
 
                     if (!adStillPlaying) {
-                        consecutiveAdAbsentPolls++
-                        // If normal content playback is confirmed active OR ad has been absent for 2 polls (~100ms),
-                        // restore content audio INSTANTLY (0ms delay)!
-                        if (contentActive || consecutiveAdAbsentPolls >= 2) {
+                        val secondaryAd = hasDistinctSecondaryAd(root)
+                        root.recycle()
+                        if (!secondaryAd) {
                             Log.i(TAG, "Ad ended confirmed by active poller. Restoring audio instantly with 0ms delay.")
                             cancelPendingUnmute()
                             stopActiveMutePoller()
                             audioController.unmuteAdAudio()
+                            updatePersistentNotification(isMuted = false)
                             return
+                        } else {
+                            audioController.muteAdAudio()
                         }
                     } else {
-                        consecutiveAdAbsentPolls = 0
+                        root.recycle()
                         // Confirmed ad is still actively playing on screen: renew watchdog (for long 35-60s ads)
                         cancelPendingUnmute()
                         audioController.renewWatchdogIfConfirmedAd(30_000L)
                     }
                 } else {
                     consecutiveNullRoots++
-                    // If root has been null 4 consecutive checks (~200ms) while muted, ad overlay is gone
-                    if (consecutiveNullRoots >= 4) {
+                    // If root has been null 3 consecutive checks (~90ms) while muted, ad overlay is gone
+                    if (consecutiveNullRoots >= 3) {
                         Log.i(TAG, "Active window returned null repeatedly ($consecutiveNullRoots times). Ad overlay cleared. Restoring audio.")
                         cancelPendingUnmute()
                         audioController.unmuteAdAudio()
+                        updatePersistentNotification(isMuted = false)
                         stopActiveMutePoller()
                         return
                     }
                 }
 
-                // Check watchdog and schedule next poll
+                // Check watchdog and schedule next poll (30ms interval for ultra-fast reaction)
                 audioController.checkWatchdog()
                 mainHandler.postDelayed(this, ACTIVE_MUTE_POLL_INTERVAL_MS)
             }
@@ -602,7 +624,6 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
     private fun stopActiveMutePoller() {
         consecutiveNullRoots = 0
-        consecutiveAdAbsentPolls = 0
         activeMutePollerRunnable?.let {
             mainHandler.removeCallbacks(it)
             activeMutePollerRunnable = null
@@ -1071,6 +1092,13 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         val now = System.currentTimeMillis()
         if (now - lastClickTimestamp < CLICK_DEBOUNCE_MS) return false
 
+        // Check if user has free skips remaining or has active subscription
+        if (!preferencesRepo.canAutoSkipSync()) {
+            Log.w(TAG, "Auto-skip blocked: Free skips limit (15) reached without active subscription.")
+            notifyPaywallLimitReached()
+            return false
+        }
+
         val screenHeight = Resources.getSystem().displayMetrics.heightPixels
         val screenWidth = Resources.getSystem().displayMetrics.widthPixels
         val isPortrait = screenHeight > screenWidth
@@ -1250,10 +1278,67 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         return dispatchGesture(gesture, null, null)
     }
 
+    private var lastPaywallNotificationTime = 0L
+
+    private fun notifyPaywallLimitReached() {
+        val now = System.currentTimeMillis()
+        if (now - lastPaywallNotificationTime < 30_000L) return // Debounce notifications by 30 seconds
+        lastPaywallNotificationTime = now
+
+        try {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    BillingConstants.PAYWALL_NOTIFICATION_CHANNEL_ID,
+                    "SkipFlow Unlimited",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Notifications for SkipFlow Unlimited subscription"
+                }
+                notificationManager.createNotificationChannel(channel)
+            }
+
+            val intent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra(BillingConstants.EXTRA_OPEN_PAYWALL, true)
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                this,
+                0,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val notification = NotificationCompat.Builder(this, BillingConstants.PAYWALL_NOTIFICATION_CHANNEL_ID)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("15 Free Ad Skips Used")
+                .setContentText("Tap to unlock SkipFlow Unlimited (₹29/mo or ₹299/yr) for endless skips!")
+                .setStyle(
+                    NotificationCompat.BigTextStyle()
+                        .bigText("You have used all 15 free ad skips. Upgrade to SkipFlow Unlimited for ₹29/month or ₹299/year for endless, hands-free auto-skipping!")
+                )
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true)
+                .build()
+
+            notificationManager.notify(BillingConstants.PAYWALL_NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error posting paywall notification", e)
+        }
+    }
+
     private fun onSkipAttempted(isYouTube: Boolean) {
         serviceScope.launch {
             try {
                 statsRepo.recordAdSkipped()
+                if (!preferencesRepo.isUnlimitedUnlockedSync()) {
+                    val used = preferencesRepo.incrementFreeSkips()
+                    Log.i(TAG, "Free ad skip used: $used of ${BillingConstants.FREE_TIER_MAX_SKIPS}")
+                    if (used >= BillingConstants.FREE_TIER_MAX_SKIPS) {
+                        notifyPaywallLimitReached()
+                    }
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Error recording ad skip stat", e)
             }
@@ -1263,6 +1348,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         if (audioController.isCurrentlyMuted()) {
             Log.i(TAG, "Ad skipped! Instantly restoring content audio with 0ms delay.")
             audioController.unmuteAdAudio()
+            updatePersistentNotification(isMuted = false)
         }
     }
 
@@ -1285,12 +1371,85 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         }
     }
 
+    /**
+     * Posts or updates the ongoing, persistent status notification in Android's notification drawer.
+     * This stays pinned and active until SkipFlow accessibility service is stopped or app is closed.
+     */
+    private fun showPersistentNotification(isMuted: Boolean = false) {
+        try {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    PERSISTENT_NOTIFICATION_CHANNEL_ID,
+                    "SkipFlow Protection Active",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = "Ongoing indicator of SkipFlow 0ms instant ad silencing & hands-free skipping"
+                    setShowBadge(false)
+                    enableLights(false)
+                    enableVibration(false)
+                }
+                notificationManager.createNotificationChannel(channel)
+            }
+
+            val intent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                this,
+                0,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val title = if (isMuted) "SkipFlow Ad Silencer Active (0ms)" else "SkipFlow Protection Active"
+            val text = if (isMuted) "Ad audio muted at 0ms • Restoring immediately on content"
+                       else "0ms Instant Ad Silencing • Hands-Free Auto-Skip Active"
+
+            val notification = NotificationCompat.Builder(this, PERSISTENT_NOTIFICATION_CHANNEL_ID)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setSubText("Active")
+                .setOngoing(true) // Pinned: persistent until app or service is closed
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(false)
+                .setCategory(NotificationCompat.CATEGORY_SERVICE)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .build()
+
+            notificationManager.notify(PERSISTENT_NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error displaying persistent notification", e)
+        }
+    }
+
+    private fun updatePersistentNotification(isMuted: Boolean) {
+        showPersistentNotification(isMuted)
+    }
+
+    private fun cancelPersistentNotification() {
+        try {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            notificationManager?.cancel(PERSISTENT_NOTIFICATION_ID)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error canceling persistent notification", e)
+        }
+    }
+
     override fun onInterrupt() {
         Log.w(TAG, "SkipFlow Accessibility Service Interrupted")
         cancelPendingUnmute()
         cancelDeferredScan()
         stopActiveMutePoller()
         audioController.unmuteAdAudio()
+        cancelPersistentNotification()
+    }
+
+    override fun onUnbind(intent: Intent?): Boolean {
+        cancelPersistentNotification()
+        return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
@@ -1309,6 +1468,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             Log.e(TAG, "Error unregistering Spotify receiver", e)
         }
         audioController.unmuteAdAudio()
+        cancelPersistentNotification()
         serviceScope.cancel()
         Log.i(TAG, "SkipFlow Accessibility Service Destroyed")
     }

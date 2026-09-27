@@ -21,13 +21,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FrontHand
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.VolumeMute
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -52,18 +56,20 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import com.adskiper.skipflow.R
+import com.adskiper.skipflow.billing.BillingConstants
 import com.adskiper.skipflow.ui.components.FeatureSwitchCard
-import com.adskiper.skipflow.ui.components.HandsFreeStoryCarousel
 import com.adskiper.skipflow.ui.components.PlatformProtectionCarousel
 import com.adskiper.skipflow.ui.components.ServiceStatusCard
 import com.adskiper.skipflow.ui.components.SimulatorCard
 import com.adskiper.skipflow.ui.components.StatCardsRow
 import com.adskiper.skipflow.ui.theme.AmberWarning
+import com.adskiper.skipflow.ui.theme.CardBackgroundDark
 import com.adskiper.skipflow.ui.theme.CyberCyan
 import com.adskiper.skipflow.ui.theme.EmeraldAccent
 import com.adskiper.skipflow.ui.theme.HeroGradient
 import com.adskiper.skipflow.ui.theme.IndigoLight
 import com.adskiper.skipflow.ui.theme.IndigoPrimary
+import com.adskiper.skipflow.ui.theme.RoseError
 import com.adskiper.skipflow.ui.theme.SpotifyGreen
 import com.adskiper.skipflow.ui.theme.SunsetOrange
 import com.adskiper.skipflow.ui.theme.VioletNeon
@@ -75,6 +81,8 @@ fun DashboardScreen(
     totalAdsSkipped: Long,
     totalSecondsSaved: Long,
     activeDays: Int,
+    isUnlimited: Boolean,
+    freeSkipsUsed: Int,
     isAutoSkipEnabled: Boolean,
     isAutoCloseBannersEnabled: Boolean,
     isAutoMuteEnabled: Boolean,
@@ -86,6 +94,7 @@ fun DashboardScreen(
     simCountdown: Int,
     isSimMuted: Boolean,
     onEnableServiceClicked: () -> Unit,
+    onOpenPaywall: () -> Unit,
     onToggleAutoSkip: (Boolean) -> Unit,
     onToggleAutoCloseBanners: (Boolean) -> Unit,
     onToggleAutoMute: (Boolean) -> Unit,
@@ -111,16 +120,16 @@ fun DashboardScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Dark Atmospheric Scrim (Ensures cards, stats & 3D carousel remain vivid with maximum contrast)
+        // Atmospheric Scrim (Balanced for photographic visibility & card legibility)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        0.0f to Color(0xFF070B14).copy(alpha = 0.85f),
-                        0.25f to Color(0xFF070B14).copy(alpha = 0.68f),
-                        0.60f to Color(0xFF070B14).copy(alpha = 0.85f),
-                        1.0f to Color(0xFF070B14).copy(alpha = 0.98f)
+                        0.0f to Color(0xFF070B14).copy(alpha = 0.52f),
+                        0.25f to Color(0xFF070B14).copy(alpha = 0.35f),
+                        0.60f to Color(0xFF070B14).copy(alpha = 0.52f),
+                        1.0f to Color(0xFF070B14).copy(alpha = 0.78f)
                     )
                 )
         )
@@ -184,7 +193,7 @@ fun DashboardScreen(
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Text(
-                                            text = "v1.2.10",
+                                            text = "v1.2.11",
                                             color = IndigoLight,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.ExtraBold
@@ -257,6 +266,15 @@ fun DashboardScreen(
             ) {
                 Spacer(modifier = Modifier.height(4.dp))
 
+                // Subscription & Free Tier Progress Banner
+                SubscriptionTierBanner(
+                    isUnlimited = isUnlimited,
+                    freeSkipsUsed = freeSkipsUsed,
+                    onOpenPaywall = onOpenPaywall
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
                 // 1. Service Status Hero Banner
                 ServiceStatusCard(
                     isActive = isServiceActive,
@@ -265,144 +283,77 @@ fun DashboardScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Real-Life Hands-Free Lifestyle Story Reel (1.5s Auto-Swipe Stay, Immersive Showcase)
-                HandsFreeStoryCarousel(
-                    heightDp = 205,
-                    autoSwipeDelayMs = 1500L
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
                 // 2. Metrics & Analytics 2x2 Grid
                 StatCardsRow(
-                totalAdsSkipped = totalAdsSkipped,
-                totalSecondsSaved = totalSecondsSaved,
-                spotifyAdsMuted = spotifyAdsMuted,
-                activeDays = activeDays
-            )
+                    totalAdsSkipped = totalAdsSkipped,
+                    totalSecondsSaved = totalSecondsSaved,
+                    spotifyAdsMuted = spotifyAdsMuted,
+                    activeDays = activeDays
+                )
 
-            Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-            // 3. 3D Swipe & Drag-to-Lock Platform Protection Carousel
-            PlatformProtectionCarousel(
-                isYouTubeLocked = isAutoSkipEnabled && isAutoMuteEnabled,
-                isHotstarLocked = isOttSkipEnabled,
-                isJioLocked = isOttSkipEnabled,
-                isSpotifyLocked = isSpotifyMuteEnabled,
-                onTogglePlatformLock = { platformId, shouldLock ->
-                    when (platformId) {
-                        "youtube" -> {
-                            onToggleAutoSkip(shouldLock)
-                            onToggleAutoMute(shouldLock)
-                        }
-                        "hotstar", "jiocinema" -> {
-                            onToggleOttSkip(shouldLock)
-                        }
-                        "spotify" -> {
-                            onToggleSpotifyMute(shouldLock)
+                // 3. 3D Swipe & Drag-to-Lock Platform Protection Carousel
+                SectionHeader(title = "PLATFORM CONTROLS (SWIPE & DRAG TO LOCK)")
+                PlatformProtectionCarousel(
+                    isYouTubeLocked = isAutoSkipEnabled && isAutoMuteEnabled,
+                    isHotstarLocked = isOttSkipEnabled,
+                    isJioLocked = isOttSkipEnabled,
+                    isSpotifyLocked = isSpotifyMuteEnabled,
+                    onTogglePlatformLock = { platformId, shouldLock ->
+                        when (platformId) {
+                            "youtube" -> {
+                                onToggleAutoSkip(shouldLock)
+                                onToggleAutoMute(shouldLock)
+                            }
+                            "hotstar", "jiocinema" -> {
+                                onToggleOttSkip(shouldLock)
+                            }
+                            "spotify" -> {
+                                onToggleSpotifyMute(shouldLock)
+                            }
                         }
                     }
-                }
-            )
+                )
 
-            Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(22.dp))
 
-            // 4. Quick Launch Bar
-            SectionHeader(title = "QUICK LAUNCH PROTECTED APPS")
-            QuickAppLauncherRow(context = context)
+                // 4. Smart Automation & Hands-Free Gestures (Unique Controls)
+                SectionHeader(title = "SMART CONTROLS & GESTURES")
 
-            Spacer(modifier = Modifier.height(22.dp))
+                FeatureSwitchCard(
+                    title = "Auto-Close Popup Banners",
+                    description = "Dismisses popup and overlay banners in portrait and full-screen without cutting video sound",
+                    icon = Icons.Default.Close,
+                    accentColor = CyberCyan,
+                    isChecked = isAutoCloseBannersEnabled,
+                    onCheckedChange = onToggleAutoCloseBanners,
+                    tag = "Dismiss"
+                )
 
-            // 4. Section: Video Automation Controls
-            SectionHeader(title = "VIDEO AD AUTOMATION")
+                Spacer(modifier = Modifier.height(10.dp))
 
-            FeatureSwitchCard(
-                title = "Auto-Skip Video Ads",
-                description = "Automatically presses 'Skip Ad' the millisecond YouTube's countdown finishes",
-                icon = Icons.Default.FastForward,
-                accentColor = IndigoLight,
-                isChecked = isAutoSkipEnabled,
-                onCheckedChange = onToggleAutoSkip,
-                tag = "Instant"
-            )
+                FeatureSwitchCard(
+                    title = "Wave-to-Skip Proximity Sensor",
+                    description = "Wave hand over phone's front sensor to force skip (perfect for cooking or messy gym hands)",
+                    icon = Icons.Default.FrontHand,
+                    accentColor = SunsetOrange,
+                    isChecked = isWaveEnabled,
+                    onCheckedChange = onToggleWave,
+                    tag = "Hands-Free"
+                )
 
-            Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(22.dp))
 
-            FeatureSwitchCard(
-                title = "Auto-Close Ad Banners",
-                description = "Dismisses popup and overlay banners in portrait and full-screen without cutting video sound",
-                icon = Icons.Default.Close,
-                accentColor = CyberCyan,
-                isChecked = isAutoCloseBannersEnabled,
-                onCheckedChange = onToggleAutoCloseBanners,
-                tag = "Dismiss"
-            )
+                // 5. Interactive Simulator Sandbox
+                SimulatorCard(
+                    isSimulating = isSimulating,
+                    countdown = simCountdown,
+                    isMuted = isSimMuted,
+                    onStartTest = onStartSimulation
+                )
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            FeatureSwitchCard(
-                title = "OTT Streaming Auto-Skip",
-                description = "Auto-skips ads & closes banners on Disney+ Hotstar, JioCinema, MX Player & DailyMotion",
-                icon = Icons.Default.Tv,
-                accentColor = VioletNeon,
-                isChecked = isOttSkipEnabled,
-                onCheckedChange = onToggleOttSkip,
-                tag = "OTT Media"
-            )
-
-            Spacer(modifier = Modifier.height(22.dp))
-
-            // 5. Section: Audio Muting Engine
-            SectionHeader(title = "SMART AUDIO ENGINE")
-
-            FeatureSwitchCard(
-                title = "Smart Video Audio Mute",
-                description = "Silences media volume during video ad playback and smoothly restores volume when video returns",
-                icon = Icons.Default.VolumeMute,
-                accentColor = EmeraldAccent,
-                isChecked = isAutoMuteEnabled,
-                onCheckedChange = onToggleAutoMute,
-                tag = "Smart"
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            FeatureSwitchCard(
-                title = "Spotify Background Ad Muter",
-                description = "Silently mutes audio ads between songs in the background using zero extra battery",
-                icon = Icons.Default.Headphones,
-                accentColor = SpotifyGreen,
-                isChecked = isSpotifyMuteEnabled,
-                onCheckedChange = onToggleSpotifyMute,
-                tag = if (spotifyAdsMuted > 0) "${spotifyAdsMuted} Muted" else "Spotify"
-            )
-
-            Spacer(modifier = Modifier.height(22.dp))
-
-            // 6. Section: Hands-Free Sensor
-            SectionHeader(title = "HANDS-OCCUPIED GESTURES")
-
-            FeatureSwitchCard(
-                title = "Wave-to-Skip Sensor",
-                description = "Wave hand over phone's front sensor to force skip (perfect for cooking or messy gym hands)",
-                icon = Icons.Default.FrontHand,
-                accentColor = SunsetOrange,
-                isChecked = isWaveEnabled,
-                onCheckedChange = onToggleWave,
-                tag = "Hands-Free"
-            )
-
-            Spacer(modifier = Modifier.height(22.dp))
-
-            // 7. Interactive Simulator Sandbox
-            SimulatorCard(
-                isSimulating = isSimulating,
-                countdown = simCountdown,
-                isMuted = isSimMuted,
-                onStartTest = onStartSimulation
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
@@ -431,88 +382,170 @@ private fun SectionHeader(title: String) {
     }
 }
 
-@Composable
-private fun QuickAppLauncherRow(context: Context) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        QuickLaunchButton(
-            title = "YouTube",
-            color = Color(0xFFFF2A2A),
-            packageName = "com.google.android.youtube",
-            context = context,
-            modifier = Modifier.weight(1f)
-        )
-        QuickLaunchButton(
-            title = "Spotify",
-            color = Color(0xFF1DB954),
-            packageName = "com.spotify.music",
-            context = context,
-            modifier = Modifier.weight(1f)
-        )
-        QuickLaunchButton(
-            title = "Hotstar",
-            color = Color(0xFF0084FF),
-            packageName = "in.startv.hotstar",
-            context = context,
-            modifier = Modifier.weight(1f)
-        )
-        QuickLaunchButton(
-            title = "JioCinema",
-            color = Color(0xFFE21B5F),
-            packageName = "com.jio.media.ondemand",
-            context = context,
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
 
 @Composable
-private fun QuickLaunchButton(
-    title: String,
-    color: Color,
-    packageName: String,
-    context: Context,
-    modifier: Modifier = Modifier
+private fun SubscriptionTierBanner(
+    isUnlimited: Boolean,
+    freeSkipsUsed: Int,
+    onOpenPaywall: () -> Unit
 ) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF101728))
-            .border(
-                1.dp,
-                Brush.linearGradient(listOf(color.copy(alpha = 0.5f), Color(0xFF1E293B).copy(alpha = 0.3f))),
-                RoundedCornerShape(12.dp)
-            )
-            .clickable {
-                try {
-                    val intent = context.packageManager.getLaunchIntentForPackage(packageName)
-                    if (intent != null) {
-                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                        context.startActivity(intent)
+    if (isUnlimited) {
+        androidx.compose.material3.Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .clickable(onClick = onOpenPaywall),
+            shape = RoundedCornerShape(16.dp),
+            colors = androidx.compose.material3.CardDefaults.cardColors(
+                containerColor = Color(0xFF0D1E24).copy(alpha = 0.85f)
+            ),
+            border = BorderStroke(1.dp, EmeraldAccent.copy(alpha = 0.5f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(EmeraldAccent.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = EmeraldAccent,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
-                } catch (e: Exception) {
-                    // ignore if app is not installed
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "SkipFlow Unlimited",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(EmeraldAccent.copy(alpha = 0.25f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text("ACTIVE", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = EmeraldAccent)
+                            }
+                        }
+                        Text(
+                            text = "Zero-delay 0ms skipping & audio immunity enabled",
+                            fontSize = 11.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                    contentDescription = null,
+                    tint = Color(0xFF64748B),
+                    modifier = Modifier.size(13.dp)
+                )
+            }
+        }
+    } else {
+        val isExhausted = freeSkipsUsed >= BillingConstants.FREE_TIER_MAX_SKIPS
+        val remaining = (BillingConstants.FREE_TIER_MAX_SKIPS - freeSkipsUsed).coerceAtLeast(0)
+
+        androidx.compose.material3.Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .clickable(onClick = onOpenPaywall),
+            shape = RoundedCornerShape(16.dp),
+            colors = androidx.compose.material3.CardDefaults.cardColors(
+                containerColor = if (isExhausted) RoseError.copy(alpha = 0.14f) else CardBackgroundDark.copy(alpha = 0.88f)
+            ),
+            border = BorderStroke(
+                1.dp,
+                if (isExhausted) RoseError.copy(alpha = 0.65f) else CyberCyan.copy(alpha = 0.45f)
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(if (isExhausted) RoseError.copy(alpha = 0.2f) else CyberCyan.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isExhausted) Icons.Default.Lock else Icons.Default.Stars,
+                            contentDescription = null,
+                            tint = if (isExhausted) RoseError else CyberCyan,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (isExhausted) "15 Free Skips Used" else "Free Tier: $remaining Skips Left",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (isExhausted) RoseError.copy(alpha = 0.25f) else IndigoPrimary.copy(alpha = 0.25f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = if (isExhausted) "LOCKED" else "$freeSkipsUsed/15",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (isExhausted) RoseError else CyberCyan
+                                )
+                            }
+                        }
+                        Text(
+                            text = if (isExhausted) "Auto-skip locked. Tap to unlock Unlimited!" else "Tap to unlock Unlimited for ₹29/mo or ₹299/yr",
+                            fontSize = 11.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (isExhausted) RoseError else HeroGradient)
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = if (isExhausted) "UPGRADE" else "GET PRO",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White
+                    )
                 }
             }
-            .padding(vertical = 10.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(color)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = title,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
         }
     }
 }
+

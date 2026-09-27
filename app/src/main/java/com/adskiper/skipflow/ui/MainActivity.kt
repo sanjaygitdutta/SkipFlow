@@ -1,13 +1,21 @@
 package com.adskiper.skipflow.ui
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,16 +24,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.adskiper.skipflow.billing.BillingConstants
+import com.adskiper.skipflow.billing.BillingManager
 import com.adskiper.skipflow.data.PreferencesRepository
 import com.adskiper.skipflow.data.StatsRepository
 import com.adskiper.skipflow.ui.screens.DashboardScreen
 import com.adskiper.skipflow.ui.screens.DisclosureDialog
 import com.adskiper.skipflow.ui.screens.OnboardingWelcomeScreen
+import com.adskiper.skipflow.ui.screens.PaywallScreen
 import com.adskiper.skipflow.ui.screens.SettingsScreen
 import com.adskiper.skipflow.ui.theme.SkipFlowTheme
 import com.adskiper.skipflow.ui.viewmodel.MainViewModel
 
 class MainActivity : ComponentActivity() {
+
+    private var openPaywallOnStart = false
 
     private val viewModel: MainViewModel by viewModels {
         object : ViewModelProvider.Factory {
@@ -33,42 +46,77 @@ class MainActivity : ComponentActivity() {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 val prefRepo = PreferencesRepository.getInstance(applicationContext)
                 val statsRepo = StatsRepository.getInstance(applicationContext)
-                return MainViewModel(prefRepo, statsRepo) as T
+                val billingManager = BillingManager.getInstance(applicationContext, prefRepo)
+                return MainViewModel(prefRepo, statsRepo, billingManager) as T
             }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        openPaywallOnStart = intent?.getBooleanExtra(BillingConstants.EXTRA_OPEN_PAYWALL, false) ?: false
+
+        // Request POST_NOTIFICATIONS runtime permission on Android 13+ for persistent status indicator
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+            }
+        }
+
         setContent {
             SkipFlowTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    MainAppContent(viewModel = viewModel, activity = this)
+                    MainAppContent(
+                        viewModel = viewModel,
+                        activity = this,
+                        startWithPaywall = openPaywallOnStart
+                    )
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(BillingConstants.EXTRA_OPEN_PAYWALL, false)) {
+            openPaywallOnStart = true
         }
     }
 
     override fun onResume() {
         super.onResume()
         viewModel.checkServiceStatus(this)
+        viewModel.checkPurchases()
     }
 }
 
 private enum class Screen {
     ONBOARDING,
     DASHBOARD,
-    SETTINGS
+    SETTINGS,
+    PAYWALL
 }
 
 @Composable
 private fun MainAppContent(
     viewModel: MainViewModel,
-    activity: ComponentActivity
+    activity: ComponentActivity,
+    startWithPaywall: Boolean
 ) {
     val isOnboardingCompleted by viewModel.isOnboardingCompleted.collectAsState()
     var currentScreen by remember(isOnboardingCompleted) {
-        mutableStateOf(if (isOnboardingCompleted) Screen.DASHBOARD else Screen.ONBOARDING)
+        mutableStateOf(
+            if (startWithPaywall) Screen.PAYWALL
+            else if (isOnboardingCompleted) Screen.DASHBOARD
+            else Screen.ONBOARDING
+        )
+    }
+
+    LaunchedEffect(startWithPaywall) {
+        if (startWithPaywall) {
+            currentScreen = Screen.PAYWALL
+        }
     }
 
     val isServiceActive by viewModel.isAccessibilityEnabled.collectAsState()
@@ -77,6 +125,12 @@ private fun MainAppContent(
     val totalAdsSkipped by viewModel.totalAdsSkipped.collectAsState()
     val totalSecondsSaved by viewModel.totalSecondsSaved.collectAsState()
     val activeDays by viewModel.activeDaysCount.collectAsState()
+
+    val isUnlimited by viewModel.isUnlimitedUnlocked.collectAsState()
+    val freeSkipsUsed by viewModel.freeSkipsUsed.collectAsState()
+    val isReviewerBypassEnabled by viewModel.isReviewerBypassEnabled.collectAsState()
+    val monthlyPrice by viewModel.monthlyPrice.collectAsState()
+    val yearlyPrice by viewModel.yearlyPrice.collectAsState()
 
     val isAutoSkipEnabled by viewModel.isAutoSkipEnabled.collectAsState()
     val isAutoCloseBannersEnabled by viewModel.isAutoCloseBannersEnabled.collectAsState()
@@ -107,6 +161,8 @@ private fun MainAppContent(
                     totalAdsSkipped = totalAdsSkipped,
                     totalSecondsSaved = totalSecondsSaved,
                     activeDays = activeDays,
+                    isUnlimited = isUnlimited,
+                    freeSkipsUsed = freeSkipsUsed,
                     isAutoSkipEnabled = isAutoSkipEnabled,
                     isAutoCloseBannersEnabled = isAutoCloseBannersEnabled,
                     isAutoMuteEnabled = isAutoMuteEnabled,
@@ -118,6 +174,7 @@ private fun MainAppContent(
                     simCountdown = simCountdown,
                     isSimMuted = isSimMuted,
                     onEnableServiceClicked = { viewModel.onEnableServiceClicked(activity) },
+                    onOpenPaywall = { currentScreen = Screen.PAYWALL },
                     onToggleAutoSkip = { viewModel.toggleAutoSkip(it) },
                     onToggleAutoCloseBanners = { viewModel.toggleAutoCloseBanners(it) },
                     onToggleAutoMute = { viewModel.toggleAutoMute(it) },
@@ -131,11 +188,48 @@ private fun MainAppContent(
             Screen.SETTINGS -> {
                 SettingsScreen(
                     currentDelayMs = skipDelayMs,
+                    isUnlimited = isUnlimited,
+                    freeSkipsUsed = freeSkipsUsed,
+                    isReviewerBypassEnabled = isReviewerBypassEnabled,
                     onDelayChanged = { viewModel.setSkipDelay(it) },
                     onDisableBatteryOptClicked = { viewModel.requestDisableBatteryOptimization(activity) },
                     onResetStatsClicked = { viewModel.resetStats() },
                     onShowOnboardingClicked = { currentScreen = Screen.ONBOARDING },
+                    onOpenPaywall = { currentScreen = Screen.PAYWALL },
+                    onRestorePurchases = {
+                        viewModel.restorePurchases { success, msg ->
+                            Toast.makeText(activity, msg, Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    onToggleReviewerBypass = { viewModel.toggleReviewerBypass(it) },
+                    onResetFreeSkips = {
+                        viewModel.resetFreeSkips()
+                        Toast.makeText(activity, "Free skips counter reset to 0 (Test Free Tier)", Toast.LENGTH_SHORT).show()
+                    },
                     onBack = { currentScreen = Screen.DASHBOARD }
+                )
+            }
+            Screen.PAYWALL -> {
+                PaywallScreen(
+                    isUnlimited = isUnlimited,
+                    freeSkipsUsed = freeSkipsUsed,
+                    monthlyPrice = monthlyPrice,
+                    yearlyPrice = yearlyPrice,
+                    isReviewerBypassEnabled = isReviewerBypassEnabled,
+                    onSubscribeClicked = { isYearly ->
+                        viewModel.launchSubscription(activity, isYearly)
+                    },
+                    onRestorePurchasesClicked = {
+                        viewModel.restorePurchases { success, msg ->
+                            Toast.makeText(activity, msg, Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    onToggleReviewerBypass = { viewModel.toggleReviewerBypass(it) },
+                    onResetFreeSkips = {
+                        viewModel.resetFreeSkips()
+                        Toast.makeText(activity, "Free skips counter reset to 0", Toast.LENGTH_SHORT).show()
+                    },
+                    onClose = { currentScreen = Screen.DASHBOARD }
                 )
             }
         }
