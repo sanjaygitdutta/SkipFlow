@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
@@ -48,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -534,7 +536,7 @@ private fun SubscriptionTierBanner(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
-                        .background(if (isExhausted) RoseError else HeroGradient)
+                        .background(if (isExhausted) SolidColor(RoseError) else HeroGradient)
                         .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
                     Text(

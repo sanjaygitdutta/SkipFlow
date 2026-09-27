@@ -573,11 +573,17 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     // Ad is no longer active on screen!
                     // If no secondary ad (e.g. Ad 2 of 2) is present, restore audio INSTANTLY (0ms delay)
                     if (!hasDistinctSecondaryAd(rootNode)) {
-                        Log.i(TAG, "Ad ended confirmed! Restoring content audio instantly with 0ms delay.")
-                        cancelPendingUnmute()
-                        stopActiveMutePoller()
-                        audioController.unmuteAdAudio()
-                        updatePersistentNotification(isMuted = false)
+                        val normalPlaying = isNormalContentPlaying(rootNode)
+                        if (normalPlaying) {
+                            Log.i(TAG, "Ad ended confirmed! Normal content active. Restoring audio instantly with 0ms delay.")
+                            cancelPendingUnmute()
+                            stopActiveMutePoller()
+                            audioController.unmuteAdAudio()
+                            updatePersistentNotification(isMuted = false)
+                        } else {
+                            // If normal controls not visible yet, ensure poller is running to verify transition without mid-ad flapping
+                            startActiveMutePoller(isYouTube, isOtt)
+                        }
                     } else {
                         // Secondary ad in transition: ensure mute remains applied
                         audioController.muteAdAudio()
@@ -636,10 +642,12 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     }
 
     private var consecutiveNullRoots = 0
+    private var consecutiveNonAdChecks = 0
 
     private fun startActiveMutePoller(isYouTube: Boolean, isOtt: Boolean) {
         if (activeMutePollerRunnable != null) return
         consecutiveNullRoots = 0
+        consecutiveNonAdChecks = 0
 
         val poller = object : Runnable {
             override fun run() {
@@ -683,18 +691,26 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
                     if (!adStillPlaying) {
                         val secondaryAd = hasDistinctSecondaryAd(root)
+                        val normalPlaying = isNormalContentPlaying(root)
                         root.recycle()
                         if (!secondaryAd) {
-                            Log.i(TAG, "Ad ended confirmed by active poller. Restoring audio instantly with 0ms delay.")
-                            cancelPendingUnmute()
-                            stopActiveMutePoller()
-                            audioController.unmuteAdAudio()
-                            updatePersistentNotification(isMuted = false)
-                            return
+                            if (normalPlaying || consecutiveNonAdChecks >= 2) {
+                                consecutiveNonAdChecks = 0
+                                Log.i(TAG, "Ad ended confirmed by active poller (normalPlaying=$normalPlaying, checks=$consecutiveNonAdChecks). Restoring audio instantly with 0ms delay.")
+                                cancelPendingUnmute()
+                                stopActiveMutePoller()
+                                audioController.unmuteAdAudio()
+                                updatePersistentNotification(isMuted = false)
+                                return
+                            } else {
+                                consecutiveNonAdChecks++
+                            }
                         } else {
+                            consecutiveNonAdChecks = 0
                             audioController.muteAdAudio()
                         }
                     } else {
+                        consecutiveNonAdChecks = 0
                         root.recycle()
                         // Confirmed ad is still actively playing on screen: renew watchdog so it never breaks mid-ad
                         cancelPendingUnmute()
@@ -702,7 +718,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     }
                 } else {
                     consecutiveNullRoots++
-                    // If root has been null 3 consecutive checks (~90ms) while muted, ad overlay is gone
+                    // If root has been null 3 consecutive checks (~75ms) while muted, ad overlay is gone
                     if (consecutiveNullRoots >= 3) {
                         Log.i(TAG, "Active window returned null repeatedly ($consecutiveNullRoots times). Ad overlay cleared. Restoring audio.")
                         cancelPendingUnmute()
@@ -713,7 +729,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     }
                 }
 
-                // Check watchdog and schedule next poll (30ms interval for ultra-fast reaction)
+                // Check watchdog and schedule next poll (25ms interval for ultra-fast reaction)
                 audioController.checkWatchdog()
                 mainHandler.postDelayed(this, ACTIVE_MUTE_POLL_INTERVAL_MS)
             }
@@ -725,6 +741,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
     private fun stopActiveMutePoller() {
         consecutiveNullRoots = 0
+        consecutiveNonAdChecks = 0
         activeMutePollerRunnable?.let {
             mainHandler.removeCallbacks(it)
             activeMutePollerRunnable = null
@@ -871,12 +888,12 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         }
 
         // Strategy 0: Direct check of active in-stream ad container IDs
-        // Prevents temporary unmuting between digit transitions during an ad
+        // Prevents temporary unmuting between digit transitions during an ad while never matching empty content layouts
         val adContainerIds = listOf(
-            "com.google.android.youtube:id/ad_presenter",
-            "com.google.android.youtube:id/ad_view",
             "com.google.android.youtube:id/player_learn_more_button",
             "com.google.android.youtube:id/skip_ad_countdown",
+            "com.google.android.youtube:id/ad_presenter",
+            "com.google.android.youtube:id/ad_view",
             "ad_presenter",
             "ad_view"
         )
@@ -887,7 +904,26 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 for (cNode in cNodes) {
                     val rect = isValidAdNode(cNode, minW = 10, minH = 10, requireVisible = true)
                     if (rect != null && !isFeedShoppingCard(cNode)) {
-                        containerActive = true
+                        val isDedicatedAdButton = cId.contains("player_learn_more_button") || cId.contains("skip_ad_countdown")
+                        val text = cNode.text?.toString()?.trim() ?: ""
+                        val desc = cNode.contentDescription?.toString()?.trim() ?: ""
+                        var hasAdChild = false
+                        if (!isDedicatedAdButton && text.isEmpty() && desc.isEmpty()) {
+                            for (ci in 0 until cNode.childCount) {
+                                val ch = cNode.getChild(ci) ?: continue
+                                val ct = ch.text?.toString()?.trim() ?: ""
+                                val cd = ch.contentDescription?.toString()?.trim() ?: ""
+                                val chId = ch.viewIdResourceName?.lowercase() ?: ""
+                                if (ct.isNotEmpty() || cd.isNotEmpty() || chId.contains("skip") || chId.contains("ad_") || chId.contains("countdown")) {
+                                    hasAdChild = true
+                                }
+                                ch.recycle()
+                                if (hasAdChild) break
+                            }
+                        }
+                        if (isDedicatedAdButton || text.isNotEmpty() || desc.isNotEmpty() || hasAdChild) {
+                            containerActive = true
+                        }
                     }
                     cNode.recycle()
                 }
@@ -1457,7 +1493,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                        else "0ms Instant Ad Silencing • Hands-Free Auto-Skip Active"
 
             val notification = NotificationCompat.Builder(this, PERSISTENT_NOTIFICATION_CHANNEL_ID)
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(title)
                 .setContentText(text)
                 .setSubText("Active")
@@ -1494,7 +1530,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         cancelDeferredScan()
         stopActiveMutePoller()
         audioController.unmuteAdAudio()
-        cancelPersistentNotification()
+        // Do NOT cancel persistent notification here: onInterrupt is a transient event, not service shutdown!
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
