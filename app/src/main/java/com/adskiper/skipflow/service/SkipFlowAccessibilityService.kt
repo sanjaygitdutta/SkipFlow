@@ -44,7 +44,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         private const val BANNER_DEBOUNCE_MS = 1200L
         private const val POST_SKIP_GRACE_PERIOD_MS = 1000L // 1.0s grace window after skip click to prevent lingering ad layouts from re-muting new content
         private const val UNMUTE_CONFIRMATION_DELAY_MS = 100L // 100ms instant confirmation prevents audible lag when content starts
-        private const val ACTIVE_MUTE_POLL_INTERVAL_MS = 30L // Rapid 30ms poll (~33Hz) for true 0ms ad detection & instant content return
+        private const val ACTIVE_MUTE_POLL_INTERVAL_MS = 25L // Ultra-rapid 25ms poll (40Hz) for true 0ms ad detection & instant content return
 
         private const val PERSISTENT_NOTIFICATION_CHANNEL_ID = "skipflow_persistent_service"
         private const val PERSISTENT_NOTIFICATION_ID = 1001
@@ -275,12 +275,14 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         }
 
         // 4. Time display and duration bars (e.g. 0:00 / 14:32, seek bar, time_bar)
-        if (viewId.contains("time_current") || viewId.contains("current_time") ||
+        // Strictly ensure we don't treat ad progress or ad duration as normal video playback controls
+        if (!viewId.contains("ad") && !desc.contains("ad") && (
+            viewId.contains("time_current") || viewId.contains("current_time") ||
             viewId.contains("time_total") || viewId.contains("total_time") ||
             viewId.contains("time_bar") || viewId.contains("duration_text") ||
             viewId.contains("chapter") || viewId.contains("progress") ||
             desc.contains("time bar") || desc.contains("seek bar") || desc.contains("progress bar")
-        ) {
+        )) {
             return true
         }
 
@@ -351,11 +353,94 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         return false
     }
 
+    private fun getActiveVideoPlayerBounds(root: AccessibilityNodeInfo, isYouTube: Boolean): Rect {
+        val displayMetrics = Resources.getSystem().displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+        val isPortrait = screenHeight > screenWidth
+
+        if (!isPortrait || !isYouTube) {
+            return Rect(0, 0, screenWidth, screenHeight)
+        }
+
+        // Check for YouTube Shorts / vertical full-screen video
+        val shortsContainers = listOf(
+            "com.google.android.youtube:id/reel_player_page_container",
+            "com.google.android.youtube:id/reel_recycler",
+            "com.google.android.youtube:id/shorts_container"
+        )
+        for (sId in shortsContainers) {
+            val sNodes = root.findAccessibilityNodeInfosByViewId(sId)
+            if (!sNodes.isNullOrEmpty()) {
+                var isShorts = false
+                for (sNode in sNodes) {
+                    if (sNode.isVisibleToUser) {
+                        isShorts = true
+                    }
+                    sNode.recycle()
+                }
+                if (isShorts) return Rect(0, 0, screenWidth, screenHeight)
+            }
+        }
+
+        // Check for Floating Corner Mini-Player
+        for (miniId in DetectionDictionary.YOUTUBE_MINIPLAYER_IDS) {
+            val mNodes = root.findAccessibilityNodeInfosByViewId(miniId)
+            if (!mNodes.isNullOrEmpty()) {
+                var miniRect: Rect? = null
+                for (mNode in mNodes) {
+                    if (mNode.isVisibleToUser) {
+                        val r = Rect()
+                        mNode.getBoundsInScreen(r)
+                        if (r.width() in 50..(screenWidth * 0.95f).toInt() &&
+                            r.height() in 40..(screenHeight * 0.55f).toInt() &&
+                            r.bottom > (screenHeight * 0.5f).toInt()
+                        ) {
+                            miniRect = r
+                        }
+                    }
+                    mNode.recycle()
+                }
+                if (miniRect != null) return miniRect
+            }
+        }
+
+        // Standard Portrait Mode: dynamically locate top video player container
+        val playerIds = listOf(
+            "com.google.android.youtube:id/player_view",
+            "com.google.android.youtube:id/watch_player",
+            "com.google.android.youtube:id/inline_player_layout"
+        )
+        for (pId in playerIds) {
+            val pNodes = root.findAccessibilityNodeInfosByViewId(pId)
+            if (!pNodes.isNullOrEmpty()) {
+                var dynamicBottom = -1
+                for (pNode in pNodes) {
+                    if (pNode.isVisibleToUser) {
+                        val r = Rect()
+                        pNode.getBoundsInScreen(r)
+                        if (r.height() >= (screenWidth * 0.35f).toInt() && r.top <= 200) {
+                            dynamicBottom = r.bottom + 40
+                        }
+                    }
+                    pNode.recycle()
+                }
+                if (dynamicBottom > 0) {
+                    return Rect(0, 0, screenWidth, dynamicBottom)
+                }
+            }
+        }
+
+        // Default top player boundary: 45% screen height max (strictly cuts off the recommendations feed and comments below)
+        val defaultHeight = ((screenWidth * 9f / 16f) + 200).toInt().coerceAtMost((screenHeight * 0.45f).toInt())
+        return Rect(0, 0, screenWidth, defaultHeight)
+    }
+
     private fun hasDistinctSecondaryAd(root: AccessibilityNodeInfo): Boolean {
+        val playerBounds = getActiveVideoPlayerBounds(root, isYouTube = true)
         val secondaryMarkers = listOf(
-            "ad 2 of", "ad 2 of 2", "2 de 2", "2 sur 2", "2 von 2",
-            "skip in 5", "skip in 4", "skip in 3", "skip in 2", "skip in 1",
-            "skip ad in 5", "skip ad in 4", "skip ad in 3"
+            "ad 2 of", "ad 2 of 2", "skip in", "skip ad in",
+            "anuncio 2 de 2", "publicité 2 sur 2", "werbung 2 von 2"
         )
         for (marker in secondaryMarkers) {
             val nodes = root.findAccessibilityNodeInfosByText(marker)
@@ -363,7 +448,11 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 var found = false
                 for (node in nodes) {
                     if (node.isVisibleToUser && !isCaptionOrSubtitleNode(node) && !isPlaybackControlOrVideoTitle(node)) {
-                        found = true
+                        val rect = Rect()
+                        node.getBoundsInScreen(rect)
+                        if (Rect.intersects(rect, playerBounds) && rect.top < playerBounds.bottom && rect.centerY() < playerBounds.bottom) {
+                            found = true
+                        }
                     }
                     node.recycle()
                 }
@@ -374,19 +463,24 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     }
 
     private fun hasExplicitInStreamAdMarker(root: AccessibilityNodeInfo): Boolean {
-        // 1. Check for real actionable skip button
+        val playerBounds = getActiveVideoPlayerBounds(root, isYouTube = true)
+
+        // 1. Check for real actionable skip button inside video player
         for (skipId in DetectionDictionary.IN_STREAM_SKIP_BUTTON_IDS) {
             val nodes = root.findAccessibilityNodeInfosByViewId(skipId)
             if (!nodes.isNullOrEmpty()) {
                 for (node in nodes) {
-                    val isActionable = isActionableSkipButton(node)
+                    val rect = Rect()
+                    node.getBoundsInScreen(rect)
+                    val inPlayer = Rect.intersects(rect, playerBounds) && rect.top < playerBounds.bottom
+                    val isActionable = inPlayer && isActionableSkipButton(node)
                     node.recycle()
                     if (isActionable) return true
                 }
             }
         }
 
-        // 2. Check for active ad countdown timer with digits
+        // 2. Check for active ad countdown timer with digits inside video player
         val adCountdownIds = listOf(
             "com.google.android.youtube:id/ad_countdown",
             "com.google.android.youtube:id/ad_time_remaining",
@@ -398,15 +492,18 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             val nodes = root.findAccessibilityNodeInfosByViewId(cId)
             if (!nodes.isNullOrEmpty()) {
                 for (node in nodes) {
+                    val rect = Rect()
+                    node.getBoundsInScreen(rect)
+                    val inPlayer = Rect.intersects(rect, playerBounds) && rect.top < playerBounds.bottom
                     val text = node.text?.toString()?.trim() ?: ""
-                    val isVis = node.isVisibleToUser && !isPlaybackControlOrVideoTitle(node)
+                    val isVis = inPlayer && node.isVisibleToUser && !isPlaybackControlOrVideoTitle(node)
                     node.recycle()
                     if (isVis && text.isNotEmpty() && text.any { it.isDigit() }) return true
                 }
             }
         }
 
-        // 3. Check for explicit ad markers ("Ad 1 of", "Ad 2 of", "Skip in", etc.)
+        // 3. Check for explicit ad markers inside video player
         val explicitPhrases = listOf(
             "ad 1 of", "ad 2 of", "ad 1 of 2", "ad 2 of 2", "skip in ", "skip ad in ", "ad will end in", "ad ends in"
         )
@@ -416,7 +513,11 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 var found = false
                 for (node in nodes) {
                     if (node.isVisibleToUser && !isCaptionOrSubtitleNode(node) && !isPlaybackControlOrVideoTitle(node)) {
-                        found = true
+                        val rect = Rect()
+                        node.getBoundsInScreen(rect)
+                        if (Rect.intersects(rect, playerBounds) && rect.top < playerBounds.bottom) {
+                            found = true
+                        }
                     }
                     node.recycle()
                 }
@@ -595,9 +696,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         }
                     } else {
                         root.recycle()
-                        // Confirmed ad is still actively playing on screen: renew watchdog (for long 35-60s ads)
+                        // Confirmed ad is still actively playing on screen: renew watchdog so it never breaks mid-ad
                         cancelPendingUnmute()
-                        audioController.renewWatchdogIfConfirmedAd(30_000L)
+                        audioController.renewWatchdogIfConfirmedAd(180_000L)
                     }
                 } else {
                     consecutiveNullRoots++
@@ -721,85 +822,10 @@ class SkipFlowAccessibilityService : AccessibilityService() {
      * Reliably differentiates genuine in-stream video ads from static feed shopping cards.
      */
     private fun inspectInStreamAdState(root: AccessibilityNodeInfo, isYouTube: Boolean = true): Boolean {
+        val validAdBounds = getActiveVideoPlayerBounds(root, isYouTube)
         val screenHeight = Resources.getSystem().displayMetrics.heightPixels
         val screenWidth = Resources.getSystem().displayMetrics.widthPixels
         val isPortrait = screenHeight > screenWidth
-
-        // 1. Detect if YouTube is currently in Floating Corner Mini-Player mode
-        var miniplayerBounds: Rect? = null
-        if (isYouTube) {
-            for (miniId in DetectionDictionary.YOUTUBE_MINIPLAYER_IDS) {
-                val mNodes = root.findAccessibilityNodeInfosByViewId(miniId)
-                if (!mNodes.isNullOrEmpty()) {
-                    for (mNode in mNodes) {
-                        if (mNode.isVisibleToUser) {
-                            val r = Rect()
-                            mNode.getBoundsInScreen(r)
-                            // Miniplayer is small and typically at bottom or right corner
-                            if (r.width() in 50..(screenWidth * 0.95f).toInt() &&
-                                r.height() in 40..(screenHeight * 0.55f).toInt() &&
-                                r.bottom > (screenHeight * 0.5f).toInt()
-                            ) {
-                                miniplayerBounds = r
-                                mNode.recycle()
-                                break
-                            }
-                        }
-                        mNode.recycle()
-                    }
-                    if (miniplayerBounds != null) break
-                }
-            }
-        }
-
-        // 2. Compute the valid video canvas bounds based on the detected mode:
-        // - In Landscape or Full-screen: entire screen is the video canvas
-        // - In Corner Mini-player: the miniplayer container bounds
-        // - In Standard Half-screen Portrait: strictly bounds the top player view (typically ~30-38% of screen height)
-        //   so channel description, comments, shopping shelf, and info cards below are completely excluded.
-        var dynamicPlayerHeight = -1
-        if (isPortrait && isYouTube) {
-            val playerIds = listOf(
-                "com.google.android.youtube:id/player_view",
-                "com.google.android.youtube:id/watch_player",
-                "com.google.android.youtube:id/inline_player_layout"
-            )
-            for (pId in playerIds) {
-                val pNodes = root.findAccessibilityNodeInfosByViewId(pId)
-                if (!pNodes.isNullOrEmpty()) {
-                    for (pNode in pNodes) {
-                        if (pNode.isVisibleToUser) {
-                            val r = Rect()
-                            pNode.getBoundsInScreen(r)
-                            if (r.height() in (screenWidth * 0.4f).toInt()..(screenHeight * 0.55f).toInt() && r.top <= 100) {
-                                dynamicPlayerHeight = r.bottom
-                                pNode.recycle()
-                                break
-                            }
-                        }
-                        pNode.recycle()
-                    }
-                    if (dynamicPlayerHeight > 0) break
-                }
-            }
-        }
-
-        val playerCanvasHeight = if (isPortrait && isYouTube) {
-            if (dynamicPlayerHeight > 0) {
-                dynamicPlayerHeight
-            } else {
-                // Strictly clamp to standard 16:9 video player canvas + status bar inset (prevents bleeding into feed below)
-                ((screenWidth * 9f / 16f) + 120).toInt().coerceAtMost((screenHeight * 0.35f).toInt())
-            }
-        } else {
-            screenHeight
-        }
-
-        val validAdBounds = when {
-            !isPortrait || !isYouTube -> Rect(0, 0, screenWidth, screenHeight)
-            miniplayerBounds != null -> miniplayerBounds
-            else -> Rect(0, 0, screenWidth, playerCanvasHeight)
-        }
 
         // Helper to validate a node resides within the active video canvas
         // requireVisible is true by default so invisible/recycled ad views in memory never trigger false mutes
@@ -816,10 +842,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             if (!Rect.intersects(rect, validAdBounds)) return null
 
             // In standard portrait mode, strictly ensure node does not belong to the feed below
-            if (isPortrait && isYouTube && miniplayerBounds == null) {
-                if (rect.top >= playerCanvasHeight - 15) return null
-                if (rect.bottom > playerCanvasHeight + 25) return null
-                if (rect.centerY() > playerCanvasHeight) return null
+            if (isPortrait && isYouTube && validAdBounds.height() < screenHeight) {
+                if (rect.top >= validAdBounds.bottom) return null
+                if (rect.centerY() > validAdBounds.bottom) return null
             }
 
             return rect
@@ -843,6 +868,31 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             val isCreatorPromo = combined.contains("paid promotion") || combined.contains("includes paid promotion")
 
             return isPosterOrFeedId || hasPrice || hasRating || hasShopCues || isCreatorPromo
+        }
+
+        // Strategy 0: Direct check of active in-stream ad container IDs
+        // Prevents temporary unmuting between digit transitions during an ad
+        val adContainerIds = listOf(
+            "com.google.android.youtube:id/ad_presenter",
+            "com.google.android.youtube:id/ad_view",
+            "com.google.android.youtube:id/player_learn_more_button",
+            "com.google.android.youtube:id/skip_ad_countdown",
+            "ad_presenter",
+            "ad_view"
+        )
+        for (cId in adContainerIds) {
+            val cNodes = root.findAccessibilityNodeInfosByViewId(cId)
+            if (!cNodes.isNullOrEmpty()) {
+                var containerActive = false
+                for (cNode in cNodes) {
+                    val rect = isValidAdNode(cNode, minW = 10, minH = 10, requireVisible = true)
+                    if (rect != null && !isFeedShoppingCard(cNode)) {
+                        containerActive = true
+                    }
+                    cNode.recycle()
+                }
+                if (containerActive) return true
+            }
         }
 
         // Strategy 1: Check in-stream countdown & badge IDs inside active video bounds
