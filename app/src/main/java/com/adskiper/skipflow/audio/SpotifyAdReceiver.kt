@@ -73,15 +73,16 @@ class SpotifyAdReceiver(
         val id = intent.getStringExtra("id") ?: ""
         val track = intent.getStringExtra("track") ?: ""
         val artist = intent.getStringExtra("artist") ?: ""
+        val album = intent.getStringExtra("album") ?: ""
         val playing = intent.getBooleanExtra("playing", false)
 
-        Log.d(TAG, "Spotify Metadata: id=$id, track=$track, artist=$artist, playing=$playing")
+        Log.d(TAG, "Spotify Metadata: id=$id, track=$track, artist=$artist, album=$album, playing=$playing")
 
-        val isAd = isSpotifyAd(id, track, artist)
+        val isAd = isSpotifyAd(id, track, artist, album)
 
         if (isAd && playing) {
             if (!isCurrentlyMutingSpotify) {
-                Log.i(TAG, "Detected Spotify Ad ($track)! Muting media audio stream.")
+                Log.i(TAG, "Detected Spotify Ad (track='$track', artist='$artist', album='$album')! Muting media audio stream.")
                 audioController.muteAdAudio()
                 isCurrentlyMutingSpotify = true
                 onStateChanged?.invoke(true)
@@ -91,7 +92,7 @@ class SpotifyAdReceiver(
             }
         } else {
             if (isCurrentlyMutingSpotify) {
-                Log.i(TAG, "Spotify normal track resumed ($track by $artist). Restoring audio.")
+                Log.i(TAG, "Spotify normal track resumed ('$track' by '$artist'). Restoring audio.")
                 audioController.unmuteAdAudio()
                 isCurrentlyMutingSpotify = false
                 onStateChanged?.invoke(false)
@@ -109,12 +110,15 @@ class SpotifyAdReceiver(
         }
     }
 
-    private fun isSpotifyAd(id: String, track: String, artist: String): Boolean {
+    private fun isSpotifyAd(id: String, track: String, artist: String, album: String): Boolean {
         // Spotify ad track URIs start with "spotify:ad:" or contain ":ad:"
         if (id.startsWith("spotify:ad:", ignoreCase = true) || id.contains(":ad:", ignoreCase = true)) return true
-        if (track.contains("Advertisement", ignoreCase = true)) return true
+        if (album.contains("Advertisement", ignoreCase = true) || album.contains("Sponsored", ignoreCase = true)) return true
+        if (track.contains("Advertisement", ignoreCase = true) || track.contains("Sponsored", ignoreCase = true)) return true
+        if (artist.contains("Advertisement", ignoreCase = true) || artist.contains("Sponsored", ignoreCase = true)) return true
         if (track.equals("Spotify", ignoreCase = true) && (artist.equals("Spotify", ignoreCase = true) || artist.isEmpty())) return true
         if (track.equals("Spotify Free", ignoreCase = true)) return true
+        if (artist.equals("Spotify", ignoreCase = true) && track.isNotEmpty()) return true
         return false
     }
 

@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.adskiper.skipflow.billing.BillingConstants
 import kotlinx.coroutines.CoroutineScope
@@ -19,6 +20,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "skipflow_settings")
+
+enum class SubscriptionTier {
+    NONE,           // Free tier (up to 15 free skips across platforms)
+    BASIC_YOUTUBE,  // Basic Plan: Unlimited YouTube only (₹29/mo or ₹299/yr)
+    PREMIUM_ALL     // Premium Plan: Unlimited All Platforms (YouTube + OTT + Spotify) (₹49/mo or ₹499/yr)
+}
 
 class PreferencesRepository(private val context: Context) {
 
@@ -34,9 +41,16 @@ class PreferencesRepository(private val context: Context) {
         val KEY_OTT_SKIP = booleanPreferencesKey("pref_ott_skip")
         val KEY_ONBOARDING_COMPLETED = booleanPreferencesKey("pref_onboarding_completed")
 
+        // Per-Platform Protection Lock Keys
+        val KEY_ENABLED_PLATFORMS = stringSetPreferencesKey("pref_enabled_platforms")
+        val DEFAULT_ENABLED_PLATFORMS = setOf(
+            "youtube", "hotstar", "netflix", "primevideo", "zee5", "mxplayer", "sonyliv", "saavn", "spotify"
+        )
+
         // Google Play Billing & Free Tier Limit Keys
         val KEY_FREE_SKIPS_USED = intPreferencesKey("pref_free_skips_used")
         val KEY_IS_PREMIUM_ACTIVE = booleanPreferencesKey("pref_is_premium_active")
+        val KEY_SUBSCRIPTION_TIER = stringPreferencesKey("pref_subscription_tier")
         val KEY_ACTIVE_PLAN_ID = stringPreferencesKey("pref_active_plan_id")
         val KEY_REVIEWER_BYPASS = booleanPreferencesKey("pref_reviewer_bypass")
 
@@ -56,18 +70,56 @@ class PreferencesRepository(private val context: Context) {
     @Volatile
     private var cachedFreeSkipsUsed: Int = 0
     @Volatile
+    private var cachedSubscriptionTier: SubscriptionTier = SubscriptionTier.NONE
+    @Volatile
     private var cachedIsPremiumActive: Boolean = false
     @Volatile
     private var cachedIsReviewerBypass: Boolean = false
+    @Volatile
+    private var cachedEnabledPlatforms: Set<String> = DEFAULT_ENABLED_PLATFORMS
 
     init {
         repoScope.launch {
             context.dataStore.data.collect { prefs ->
                 cachedFreeSkipsUsed = prefs[KEY_FREE_SKIPS_USED] ?: 0
-                cachedIsPremiumActive = prefs[KEY_IS_PREMIUM_ACTIVE] ?: false
+                val tierStr = prefs[KEY_SUBSCRIPTION_TIER]
+                cachedSubscriptionTier = when {
+                    tierStr != null -> {
+                        try {
+                            SubscriptionTier.valueOf(tierStr)
+                        } catch (e: Exception) {
+                            if (prefs[KEY_IS_PREMIUM_ACTIVE] == true) SubscriptionTier.BASIC_YOUTUBE else SubscriptionTier.NONE
+                        }
+                    }
+                    prefs[KEY_IS_PREMIUM_ACTIVE] == true -> SubscriptionTier.BASIC_YOUTUBE
+                    else -> SubscriptionTier.NONE
+                }
+                cachedIsPremiumActive = (cachedSubscriptionTier != SubscriptionTier.NONE)
                 cachedIsReviewerBypass = prefs[KEY_REVIEWER_BYPASS] ?: false
+                cachedEnabledPlatforms = prefs[KEY_ENABLED_PLATFORMS] ?: DEFAULT_ENABLED_PLATFORMS
             }
         }
+    }
+
+    val enabledPlatforms: Flow<Set<String>> = context.dataStore.data.map { preferences ->
+        preferences[KEY_ENABLED_PLATFORMS] ?: DEFAULT_ENABLED_PLATFORMS
+    }
+
+    suspend fun setPlatformLocked(platformId: String, locked: Boolean) {
+        context.dataStore.edit { prefs ->
+            val current = (prefs[KEY_ENABLED_PLATFORMS] ?: DEFAULT_ENABLED_PLATFORMS).toMutableSet()
+            if (locked) {
+                current.add(platformId)
+            } else {
+                current.remove(platformId)
+            }
+            prefs[KEY_ENABLED_PLATFORMS] = current
+        }
+        cachedEnabledPlatforms = if (locked) cachedEnabledPlatforms + platformId else cachedEnabledPlatforms - platformId
+    }
+
+    fun isPlatformLockedSync(platformId: String): Boolean {
+        return cachedEnabledPlatforms.contains(platformId)
     }
 
     val isAutoSkipEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -115,9 +167,22 @@ class PreferencesRepository(private val context: Context) {
         preferences[KEY_FREE_SKIPS_USED] ?: 0
     }
 
-    val isPremiumActive: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[KEY_IS_PREMIUM_ACTIVE] ?: false
+    val subscriptionTier: Flow<SubscriptionTier> = context.dataStore.data.map { preferences ->
+        val tierStr = preferences[KEY_SUBSCRIPTION_TIER]
+        when {
+            tierStr != null -> {
+                try {
+                    SubscriptionTier.valueOf(tierStr)
+                } catch (e: Exception) {
+                    if (preferences[KEY_IS_PREMIUM_ACTIVE] == true) SubscriptionTier.BASIC_YOUTUBE else SubscriptionTier.NONE
+                }
+            }
+            preferences[KEY_IS_PREMIUM_ACTIVE] == true -> SubscriptionTier.BASIC_YOUTUBE
+            else -> SubscriptionTier.NONE
+        }
     }
+
+    val isPremiumActive: Flow<Boolean> = subscriptionTier.map { it != SubscriptionTier.NONE }
 
     val activePlanId: Flow<String> = context.dataStore.data.map { preferences ->
         preferences[KEY_ACTIVE_PLAN_ID] ?: ""
@@ -132,12 +197,24 @@ class PreferencesRepository(private val context: Context) {
     }
 
     // 0ms synchronous accessors for AccessibilityService
-    fun canAutoSkipSync(): Boolean {
-        return isUnlimitedUnlockedSync() || (cachedFreeSkipsUsed < BillingConstants.FREE_TIER_MAX_SKIPS)
+    fun getSubscriptionTierSync(): SubscriptionTier = cachedSubscriptionTier
+
+    fun isPlatformUnlockedSync(isYouTube: Boolean): Boolean {
+        if (cachedIsReviewerBypass) return true
+        return when (cachedSubscriptionTier) {
+            SubscriptionTier.PREMIUM_ALL -> true
+            SubscriptionTier.BASIC_YOUTUBE -> isYouTube
+            SubscriptionTier.NONE -> false
+        }
+    }
+
+    fun canAutoSkipSync(isYouTube: Boolean = true): Boolean {
+        if (isPlatformUnlockedSync(isYouTube)) return true
+        return cachedFreeSkipsUsed < BillingConstants.FREE_TIER_MAX_SKIPS
     }
 
     fun isUnlimitedUnlockedSync(): Boolean {
-        return cachedIsPremiumActive || cachedIsReviewerBypass
+        return cachedSubscriptionTier != SubscriptionTier.NONE || cachedIsReviewerBypass
     }
 
     fun getFreeSkipsUsedSync(): Int = cachedFreeSkipsUsed
@@ -160,12 +237,27 @@ class PreferencesRepository(private val context: Context) {
         cachedFreeSkipsUsed = 0
     }
 
-    suspend fun setPremiumActive(active: Boolean, planId: String = "") {
+    suspend fun setSubscriptionTier(tier: SubscriptionTier, planId: String = "") {
         context.dataStore.edit { prefs ->
-            prefs[KEY_IS_PREMIUM_ACTIVE] = active
+            prefs[KEY_SUBSCRIPTION_TIER] = tier.name
+            prefs[KEY_IS_PREMIUM_ACTIVE] = (tier != SubscriptionTier.NONE)
             prefs[KEY_ACTIVE_PLAN_ID] = planId
         }
-        cachedIsPremiumActive = active
+        cachedSubscriptionTier = tier
+        cachedIsPremiumActive = (tier != SubscriptionTier.NONE)
+    }
+
+    suspend fun setPremiumActive(active: Boolean, planId: String = "") {
+        val tier = if (active) {
+            if (planId.contains("premium") || planId.contains("all")) {
+                SubscriptionTier.PREMIUM_ALL
+            } else {
+                SubscriptionTier.BASIC_YOUTUBE
+            }
+        } else {
+            SubscriptionTier.NONE
+        }
+        setSubscriptionTier(tier, planId)
     }
 
     suspend fun setReviewerBypass(enabled: Boolean) {

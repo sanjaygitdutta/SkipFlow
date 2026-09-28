@@ -9,6 +9,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -102,7 +104,7 @@ fun ServiceStatusCard(
             .border(1.2.dp, cardBorderBrush, RoundedCornerShape(22.dp)),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isActive) Color(0xFF0F1728) else Color(0xFF18131C)
+            containerColor = (if (isActive) Color(0xFF0F1728) else Color(0xFF18131C)).copy(alpha = 0.72f)
         )
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
@@ -201,7 +203,7 @@ fun ServiceStatusCard(
 
                 Text(
                     text = if (isActive) {
-                        "Monitoring YouTube, Spotify, Hotstar, JioCinema & MX Player in real-time. Ads are automatically skipped and muted."
+                        "Monitoring YouTube, JioHotstar, Netflix, Prime Video, Zee 5, MX Player, SonyLIV, JioSaavn & Spotify in real-time. Ads are automatically skipped and muted."
                     } else {
                         "SkipFlow requires Android Accessibility permission to detect skip buttons and adjust media volume when your hands are busy."
                     },
@@ -214,18 +216,10 @@ fun ServiceStatusCard(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 if (isActive) {
-                    // Supported Platforms Badges Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AppPill(name = "YouTube", color = Color(0xFFFF2A2A))
-                        AppPill(name = "Spotify", color = Color(0xFF1DB954))
-                        AppPill(name = "Hotstar", color = Color(0xFF0084FF))
-                        AppPill(name = "JioCinema", color = Color(0xFFE21B5F))
-                        AppPill(name = "MX Player", color = Color(0xFF00BCD4))
-                    }
+                    // Sideway Hourglass Filter Pipeline Animation
+                    SidewayHourglassFilter(
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 } else {
                     Button(
                         onClick = onEnableClicked,
@@ -254,22 +248,5 @@ fun ServiceStatusCard(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun AppPill(name: String, color: Color) {
-    Box(
-        modifier = Modifier
-            .background(color.copy(alpha = 0.16f), RoundedCornerShape(8.dp))
-            .border(1.dp, color.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
-            .padding(horizontal = 7.dp, vertical = 3.dp)
-    ) {
-        Text(
-            text = name,
-            color = color,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.ExtraBold
-        )
     }
 }

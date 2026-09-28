@@ -34,14 +34,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.SportsCricket
 import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Icon
+import com.adskiper.skipflow.data.PreferencesRepository
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -88,62 +95,123 @@ data class PlatformCardItem(
 
 @Composable
 fun PlatformProtectionCarousel(
-    isYouTubeLocked: Boolean,
-    isHotstarLocked: Boolean,
-    isJioLocked: Boolean,
-    isSpotifyLocked: Boolean,
+    enabledPlatforms: Set<String> = PreferencesRepository.DEFAULT_ENABLED_PLATFORMS,
     onTogglePlatformLock: (platformId: String, shouldLock: Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isYouTubeLocked: Boolean = enabledPlatforms.contains("youtube"),
+    isHotstarLocked: Boolean = enabledPlatforms.contains("hotstar"),
+    isJioLocked: Boolean = false,
+    isSpotifyLocked: Boolean = enabledPlatforms.contains("spotify")
 ) {
-    val platforms = remember(isYouTubeLocked, isHotstarLocked, isJioLocked, isSpotifyLocked) {
+    val platforms = remember(enabledPlatforms, isYouTubeLocked, isHotstarLocked, isSpotifyLocked) {
         listOf(
             PlatformCardItem(
                 id = "youtube",
                 name = "YouTube",
-                subtitle = "Video & Music",
+                subtitle = "Video & Shorts",
                 badgeText = "100% IN-STREAM",
                 primaryColor = Color(0xFFFF2A2A),
                 secondaryColor = Color(0xFFFF6B6B),
                 glowColor = Color(0xFFFF3333),
                 icon = Icons.Default.PlayArrow,
                 features = listOf("Instant 0.0s Skip", "Smart Audio Mute", "Clean View"),
-                isLocked = isYouTubeLocked
+                isLocked = enabledPlatforms.contains("youtube")
             ),
             PlatformCardItem(
                 id = "hotstar",
-                name = "Disney+ Hotstar",
-                subtitle = "Sports & Shows",
-                badgeText = "OTT STREAMING",
+                name = "JioHotstar",
+                subtitle = "Live Cricket & OTT",
+                badgeText = "LIVE CRICKET & SHOWS",
                 primaryColor = Color(0xFF0063E5),
                 secondaryColor = Color(0xFF00D2FF),
                 glowColor = Color(0xFF0099FF),
                 icon = Icons.Default.Tv,
-                features = listOf("Live Sports Skip", "Banner Dismiss", "Voice Shield"),
-                isLocked = isHotstarLocked
+                features = listOf("Live Sports Skip", "0ms Ad Silencer", "Instant Content Return"),
+                isLocked = enabledPlatforms.contains("hotstar")
             ),
             PlatformCardItem(
-                id = "jiocinema",
-                name = "JioCinema",
-                subtitle = "Movies & Cricket",
-                badgeText = "PREMIUM ADS",
-                primaryColor = Color(0xFFD80072),
-                secondaryColor = Color(0xFFFF007A),
-                glowColor = Color(0xFFFF1493),
-                icon = Icons.Default.FastForward,
-                features = listOf("Countdown Bypass", "Fast Skip Ad", "Mute Protection"),
-                isLocked = isJioLocked
+                id = "netflix",
+                name = "Netflix",
+                subtitle = "Movies & Series",
+                badgeText = "AD-SUPPORTED TIER",
+                primaryColor = Color(0xFFE50914),
+                secondaryColor = Color(0xFFFF3B30),
+                glowColor = Color(0xFFFF1E27),
+                icon = Icons.Default.Movie,
+                features = listOf("Ad Break Silence", "0ms Sound Return", "Binge Protection"),
+                isLocked = enabledPlatforms.contains("netflix")
+            ),
+            PlatformCardItem(
+                id = "primevideo",
+                name = "Prime Video",
+                subtitle = "Prime Shows & Cinema",
+                badgeText = "PRIME ADS",
+                primaryColor = Color(0xFF00A8E1),
+                secondaryColor = Color(0xFF00D4FF),
+                glowColor = Color(0xFF00A8E1),
+                icon = Icons.Default.VideoLibrary,
+                features = listOf("Instant Skip Ad", "0ms Audio Mute", "Prime Shield"),
+                isLocked = enabledPlatforms.contains("primevideo")
+            ),
+            PlatformCardItem(
+                id = "zee5",
+                name = "Zee 5",
+                subtitle = "Originals & Shows",
+                badgeText = "ZEE5 OTT",
+                primaryColor = Color(0xFF8B2FC9),
+                secondaryColor = Color(0xFFB845FF),
+                glowColor = Color(0xFFA832E6),
+                icon = Icons.Default.LiveTv,
+                features = listOf("Countdown Bypass", "Instant 0ms Mute", "Fast Skip"),
+                isLocked = enabledPlatforms.contains("zee5")
+            ),
+            PlatformCardItem(
+                id = "mxplayer",
+                name = "MX Player",
+                subtitle = "Desi OTT & Series",
+                badgeText = "MX OTT STREAMING",
+                primaryColor = Color(0xFF0D53FF),
+                secondaryColor = Color(0xFF4D82FF),
+                glowColor = Color(0xFF2563EB),
+                icon = Icons.Default.PlayCircle,
+                features = listOf("Dual Ad Silencer", "0ms Audio Mute", "Instant Skip Ad"),
+                isLocked = enabledPlatforms.contains("mxplayer")
+            ),
+            PlatformCardItem(
+                id = "sonyliv",
+                name = "SonyLIV",
+                subtitle = "Sports & Originals",
+                badgeText = "LIV STREAMING",
+                primaryColor = Color(0xFFFF9900),
+                secondaryColor = Color(0xFFFFB84D),
+                glowColor = Color(0xFFFF8800),
+                icon = Icons.Default.SportsCricket,
+                features = listOf("Match Ad Silencer", "Instant Skip", "0ms Content Audio"),
+                isLocked = enabledPlatforms.contains("sonyliv")
+            ),
+            PlatformCardItem(
+                id = "saavn",
+                name = "JioSaavn Music",
+                subtitle = "Songs & Podcasts",
+                badgeText = "BACKGROUND AUDIO",
+                primaryColor = Color(0xFF00BFA5),
+                secondaryColor = Color(0xFF1DE9B6),
+                glowColor = Color(0xFF00E676),
+                icon = Icons.Default.Headphones,
+                features = listOf("Commercial Ad Mute", "0ms Song Return", "Background Shield"),
+                isLocked = enabledPlatforms.contains("saavn")
             ),
             PlatformCardItem(
                 id = "spotify",
                 name = "Spotify",
-                subtitle = "Background Music",
-                badgeText = "BACKGROUND AUDIO",
+                subtitle = "Background Audio",
+                badgeText = "AUDIO & VIDEO ADS",
                 primaryColor = Color(0xFF1DB954),
                 secondaryColor = Color(0xFF1ED760),
                 glowColor = Color(0xFF22C55E),
                 icon = Icons.Default.MusicNote,
                 features = listOf("Audio Ad Silencing", "Zero Disturbance", "Auto Resume"),
-                isLocked = isSpotifyLocked
+                isLocked = enabledPlatforms.contains("spotify")
             )
         )
     }

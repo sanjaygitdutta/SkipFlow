@@ -13,6 +13,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.adskiper.skipflow.data.PreferencesRepository
 import com.adskiper.skipflow.data.StatsRepository
+import com.adskiper.skipflow.data.SubscriptionTier
 import com.adskiper.skipflow.service.SkipFlowAccessibilityService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -43,6 +44,9 @@ class MainViewModel(
     val freeSkipsUsed: StateFlow<Int> = preferencesRepo.freeSkipsUsed
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
+    val subscriptionTier: StateFlow<SubscriptionTier> = preferencesRepo.subscriptionTier
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SubscriptionTier.NONE)
+
     val isUnlimitedUnlocked: StateFlow<Boolean> = preferencesRepo.isUnlimitedUnlocked
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
@@ -52,8 +56,13 @@ class MainViewModel(
     val isReviewerBypassEnabled: StateFlow<Boolean> = preferencesRepo.isReviewerBypassEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    val monthlyPrice: StateFlow<String> = billingManager.monthlyPrice
-    val yearlyPrice: StateFlow<String> = billingManager.yearlyPrice
+    val basicMonthlyPrice: StateFlow<String> = billingManager.basicMonthlyPrice
+    val basicYearlyPrice: StateFlow<String> = billingManager.basicYearlyPrice
+    val premiumMonthlyPrice: StateFlow<String> = billingManager.premiumMonthlyPrice
+    val premiumYearlyPrice: StateFlow<String> = billingManager.premiumYearlyPrice
+
+    val monthlyPrice: StateFlow<String> = billingManager.basicMonthlyPrice
+    val yearlyPrice: StateFlow<String> = billingManager.basicYearlyPrice
     val isBillingReady: StateFlow<Boolean> = billingManager.isBillingReady
 
     val isAutoSkipEnabled: StateFlow<Boolean> = preferencesRepo.isAutoSkipEnabled
@@ -74,6 +83,9 @@ class MainViewModel(
     val isOttSkipEnabled: StateFlow<Boolean> = preferencesRepo.isOttSkipEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    val enabledPlatforms: StateFlow<Set<String>> = preferencesRepo.enabledPlatforms
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PreferencesRepository.DEFAULT_ENABLED_PLATFORMS)
+
     val skipDelayMs: StateFlow<Long> = preferencesRepo.skipDelayMs
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
@@ -82,6 +94,23 @@ class MainViewModel(
 
     val totalSecondsSaved: StateFlow<Long> = statsRepo.totalSecondsSaved
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+
+    val audioAdsCount: StateFlow<Long> = statsRepo.audioAdsCount
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+
+    val audioAdsSeconds: StateFlow<Long> = statsRepo.audioAdsSeconds
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+
+    val videoAdsCount: StateFlow<Long> = statsRepo.videoAdsCount
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+
+    val videoAdsSeconds: StateFlow<Long> = statsRepo.videoAdsSeconds
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+
+    val platformStats: StateFlow<Map<String, com.adskiper.skipflow.data.PlatformStat>> = statsRepo.platformStats
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    val activeRunningPlatform: StateFlow<String?> = SkipFlowAccessibilityService.currentActivePlatform
 
     val spotifyAdsMuted: StateFlow<Long> = statsRepo.spotifyAdsMuted
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
@@ -221,6 +250,21 @@ class MainViewModel(
         viewModelScope.launch { preferencesRepo.setOttSkip(enabled) }
     }
 
+    fun togglePlatformLock(platformId: String, shouldLock: Boolean) {
+        viewModelScope.launch {
+            preferencesRepo.setPlatformLocked(platformId, shouldLock)
+            when (platformId) {
+                "youtube" -> {
+                    preferencesRepo.setAutoSkip(shouldLock)
+                    preferencesRepo.setAutoMute(shouldLock)
+                }
+                "spotify" -> {
+                    preferencesRepo.setSpotifyMute(shouldLock)
+                }
+            }
+        }
+    }
+
     fun completeOnboarding(context: Context) {
         viewModelScope.launch {
             preferencesRepo.setOnboardingCompleted(true)
@@ -260,11 +304,14 @@ class MainViewModel(
         }
     }
 
-    fun launchSubscription(activity: Activity, isYearly: Boolean) {
-        val productId = if (isYearly) {
-            BillingConstants.PRODUCT_YEARLY_SUBSCRIPTION
-        } else {
-            BillingConstants.PRODUCT_MONTHLY_SUBSCRIPTION
+    fun launchSubscription(activity: Activity, isYearly: Boolean, tier: SubscriptionTier = SubscriptionTier.BASIC_YOUTUBE) {
+        val productId = when (tier) {
+            SubscriptionTier.PREMIUM_ALL -> {
+                if (isYearly) BillingConstants.PRODUCT_PREMIUM_YEARLY else BillingConstants.PRODUCT_PREMIUM_MONTHLY
+            }
+            SubscriptionTier.BASIC_YOUTUBE, SubscriptionTier.NONE -> {
+                if (isYearly) BillingConstants.PRODUCT_BASIC_YEARLY else BillingConstants.PRODUCT_BASIC_MONTHLY
+            }
         }
         billingManager.launchBillingFlow(activity, productId)
     }

@@ -28,6 +28,7 @@ import com.adskiper.skipflow.billing.BillingConstants
 import com.adskiper.skipflow.billing.BillingManager
 import com.adskiper.skipflow.data.PreferencesRepository
 import com.adskiper.skipflow.data.StatsRepository
+import com.adskiper.skipflow.data.SubscriptionTier
 import com.adskiper.skipflow.ui.screens.DashboardScreen
 import com.adskiper.skipflow.ui.screens.DisclosureDialog
 import com.adskiper.skipflow.ui.screens.OnboardingWelcomeScreen
@@ -125,12 +126,21 @@ private fun MainAppContent(
     val totalAdsSkipped by viewModel.totalAdsSkipped.collectAsState()
     val totalSecondsSaved by viewModel.totalSecondsSaved.collectAsState()
     val activeDays by viewModel.activeDaysCount.collectAsState()
+    val audioAdsCount by viewModel.audioAdsCount.collectAsState()
+    val audioAdsSeconds by viewModel.audioAdsSeconds.collectAsState()
+    val videoAdsCount by viewModel.videoAdsCount.collectAsState()
+    val videoAdsSeconds by viewModel.videoAdsSeconds.collectAsState()
+    val platformStats by viewModel.platformStats.collectAsState()
+    val activeRunningPlatform by viewModel.activeRunningPlatform.collectAsState()
 
     val isUnlimited by viewModel.isUnlimitedUnlocked.collectAsState()
+    val subscriptionTier by viewModel.subscriptionTier.collectAsState()
     val freeSkipsUsed by viewModel.freeSkipsUsed.collectAsState()
     val isReviewerBypassEnabled by viewModel.isReviewerBypassEnabled.collectAsState()
-    val monthlyPrice by viewModel.monthlyPrice.collectAsState()
-    val yearlyPrice by viewModel.yearlyPrice.collectAsState()
+    val basicMonthlyPrice by viewModel.basicMonthlyPrice.collectAsState()
+    val basicYearlyPrice by viewModel.basicYearlyPrice.collectAsState()
+    val premiumMonthlyPrice by viewModel.premiumMonthlyPrice.collectAsState()
+    val premiumYearlyPrice by viewModel.premiumYearlyPrice.collectAsState()
 
     val isAutoSkipEnabled by viewModel.isAutoSkipEnabled.collectAsState()
     val isAutoCloseBannersEnabled by viewModel.isAutoCloseBannersEnabled.collectAsState()
@@ -138,6 +148,7 @@ private fun MainAppContent(
     val isWaveEnabled by viewModel.isWaveToSkipEnabled.collectAsState()
     val isSpotifyMuteEnabled by viewModel.isSpotifyMuteEnabled.collectAsState()
     val isOttSkipEnabled by viewModel.isOttSkipEnabled.collectAsState()
+    val enabledPlatforms by viewModel.enabledPlatforms.collectAsState()
     val spotifyAdsMuted by viewModel.spotifyAdsMuted.collectAsState()
     val skipDelayMs by viewModel.skipDelayMs.collectAsState()
 
@@ -161,7 +172,14 @@ private fun MainAppContent(
                     totalAdsSkipped = totalAdsSkipped,
                     totalSecondsSaved = totalSecondsSaved,
                     activeDays = activeDays,
+                    audioAdsCount = audioAdsCount,
+                    audioAdsSeconds = audioAdsSeconds,
+                    videoAdsCount = videoAdsCount,
+                    videoAdsSeconds = videoAdsSeconds,
+                    platformStats = platformStats,
+                    activeRunningPlatform = activeRunningPlatform,
                     isUnlimited = isUnlimited,
+                    subscriptionTier = subscriptionTier,
                     freeSkipsUsed = freeSkipsUsed,
                     isAutoSkipEnabled = isAutoSkipEnabled,
                     isAutoCloseBannersEnabled = isAutoCloseBannersEnabled,
@@ -170,11 +188,13 @@ private fun MainAppContent(
                     isSpotifyMuteEnabled = isSpotifyMuteEnabled,
                     isOttSkipEnabled = isOttSkipEnabled,
                     spotifyAdsMuted = spotifyAdsMuted,
+                    enabledPlatforms = enabledPlatforms,
                     isSimulating = isSimulating,
                     simCountdown = simCountdown,
                     isSimMuted = isSimMuted,
                     onEnableServiceClicked = { viewModel.onEnableServiceClicked(activity) },
                     onOpenPaywall = { currentScreen = Screen.PAYWALL },
+                    onTogglePlatformLock = { platformId, shouldLock -> viewModel.togglePlatformLock(platformId, shouldLock) },
                     onToggleAutoSkip = { viewModel.toggleAutoSkip(it) },
                     onToggleAutoCloseBanners = { viewModel.toggleAutoCloseBanners(it) },
                     onToggleAutoMute = { viewModel.toggleAutoMute(it) },
@@ -189,6 +209,7 @@ private fun MainAppContent(
                 SettingsScreen(
                     currentDelayMs = skipDelayMs,
                     isUnlimited = isUnlimited,
+                    subscriptionTier = subscriptionTier,
                     freeSkipsUsed = freeSkipsUsed,
                     isReviewerBypassEnabled = isReviewerBypassEnabled,
                     onDelayChanged = { viewModel.setSkipDelay(it) },
@@ -211,13 +232,15 @@ private fun MainAppContent(
             }
             Screen.PAYWALL -> {
                 PaywallScreen(
-                    isUnlimited = isUnlimited,
+                    currentTier = subscriptionTier,
                     freeSkipsUsed = freeSkipsUsed,
-                    monthlyPrice = monthlyPrice,
-                    yearlyPrice = yearlyPrice,
+                    basicMonthlyPrice = basicMonthlyPrice,
+                    basicYearlyPrice = basicYearlyPrice,
+                    premiumMonthlyPrice = premiumMonthlyPrice,
+                    premiumYearlyPrice = premiumYearlyPrice,
                     isReviewerBypassEnabled = isReviewerBypassEnabled,
-                    onSubscribeClicked = { isYearly ->
-                        viewModel.launchSubscription(activity, isYearly)
+                    onSubscribeClicked = { tier, isYearly ->
+                        viewModel.launchSubscription(activity, isYearly, tier)
                     },
                     onRestorePurchasesClicked = {
                         viewModel.restorePurchases { success, msg ->

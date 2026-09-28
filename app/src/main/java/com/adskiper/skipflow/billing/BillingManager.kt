@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.util.Log
 import com.adskiper.skipflow.data.PreferencesRepository
+import com.adskiper.skipflow.data.SubscriptionTier
 import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
@@ -46,11 +47,23 @@ class BillingManager private constructor(
     private val _isBillingReady = MutableStateFlow(false)
     val isBillingReady: StateFlow<Boolean> = _isBillingReady.asStateFlow()
 
-    private val _monthlyPrice = MutableStateFlow(BillingConstants.DEFAULT_MONTHLY_PRICE)
-    val monthlyPrice: StateFlow<String> = _monthlyPrice.asStateFlow()
+    // Basic Plan Prices (YouTube Only)
+    private val _basicMonthlyPrice = MutableStateFlow(BillingConstants.DEFAULT_BASIC_MONTHLY_PRICE)
+    val basicMonthlyPrice: StateFlow<String> = _basicMonthlyPrice.asStateFlow()
 
-    private val _yearlyPrice = MutableStateFlow(BillingConstants.DEFAULT_YEARLY_PRICE)
-    val yearlyPrice: StateFlow<String> = _yearlyPrice.asStateFlow()
+    private val _basicYearlyPrice = MutableStateFlow(BillingConstants.DEFAULT_BASIC_YEARLY_PRICE)
+    val basicYearlyPrice: StateFlow<String> = _basicYearlyPrice.asStateFlow()
+
+    // Premium Plan Prices (All Platforms: YouTube + OTT + Spotify)
+    private val _premiumMonthlyPrice = MutableStateFlow(BillingConstants.DEFAULT_PREMIUM_MONTHLY_PRICE)
+    val premiumMonthlyPrice: StateFlow<String> = _premiumMonthlyPrice.asStateFlow()
+
+    private val _premiumYearlyPrice = MutableStateFlow(BillingConstants.DEFAULT_PREMIUM_YEARLY_PRICE)
+    val premiumYearlyPrice: StateFlow<String> = _premiumYearlyPrice.asStateFlow()
+
+    // Backward compatibility aliases
+    val monthlyPrice: StateFlow<String> = _basicMonthlyPrice.asStateFlow()
+    val yearlyPrice: StateFlow<String> = _basicYearlyPrice.asStateFlow()
 
     private val productDetailsMap = mutableMapOf<String, ProductDetails>()
 
@@ -88,16 +101,21 @@ class BillingManager private constructor(
     }
 
     private fun querySubscriptionProducts() {
-        val productList = listOf(
+        val allProductIds = listOf(
+            BillingConstants.PRODUCT_BASIC_MONTHLY,
+            BillingConstants.PRODUCT_BASIC_YEARLY,
+            BillingConstants.PRODUCT_PREMIUM_MONTHLY,
+            BillingConstants.PRODUCT_PREMIUM_YEARLY,
+            BillingConstants.LEGACY_MONTHLY_SUBSCRIPTION,
+            BillingConstants.LEGACY_YEARLY_SUBSCRIPTION
+        )
+
+        val productList = allProductIds.map { id ->
             QueryProductDetailsParams.Product.newBuilder()
-                .setProductId(BillingConstants.PRODUCT_MONTHLY_SUBSCRIPTION)
-                .setProductType(BillingClient.ProductType.SUBS)
-                .build(),
-            QueryProductDetailsParams.Product.newBuilder()
-                .setProductId(BillingConstants.PRODUCT_YEARLY_SUBSCRIPTION)
+                .setProductId(id)
                 .setProductType(BillingClient.ProductType.SUBS)
                 .build()
-        )
+        }
 
         val params = QueryProductDetailsParams.newBuilder()
             .setProductList(productList)
@@ -116,10 +134,19 @@ class BillingManager private constructor(
                         ?.formattedPrice
 
                     if (formattedPrice != null) {
-                        if (details.productId == BillingConstants.PRODUCT_MONTHLY_SUBSCRIPTION) {
-                            _monthlyPrice.value = formattedPrice
-                        } else if (details.productId == BillingConstants.PRODUCT_YEARLY_SUBSCRIPTION) {
-                            _yearlyPrice.value = formattedPrice
+                        when (details.productId) {
+                            BillingConstants.PRODUCT_BASIC_MONTHLY, BillingConstants.LEGACY_MONTHLY_SUBSCRIPTION -> {
+                                _basicMonthlyPrice.value = formattedPrice
+                            }
+                            BillingConstants.PRODUCT_BASIC_YEARLY, BillingConstants.LEGACY_YEARLY_SUBSCRIPTION -> {
+                                _basicYearlyPrice.value = formattedPrice
+                            }
+                            BillingConstants.PRODUCT_PREMIUM_MONTHLY -> {
+                                _premiumMonthlyPrice.value = formattedPrice
+                            }
+                            BillingConstants.PRODUCT_PREMIUM_YEARLY -> {
+                                _premiumYearlyPrice.value = formattedPrice
+                            }
                         }
                     }
                 }
@@ -141,13 +168,20 @@ class BillingManager private constructor(
 
         billingClient.queryPurchasesAsync(params) { billingResult, purchases ->
             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                var hasActiveSubscription = false
+                var detectedTier = SubscriptionTier.NONE
                 var activePlanId = ""
 
                 for (purchase in purchases) {
                     if (purchase.purchaseState == Purchase.PurchaseState.PURCHASED) {
-                        hasActiveSubscription = true
-                        activePlanId = purchase.products.firstOrNull() ?: ""
+                        val prodId = purchase.products.firstOrNull() ?: ""
+                        if (isPremiumAllPlan(prodId)) {
+                            detectedTier = SubscriptionTier.PREMIUM_ALL
+                            activePlanId = prodId
+                        } else if (detectedTier != SubscriptionTier.PREMIUM_ALL && isBasicPlan(prodId)) {
+                            detectedTier = SubscriptionTier.BASIC_YOUTUBE
+                            activePlanId = prodId
+                        }
+
                         if (!purchase.isAcknowledged) {
                             acknowledgePurchase(purchase)
                         }
@@ -155,13 +189,13 @@ class BillingManager private constructor(
                 }
 
                 managerScope.launch {
-                    if (hasActiveSubscription) {
-                        Log.i(TAG, "Active Google Play subscription verified: $activePlanId")
-                        prefRepo.setPremiumActive(true, activePlanId)
+                    if (detectedTier != SubscriptionTier.NONE) {
+                        Log.i(TAG, "Active Google Play subscription verified: tier=$detectedTier, plan=$activePlanId")
+                        prefRepo.setSubscriptionTier(detectedTier, activePlanId)
                     } else {
-                        // Check if reviewer bypass is on; only set false if not bypassed
+                        // Check if reviewer bypass is on; only reset if not bypassed
                         if (!prefRepo.isReviewerBypassEnabled()) {
-                            prefRepo.setPremiumActive(false, "")
+                            prefRepo.setSubscriptionTier(SubscriptionTier.NONE, "")
                         }
                     }
                 }
@@ -172,7 +206,7 @@ class BillingManager private constructor(
     }
 
     private suspend fun PreferencesRepository.isReviewerBypassEnabled(): Boolean {
-        return isUnlimitedUnlockedSync() && !getFreeSkipsUsedSync().let { false } // checks cached reviewer bypass
+        return isUnlimitedUnlockedSync() && !getFreeSkipsUsedSync().let { false }
     }
 
     override fun onPurchasesUpdated(billingResult: BillingResult, purchases: List<Purchase>?) {
@@ -190,9 +224,15 @@ class BillingManager private constructor(
     private fun handlePurchase(purchase: Purchase) {
         if (purchase.purchaseState == Purchase.PurchaseState.PURCHASED) {
             val productId = purchase.products.firstOrNull() ?: ""
+            val tier = if (isPremiumAllPlan(productId)) {
+                SubscriptionTier.PREMIUM_ALL
+            } else {
+                SubscriptionTier.BASIC_YOUTUBE
+            }
+
             managerScope.launch {
-                Log.i(TAG, "Purchase successful for plan: $productId")
-                prefRepo.setPremiumActive(true, productId)
+                Log.i(TAG, "Purchase successful: tier=$tier for plan: $productId")
+                prefRepo.setSubscriptionTier(tier, productId)
             }
 
             if (!purchase.isAcknowledged) {
@@ -215,23 +255,51 @@ class BillingManager private constructor(
         }
     }
 
-    fun launchBillingFlow(activity: Activity, productId: String): Boolean {
+    private fun isPremiumAllPlan(productId: String): Boolean {
+        return productId == BillingConstants.PRODUCT_PREMIUM_MONTHLY ||
+                productId == BillingConstants.PRODUCT_PREMIUM_YEARLY ||
+                productId.contains("premium")
+    }
+
+    private fun isBasicPlan(productId: String): Boolean {
+        return productId == BillingConstants.PRODUCT_BASIC_MONTHLY ||
+                productId == BillingConstants.PRODUCT_BASIC_YEARLY ||
+                productId == BillingConstants.LEGACY_MONTHLY_SUBSCRIPTION ||
+                productId == BillingConstants.LEGACY_YEARLY_SUBSCRIPTION ||
+                productId.contains("basic") || productId.contains("monthly") || productId.contains("yearly")
+    }
+
+    fun launchBillingFlow(activity: Activity, requestedProductId: String): Boolean {
         if (!billingClient.isReady) {
             Log.w(TAG, "BillingClient not ready. Reconnecting...")
             startBillingConnection()
             return false
         }
 
-        val productDetails = productDetailsMap[productId]
+        // Try primary requested product, then fallback if legacy ID was created in Play Console
+        var productDetails = productDetailsMap[requestedProductId]
         if (productDetails == null) {
-            Log.w(TAG, "ProductDetails not found for: $productId. Requesting products...")
+            val fallbackId = when (requestedProductId) {
+                BillingConstants.PRODUCT_BASIC_MONTHLY -> BillingConstants.LEGACY_MONTHLY_SUBSCRIPTION
+                BillingConstants.PRODUCT_BASIC_YEARLY -> BillingConstants.LEGACY_YEARLY_SUBSCRIPTION
+                BillingConstants.LEGACY_MONTHLY_SUBSCRIPTION -> BillingConstants.PRODUCT_BASIC_MONTHLY
+                BillingConstants.LEGACY_YEARLY_SUBSCRIPTION -> BillingConstants.PRODUCT_BASIC_YEARLY
+                else -> null
+            }
+            if (fallbackId != null) {
+                productDetails = productDetailsMap[fallbackId]
+            }
+        }
+
+        if (productDetails == null) {
+            Log.w(TAG, "ProductDetails not found for: $requestedProductId. Requesting products...")
             querySubscriptionProducts()
             return false
         }
 
         val offerToken = productDetails.subscriptionOfferDetails?.firstOrNull()?.offerToken
         if (offerToken == null) {
-            Log.e(TAG, "Offer token not available for product: $productId")
+            Log.e(TAG, "Offer token not available for product: ${productDetails.productId}")
             return false
         }
 
@@ -265,18 +333,35 @@ class BillingManager private constructor(
             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
                 val activePurchases = purchases.filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
                 if (activePurchases.isNotEmpty()) {
+                    var detectedTier = SubscriptionTier.NONE
+                    var planId = ""
+
                     for (purchase in activePurchases) {
                         if (!purchase.isAcknowledged) {
                             acknowledgePurchase(purchase)
                         }
+                        val prodId = purchase.products.firstOrNull() ?: ""
+                        if (isPremiumAllPlan(prodId)) {
+                            detectedTier = SubscriptionTier.PREMIUM_ALL
+                            planId = prodId
+                        } else if (detectedTier != SubscriptionTier.PREMIUM_ALL && isBasicPlan(prodId)) {
+                            detectedTier = SubscriptionTier.BASIC_YOUTUBE
+                            planId = prodId
+                        }
                     }
-                    val planId = activePurchases.first().products.firstOrNull() ?: ""
+
+                    if (detectedTier == SubscriptionTier.NONE) {
+                        detectedTier = SubscriptionTier.BASIC_YOUTUBE
+                    }
+
                     managerScope.launch {
-                        prefRepo.setPremiumActive(true, planId)
+                        prefRepo.setSubscriptionTier(detectedTier, planId)
                     }
-                    onResult(true, "Successfully restored your SkipFlow Unlimited subscription!")
+
+                    val tierName = if (detectedTier == SubscriptionTier.PREMIUM_ALL) "SkipFlow Premium (All Platforms)" else "SkipFlow Basic (YouTube Only)"
+                    onResult(true, "Successfully restored your $tierName subscription!")
                 } else {
-                    onResult(false, "No active SkipFlow Unlimited subscription found on this Google account.")
+                    onResult(false, "No active SkipFlow subscription found on this Google account.")
                 }
             } else {
                 onResult(false, "Unable to restore purchases: ${billingResult.debugMessage}")

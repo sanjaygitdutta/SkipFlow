@@ -22,7 +22,270 @@ object DetectionDictionary {
         "com.crunchyroll.crunchyroll"      // Crunchyroll
     )
 
-    val TARGET_PACKAGES = YOUTUBE_PACKAGES + OTT_PACKAGES
+    val HOTSTAR_PACKAGES = setOf(
+        "in.startv.hotstar",                // Disney+ Hotstar / JioHotstar India
+        "com.disney.hotstar",              // Hotstar Global
+        "com.jiohotstar.android",          // JioHotstar
+        "com.jio.hotstar",                 // JioHotstar alternate
+        "in.startv.hotstar.dplus"          // Hotstar Android TV / alternate
+    )
+
+    val MX_PLAYER_PACKAGES = setOf(
+        "com.mxtech.videoplayer.ad",       // MX Player Free (main ad-supported version)
+        "com.mxtech.videoplayer.pro",      // MX Player Pro
+        "com.mxtech.videoplayer.television",
+        "com.mxtech.videoplayer.beta",
+        "com.mxtech.videoplayer"
+    )
+
+    val PRIME_VIDEO_PACKAGES = setOf(
+        "com.amazon.avod.thirdpartyclient",  // Amazon Prime Video Android Client
+        "com.amazon.amazonvideo.livingroom"  // Prime Video Android TV / Fire OS
+    )
+
+    val NETFLIX_PACKAGES = setOf(
+        "com.netflix.mediaclient",           // Netflix Android Client
+        "com.netflix.ninja"                  // Netflix Android TV Client
+    )
+
+    val SONYLIV_PACKAGES = setOf(
+        "com.sonyliv"                        // SonyLIV Android Client
+    )
+
+    val ZEE5_PACKAGES = setOf(
+        "com.graymatrix.did"                 // Zee5 Android Client
+    )
+
+    val SAAVN_PACKAGES = setOf(
+        "com.jio.media.jiobeats",            // JioSaavn Music & Podcasts
+        "com.saavn.android"                  // Saavn Android Client
+    )
+
+    val SPOTIFY_PACKAGES = setOf(
+        "com.spotify.music",
+        "com.spotify.lite"
+    )
+
+    val TARGET_PACKAGES = YOUTUBE_PACKAGES + OTT_PACKAGES + HOTSTAR_PACKAGES + MX_PLAYER_PACKAGES +
+            PRIME_VIDEO_PACKAGES + NETFLIX_PACKAGES + SONYLIV_PACKAGES + ZEE5_PACKAGES + SAAVN_PACKAGES + SPOTIFY_PACKAGES
+
+    // Universal compound ad counter pattern for live sports, OTT, and streaming platforms:
+    // Matches:
+    // - "Ad 1 of 1", "Ad 1 of 2", "Ad 2 of 2", "Ad 1 of 3", "Ad 2 of 3", "Ad 3 of 3", "Ad X of Y" (any digits X of Y)
+    // - "Ad • 1 of 2", "Ad · 1 of 2", "Ad - 1 of 2", "Ad: 1 of 2", "Ad | 1 of 2", "Ad. 1 of 2", "Ad • 2 of 3", "Ad · 3 of 3", "Ad • 1 of 1"
+    // - "Ad 1/2", "Ad • 1/2", "Ad · 2/3", "Ad • 1/1"
+    val COMPOUND_AD_COUNTER_REGEX = Regex(
+        """\bad\b\s*(?:[•·\-|:.]\s*)?\d+\s*(?:of|\/)\s*\d+\b""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // Compound ad counter with timer (with OR without the word "Ad"):
+    // Matches:
+    // - "1 of 1 . 00:15", "1 of 1 . 15", "1 of 1. 00:15", "1 of 1 · 00:15", "1 of 1 • 00:15"
+    // - "1 of 3 . 00:14", "2 of 3 . 00:14", "3 of 3 . 00:14", "3 of 3 . 00:08"
+    // - "1 of 2 . 00:30", "2 of 2 . 00:15", "1 of 2 · 00:20", "2 of 2 • 00:10"
+    // - "1 of 1: 00:15", "1 of 1 - 00:15", "1 of 1 | 00:15", "1 of 1 00:15", "1 of 1 (00:15)"
+    // - "00:15 . 1 of 1", "00:14 • 2 of 3"
+    // - "1/1 . 00:15", "1/2 . 00:15", "2/2 . 00:15", "1/3 . 00:15", "2/3 . 00:15"
+    val COUNTER_WITH_TIMER_REGEX = Regex(
+        """\b\d+\s*(?:of|\/)\s*\d+\s*(?:[•·\.\-|:()]\s*)?(?:\d{1,2}:\d{1,2}|\d+\s*s(?:ec)?(?:onds?)?|\d{1,3})\b|\b(?:\d{1,2}:\d{1,2}|\d+\s*s(?:ec)?(?:onds?)?)\s*(?:[•·\.\-|:()]\s*)?\d+\s*(?:of|\/)\s*\d+\b""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // JioHotstar specific in-stream video ad counter with timer WITHOUT the word "Ad":
+    // Matches "1 of 1 . 00:15", "1 of 3 . 00:14", "2 of 3 . 00:14", "3 of 3 . 00:08", "1 of 2 . 00:30", "2 of 2 . 00:15", etc.
+    val HOTSTAR_NO_AD_WORD_COUNTER_REGEX = Regex(
+        """\b\d+\s*of\s*\d+\s*(?:[•·\.\-|:()]\s*)?(?:\d{1,2}:\d{1,2}|\d+\s*s(?:ec)?(?:onds?)?|\d{1,3})\b|\b(?:\d{1,2}:\d{1,2}|\d+\s*s(?:ec)?(?:onds?)?)\s*(?:[•·\.\-|:()]\s*)?\d+\s*of\s*\d+\b""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // Bare break counter (e.g. "1 of 1", "1 of 2", "2 of 2", "1 of 3", "2 of 3", "3 of 3", "1 of 4", "2 of 4", "1/2", "2/3")
+    val BARE_BREAK_COUNTER_REGEX = Regex(
+        """\b\d+\s*(?:of|\/)\s*\d+\b""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // Standalone timer count in video frame (e.g. "00:15", "0:14", "00:30", "15s")
+    val STANDALONE_TIMER_REGEX = Regex(
+        """\b(?:\d{1,2}:\d{2}|\d+\s*s(?:ec)?(?:onds?)?)\b""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // Single ad with timer or countdown (e.g. "Ad • 00:14", "Ad · 00:13", "Ad 0:15", "Ad (0:15)", "Ad • 15s", "Ad ends in 5s", "Ad will end in 10s")
+    val SINGLE_AD_TIMER_REGEX = Regex(
+        """\bad\b\s*(?:[•·\.\-|:(]\s*)?(?:(\d{1,2}:\d{2})|(\d+\s*s(?:ec)?(?:onds?)?))\b""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // Hotstar / JioHotstar in-stream ad countdown and break counters (e.g. "2 of 3 • 00:14", "3 of 3 • 00:13", "1 of 1 • 00:15", "1 of 1 . 00:15", "Ad • 1 of 2", "Ad 1 of 1")
+    val HOTSTAR_COUNTDOWN_REGEX = COUNTER_WITH_TIMER_REGEX
+    val HOTSTAR_SINGLE_AD_REGEX = SINGLE_AD_TIMER_REGEX
+    val HOTSTAR_COUNTER_REGEX = BARE_BREAK_COUNTER_REGEX
+    val HOTSTAR_COMPOUND_AD_REGEX = COMPOUND_AD_COUNTER_REGEX
+
+    // Hotstar in-stream ad view IDs and companion card indicators
+    val HOTSTAR_AD_VIEW_IDS = setOf(
+        "in.startv.hotstar:id/ad_timer",
+        "in.startv.hotstar:id/ad_countdown",
+        "in.startv.hotstar:id/ad_badge",
+        "in.startv.hotstar:id/ad_container",
+        "in.startv.hotstar:id/ad_view",
+        "in.startv.hotstar:id/player_ad_layout",
+        "in.startv.hotstar:id/ad_companion_container",
+        "in.startv.hotstar:id/ad_companion",
+        "in.startv.hotstar:id/ad_metadata",
+        "in.startv.hotstar:id/ad_progress",
+        "in.startv.hotstar:id/tv_ad_timer",
+        "in.startv.hotstar:id/tv_timer",
+        "in.startv.hotstar:id/cta_button",
+        "in.startv.hotstar:id/ad_cta",
+        "com.disney.hotstar:id/ad_timer",
+        "com.disney.hotstar:id/ad_countdown",
+        "com.disney.hotstar:id/ad_badge",
+        "com.disney.hotstar:id/ad_container",
+        "ad_companion_container",
+        "ad_companion"
+    )
+
+    // Hotstar companion sponsor card CTA button keywords that appear directly below video during in-stream ads
+    val HOTSTAR_AD_CTA_KEYWORDS = setOf(
+        "buy now", "try now", "shop now", "install now", "order now",
+        "learn more", "download now", "get offer", "book now", "sign up", "explore now"
+    )
+
+    // MX Player in-stream ad countdown and break counters (e.g. "Ad 2 of 3 (0:31)", "Ad 1 of 2 (0:15)", "Ad 1 of 1 (0:15)")
+    val MX_PLAYER_COUNTDOWN_REGEX = COMPOUND_AD_COUNTER_REGEX
+    val MX_PLAYER_TIMER_REGEX = COUNTER_WITH_TIMER_REGEX
+    val MX_PLAYER_COUNTER_REGEX = BARE_BREAK_COUNTER_REGEX
+
+    // MX Player in-stream ad view IDs and elements
+    val MX_PLAYER_AD_VIEW_IDS = setOf(
+        "com.mxtech.videoplayer.ad:id/ad_skip",
+        "com.mxtech.videoplayer.ad:id/btn_skip",
+        "com.mxtech.videoplayer.ad:id/skip_ad",
+        "com.mxtech.videoplayer.ad:id/skip_btn",
+        "com.mxtech.videoplayer.ad:id/ad_skip_button",
+        "com.mxtech.videoplayer.ad:id/btn_skip_ad",
+        "com.mxtech.videoplayer.ad:id/ad_timer",
+        "com.mxtech.videoplayer.ad:id/ad_countdown",
+        "com.mxtech.videoplayer.ad:id/ad_progress",
+        "com.mxtech.videoplayer.ad:id/ad_time_remaining",
+        "com.mxtech.videoplayer.ad:id/ad_learn_more",
+        "com.mxtech.videoplayer.ad:id/ad_view",
+        "com.mxtech.videoplayer.ad:id/ad_container",
+        "com.mxtech.videoplayer.ad:id/player_ad",
+        "com.mxtech.videoplayer.ad:id/learn_more",
+        "ad_skip",
+        "btn_skip",
+        "skip_ad",
+        "skip_btn",
+        "ad_skip_button",
+        "btn_skip_ad",
+        "ad_timer",
+        "ad_countdown",
+        "ad_learn_more"
+    )
+
+    // Amazon Prime Video in-stream ad countdown and view IDs
+    val PRIME_VIDEO_COUNTDOWN_REGEX = COMPOUND_AD_COUNTER_REGEX
+    val PRIME_VIDEO_TIMER_REGEX = COUNTER_WITH_TIMER_REGEX
+    val PRIME_VIDEO_COUNTER_REGEX = BARE_BREAK_COUNTER_REGEX
+    val PRIME_VIDEO_AD_VIEW_IDS = setOf(
+        "com.amazon.avod.thirdpartyclient:id/ad_countdown",
+        "com.amazon.avod.thirdpartyclient:id/ad_time_remaining",
+        "com.amazon.avod.thirdpartyclient:id/ad_indicator",
+        "com.amazon.avod.thirdpartyclient:id/ad_overlay",
+        "com.amazon.avod.thirdpartyclient:id/skip_ad",
+        "com.amazon.avod.thirdpartyclient:id/btn_skip",
+        "com.amazon.avod.thirdpartyclient:id/learn_more",
+        "ad_indicator",
+        "ad_overlay"
+    )
+
+    // Netflix in-stream ad countdown and view IDs (Ad-supported plan)
+    val NETFLIX_COUNTDOWN_REGEX = COMPOUND_AD_COUNTER_REGEX
+    val NETFLIX_TIMER_REGEX = COUNTER_WITH_TIMER_REGEX
+    val NETFLIX_COUNTER_REGEX = BARE_BREAK_COUNTER_REGEX
+    val NETFLIX_AD_VIEW_IDS = setOf(
+        "com.netflix.mediaclient:id/ad_break",
+        "com.netflix.mediaclient:id/ad_timer",
+        "com.netflix.mediaclient:id/ad_countdown",
+        "com.netflix.mediaclient:id/ad_view",
+        "com.netflix.mediaclient:id/ad_progress",
+        "com.netflix.mediaclient:id/player_ad_break",
+        "player_ad_break",
+        "ad_break"
+    )
+
+    // SonyLIV in-stream ad countdown and view IDs
+    val SONYLIV_COUNTDOWN_REGEX = COMPOUND_AD_COUNTER_REGEX
+    val SONYLIV_TIMER_REGEX = COUNTER_WITH_TIMER_REGEX
+    val SONYLIV_COUNTER_REGEX = BARE_BREAK_COUNTER_REGEX
+    val SONYLIV_AD_VIEW_IDS = setOf(
+        "com.sonyliv:id/btn_skip",
+        "com.sonyliv:id/skip_ad",
+        "com.sonyliv:id/skip_btn",
+        "com.sonyliv:id/ad_timer",
+        "com.sonyliv:id/ad_countdown",
+        "com.sonyliv:id/ad_view",
+        "com.sonyliv:id/player_ad_view",
+        "com.sonyliv:id/ad_banner",
+        "com.sonyliv:id/ad_title",
+        "player_ad_view"
+    )
+
+    // Zee5 in-stream ad countdown and view IDs
+    val ZEE5_COUNTDOWN_REGEX = COMPOUND_AD_COUNTER_REGEX
+    val ZEE5_TIMER_REGEX = COUNTER_WITH_TIMER_REGEX
+    val ZEE5_COUNTER_REGEX = BARE_BREAK_COUNTER_REGEX
+    val ZEE5_ENDS_IN_REGEX = Regex("""\bad\s+(?:ends|will\s+end)\s+in\s+\d+.*""", RegexOption.IGNORE_CASE)
+    val ZEE5_AD_VIEW_IDS = setOf(
+        "com.graymatrix.did:id/btn_skip",
+        "com.graymatrix.did:id/skip_ad",
+        "com.graymatrix.did:id/skip_btn",
+        "com.graymatrix.did:id/ad_skip_button",
+        "com.graymatrix.did:id/ad_timer",
+        "com.graymatrix.did:id/ad_countdown",
+        "com.graymatrix.did:id/ad_view",
+        "com.graymatrix.did:id/player_ad_view",
+        "com.graymatrix.did:id/player_ad",
+        "com.graymatrix.did:id/ad_progress",
+        "com.graymatrix.did:id/ad_banner",
+        "com.graymatrix.did:id/ad_title",
+        "com.graymatrix.did:id/learn_more",
+        "player_ad",
+        "player_ad_view"
+    )
+
+    // JioSaavn in-stream ad countdown, audio ad cues, and view IDs
+    val SAAVN_COUNTDOWN_REGEX = COMPOUND_AD_COUNTER_REGEX
+    val SAAVN_TIMER_REGEX = COUNTER_WITH_TIMER_REGEX
+    val SAAVN_COUNTER_REGEX = BARE_BREAK_COUNTER_REGEX
+    val SAAVN_ENDS_IN_REGEX = Regex("""\bad\s+(?:ends|will\s+end)\s+in\s+\d+.*""", RegexOption.IGNORE_CASE)
+    val SAAVN_AD_VIEW_IDS = setOf(
+        "com.jio.media.jiobeats:id/ad_view",
+        "com.jio.media.jiobeats:id/ad_container",
+        "com.jio.media.jiobeats:id/ad_timer",
+        "com.jio.media.jiobeats:id/ad_countdown",
+        "com.jio.media.jiobeats:id/ad_title",
+        "com.jio.media.jiobeats:id/audio_ad_view",
+        "com.jio.media.jiobeats:id/audio_ad_title",
+        "com.jio.media.jiobeats:id/btn_skip",
+        "com.jio.media.jiobeats:id/skip_ad",
+        "com.jio.media.jiobeats:id/ad_skip",
+        "com.jio.media.jiobeats:id/ad_skip_button",
+        "com.jio.media.jiobeats:id/ad_banner",
+        "com.saavn.android:id/ad_view",
+        "com.saavn.android:id/ad_container",
+        "com.saavn.android:id/ad_timer",
+        "com.saavn.android:id/ad_countdown",
+        "com.saavn.android:id/audio_ad_view",
+        "com.saavn.android:id/btn_skip",
+        "com.saavn.android:id/skip_ad",
+        "com.saavn.android:id/ad_skip",
+        "audio_ad_view",
+        "audio_ad_title"
+    )
 
     // IDs that strictly belong to in-stream video ad skip buttons across YouTube and OTT players
     val IN_STREAM_SKIP_BUTTON_IDS = setOf(
@@ -61,9 +324,27 @@ object DetectionDictionary {
         "com.graymatrix.did:id/btn_skip",
         "com.graymatrix.did:id/skip_ad",
         "com.graymatrix.did:id/skip_btn",
+        "com.graymatrix.did:id/ad_skip_button",
+        // JioSaavn
+        "com.jio.media.jiobeats:id/btn_skip",
+        "com.jio.media.jiobeats:id/skip_ad",
+        "com.jio.media.jiobeats:id/ad_skip",
+        "com.jio.media.jiobeats:id/ad_skip_button",
+        "com.saavn.android:id/btn_skip",
+        "com.saavn.android:id/skip_ad",
+        "com.saavn.android:id/ad_skip",
         // MX Player
         "com.mxtech.videoplayer.ad:id/ad_skip",
         "com.mxtech.videoplayer.ad:id/btn_skip",
+        "com.mxtech.videoplayer.ad:id/skip_ad",
+        "com.mxtech.videoplayer.ad:id/skip_btn",
+        "com.mxtech.videoplayer.ad:id/ad_skip_button",
+        "com.mxtech.videoplayer.ad:id/btn_skip_ad",
+        // Amazon Prime Video
+        "com.amazon.avod.thirdpartyclient:id/skip_ad",
+        "com.amazon.avod.thirdpartyclient:id/btn_skip",
+        // Netflix
+        "com.netflix.mediaclient:id/skip_ad",
         // Twitch
         "tv.twitch.android.app:id/ad_skip_button",
         // Specific ad skip button IDs across Android media players
@@ -92,6 +373,16 @@ object DetectionDictionary {
         "com.jio.media.ondemand:id/ad_countdown",
         "com.sonyliv:id/ad_timer",
         "com.graymatrix.did:id/ad_timer",
+        "com.graymatrix.did:id/ad_countdown",
+        "com.graymatrix.did:id/ad_view",
+        "com.jio.media.jiobeats:id/ad_timer",
+        "com.jio.media.jiobeats:id/ad_countdown",
+        "com.jio.media.jiobeats:id/ad_view",
+        "com.jio.media.jiobeats:id/audio_ad_view",
+        "com.saavn.android:id/ad_timer",
+        "com.saavn.android:id/ad_countdown",
+        "com.saavn.android:id/ad_view",
+        "com.saavn.android:id/audio_ad_view",
         "com.mxtech.videoplayer.ad:id/ad_timer",
         "ad_countdown",
         "ad_progress_text",
@@ -158,6 +449,10 @@ object DetectionDictionary {
         // SonyLIV & Zee5
         "com.sonyliv:id/close",
         "com.graymatrix.did:id/close",
+        // JioSaavn
+        "com.jio.media.jiobeats:id/close",
+        "com.jio.media.jiobeats:id/iv_close",
+        "com.saavn.android:id/close",
         // Common specific ad banner IDs
         "ad_close_button",
         "interstitial_close",
@@ -231,9 +526,33 @@ object DetectionDictionary {
         "ad 1 of",
         "ad 2 of",
         "ad 3 of",
+        "ad 4 of",
         "ad 1 of 1",
         "ad 1 of 2",
         "ad 2 of 2",
+        "ad 1 of 3",
+        "ad 2 of 3",
+        "ad 3 of 3",
+        "ad 1 of 4",
+        "ad 2 of 4",
+        "ad 3 of 4",
+        "ad 4 of 4",
+        "ad • 1 of",
+        "ad · 1 of",
+        "ad • 2 of",
+        "ad · 2 of",
+        "ad • 3 of",
+        "ad · 3 of",
+        "ad • 1 of 1",
+        "ad · 1 of 1",
+        "ad • 1 of 2",
+        "ad · 1 of 2",
+        "ad • 2 of 2",
+        "ad · 2 of 2",
+        "ad • 2 of 3",
+        "ad · 2 of 3",
+        "ad • 3 of 3",
+        "ad · 3 of 3",
         // General in-stream video ad status phrases
         "video will play after ad",
         "video will play after ads",

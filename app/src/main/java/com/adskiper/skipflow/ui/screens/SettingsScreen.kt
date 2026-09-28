@@ -66,6 +66,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.adskiper.skipflow.billing.BillingConstants
+import com.adskiper.skipflow.data.SubscriptionTier
 import com.adskiper.skipflow.ui.theme.AmberWarning
 import com.adskiper.skipflow.ui.theme.CyberCyan
 import com.adskiper.skipflow.ui.theme.EmeraldAccent
@@ -81,6 +82,7 @@ import kotlin.math.roundToLong
 fun SettingsScreen(
     currentDelayMs: Long,
     isUnlimited: Boolean,
+    subscriptionTier: SubscriptionTier = SubscriptionTier.NONE,
     freeSkipsUsed: Int,
     isReviewerBypassEnabled: Boolean,
     onDelayChanged: (Long) -> Unit,
@@ -211,21 +213,23 @@ fun SettingsScreen(
 
             SettingsSectionHeader(title = "SUPPORTED PLATFORMS")
 
-            SupportedAppRow(name = "YouTube", enabled = true)
+            SupportedAppRow(name = "YouTube & YouTube Music", enabled = true)
             Spacer(modifier = Modifier.height(8.dp))
-            SupportedAppRow(name = "YouTube Music", enabled = true)
+            SupportedAppRow(name = "JioHotstar (Live Sports & OTT)", enabled = true)
+            Spacer(modifier = Modifier.height(8.dp))
+            SupportedAppRow(name = "Netflix", enabled = true)
+            Spacer(modifier = Modifier.height(8.dp))
+            SupportedAppRow(name = "Amazon Prime Video", enabled = true)
+            Spacer(modifier = Modifier.height(8.dp))
+            SupportedAppRow(name = "Zee 5", enabled = true)
+            Spacer(modifier = Modifier.height(8.dp))
+            SupportedAppRow(name = "MX Player OTT", enabled = true)
+            Spacer(modifier = Modifier.height(8.dp))
+            SupportedAppRow(name = "SonyLIV", enabled = true)
+            Spacer(modifier = Modifier.height(8.dp))
+            SupportedAppRow(name = "JioSaavn Music & Podcasts", enabled = true)
             Spacer(modifier = Modifier.height(8.dp))
             SupportedAppRow(name = "Spotify", enabled = true)
-            Spacer(modifier = Modifier.height(8.dp))
-            SupportedAppRow(name = "Disney+ Hotstar (JioHotstar)", enabled = true)
-            Spacer(modifier = Modifier.height(8.dp))
-            SupportedAppRow(name = "JioCinema & JioTV", enabled = true)
-            Spacer(modifier = Modifier.height(8.dp))
-            SupportedAppRow(name = "MX Player", enabled = true)
-            Spacer(modifier = Modifier.height(8.dp))
-            SupportedAppRow(name = "DailyMotion", enabled = true)
-            Spacer(modifier = Modifier.height(8.dp))
-            SupportedAppRow(name = "Twitch", enabled = true)
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -237,7 +241,11 @@ fun SettingsScreen(
                     .clickable(onClick = onOpenPaywall)
                     .border(
                         1.dp,
-                        if (isUnlimited) EmeraldAccent.copy(alpha = 0.5f) else CyberCyan.copy(alpha = 0.4f),
+                        when (subscriptionTier) {
+                            SubscriptionTier.PREMIUM_ALL -> EmeraldAccent.copy(alpha = 0.6f)
+                            SubscriptionTier.BASIC_YOUTUBE -> CyberCyan.copy(alpha = 0.6f)
+                            SubscriptionTier.NONE -> if (isUnlimited) EmeraldAccent.copy(alpha = 0.5f) else CyberCyan.copy(alpha = 0.4f)
+                        },
                         RoundedCornerShape(16.dp)
                     ),
                 shape = RoundedCornerShape(16.dp),
@@ -251,29 +259,53 @@ fun SettingsScreen(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = if (isUnlimited) Icons.Default.AutoAwesome else Icons.Default.Stars,
+                                imageVector = when (subscriptionTier) {
+                                    SubscriptionTier.PREMIUM_ALL -> Icons.Default.AutoAwesome
+                                    SubscriptionTier.BASIC_YOUTUBE -> Icons.Default.PlayArrow
+                                    SubscriptionTier.NONE -> if (isUnlimited) Icons.Default.AutoAwesome else Icons.Default.Stars
+                                },
                                 contentDescription = null,
-                                tint = if (isUnlimited) EmeraldAccent else CyberCyan
+                                tint = when (subscriptionTier) {
+                                    SubscriptionTier.PREMIUM_ALL -> EmeraldAccent
+                                    SubscriptionTier.BASIC_YOUTUBE -> CyberCyan
+                                    SubscriptionTier.NONE -> if (isUnlimited) EmeraldAccent else CyberCyan
+                                }
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = if (isUnlimited) "SkipFlow Unlimited" else "Free Tier (15 Skips Included)",
+                                text = when (subscriptionTier) {
+                                    SubscriptionTier.PREMIUM_ALL -> "Premium All-Access"
+                                    SubscriptionTier.BASIC_YOUTUBE -> "Basic (YouTube Only)"
+                                    SubscriptionTier.NONE -> if (isUnlimited) "Reviewer Bypass Active" else "Free Tier (15 Skips Included)"
+                                },
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
                         Box(
                             modifier = Modifier
                                 .background(
-                                    (if (isUnlimited) EmeraldAccent else IndigoPrimary).copy(alpha = 0.2f),
+                                    when (subscriptionTier) {
+                                        SubscriptionTier.PREMIUM_ALL -> EmeraldAccent.copy(alpha = 0.2f)
+                                        SubscriptionTier.BASIC_YOUTUBE -> CyberCyan.copy(alpha = 0.2f)
+                                        SubscriptionTier.NONE -> (if (isUnlimited) EmeraldAccent else IndigoPrimary).copy(alpha = 0.2f)
+                                    },
                                     RoundedCornerShape(8.dp)
                                 )
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = if (isUnlimited) "ACTIVE" else "$freeSkipsUsed / ${BillingConstants.FREE_TIER_MAX_SKIPS} USED",
+                                text = when (subscriptionTier) {
+                                    SubscriptionTier.PREMIUM_ALL -> "ALL PLATFORMS"
+                                    SubscriptionTier.BASIC_YOUTUBE -> "YOUTUBE ONLY"
+                                    SubscriptionTier.NONE -> if (isUnlimited) "ACTIVE" else "$freeSkipsUsed / ${BillingConstants.FREE_TIER_MAX_SKIPS} USED"
+                                },
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = if (isUnlimited) EmeraldAccent else CyberCyan
+                                color = when (subscriptionTier) {
+                                    SubscriptionTier.PREMIUM_ALL -> EmeraldAccent
+                                    SubscriptionTier.BASIC_YOUTUBE -> CyberCyan
+                                    SubscriptionTier.NONE -> if (isUnlimited) EmeraldAccent else CyberCyan
+                                }
                             )
                         }
                     }
@@ -281,10 +313,14 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = if (isUnlimited) {
-                            "You have unlimited 0ms ad skipping and audio immunity active across all supported apps."
-                        } else {
-                            "Monthly unlimited (₹29) & Yearly unlimited (₹299) subscriptions available through Google Play."
+                        text = when (subscriptionTier) {
+                            SubscriptionTier.PREMIUM_ALL ->
+                                "Full 0ms auto-skip & audio muting active across YouTube, Hotstar, JioCinema, SonyLIV, Zee5, and Spotify."
+                            SubscriptionTier.BASIC_YOUTUBE ->
+                                "Unlimited 0ms skipping active on YouTube & YouTube Music. Upgrade to Premium (₹49/mo) for Disney+ Hotstar, JioCinema, and Spotify."
+                            SubscriptionTier.NONE ->
+                                if (isUnlimited) "Reviewer bypass mode enables full testing across all platforms."
+                                else "Basic YouTube (₹29/mo, ₹299/yr) or Premium All-Access (₹49/mo, ₹499/yr) available through Google Play."
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -296,13 +332,21 @@ fun SettingsScreen(
                     Button(
                         onClick = onOpenPaywall,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isUnlimited) Color(0xFF1E293B) else IndigoPrimary
+                            containerColor = when (subscriptionTier) {
+                                SubscriptionTier.PREMIUM_ALL -> Color(0xFF1E293B)
+                                SubscriptionTier.BASIC_YOUTUBE -> IndigoPrimary
+                                SubscriptionTier.NONE -> if (isUnlimited) Color(0xFF1E293B) else IndigoPrimary
+                            }
                         ),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Text(
-                            text = if (isUnlimited) "Manage / View Subscription" else "Upgrade to Unlimited (from ₹29)",
+                            text = when (subscriptionTier) {
+                                SubscriptionTier.PREMIUM_ALL -> "Manage / View Subscription"
+                                SubscriptionTier.BASIC_YOUTUBE -> "Upgrade to Premium All-Access (₹49)"
+                                SubscriptionTier.NONE -> if (isUnlimited) "Manage Plans" else "Upgrade to Unlimited (from ₹29)"
+                            },
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White

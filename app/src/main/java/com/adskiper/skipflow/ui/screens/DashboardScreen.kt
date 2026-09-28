@@ -59,10 +59,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import com.adskiper.skipflow.R
 import com.adskiper.skipflow.billing.BillingConstants
+import com.adskiper.skipflow.data.PlatformStat
+import com.adskiper.skipflow.data.PreferencesRepository
+import com.adskiper.skipflow.data.SubscriptionTier
 import com.adskiper.skipflow.ui.components.FeatureSwitchCard
 import com.adskiper.skipflow.ui.components.PlatformProtectionCarousel
 import com.adskiper.skipflow.ui.components.ServiceStatusCard
-import com.adskiper.skipflow.ui.components.SimulatorCard
+import com.adskiper.skipflow.ui.components.SmartGestureCard
 import com.adskiper.skipflow.ui.components.StatCardsRow
 import com.adskiper.skipflow.ui.theme.AmberWarning
 import com.adskiper.skipflow.ui.theme.CardBackgroundDark
@@ -83,7 +86,14 @@ fun DashboardScreen(
     totalAdsSkipped: Long,
     totalSecondsSaved: Long,
     activeDays: Int,
+    audioAdsCount: Long = 0L,
+    audioAdsSeconds: Long = 0L,
+    videoAdsCount: Long = 0L,
+    videoAdsSeconds: Long = 0L,
+    platformStats: Map<String, PlatformStat> = emptyMap(),
+    activeRunningPlatform: String? = null,
     isUnlimited: Boolean,
+    subscriptionTier: SubscriptionTier = SubscriptionTier.NONE,
     freeSkipsUsed: Int,
     isAutoSkipEnabled: Boolean,
     isAutoCloseBannersEnabled: Boolean,
@@ -92,18 +102,20 @@ fun DashboardScreen(
     isSpotifyMuteEnabled: Boolean,
     isOttSkipEnabled: Boolean,
     spotifyAdsMuted: Long,
-    isSimulating: Boolean,
-    simCountdown: Int,
-    isSimMuted: Boolean,
+    enabledPlatforms: Set<String> = PreferencesRepository.DEFAULT_ENABLED_PLATFORMS,
+    isSimulating: Boolean = false,
+    simCountdown: Int = 0,
+    isSimMuted: Boolean = false,
     onEnableServiceClicked: () -> Unit,
     onOpenPaywall: () -> Unit,
+    onTogglePlatformLock: (platformId: String, shouldLock: Boolean) -> Unit = { _, _ -> },
     onToggleAutoSkip: (Boolean) -> Unit,
     onToggleAutoCloseBanners: (Boolean) -> Unit,
     onToggleAutoMute: (Boolean) -> Unit,
     onToggleWave: (Boolean) -> Unit,
     onToggleSpotifyMute: (Boolean) -> Unit,
     onToggleOttSkip: (Boolean) -> Unit,
-    onStartSimulation: () -> Unit,
+    onStartSimulation: () -> Unit = {},
     onNavigateToSettings: () -> Unit
 ) {
     val context = LocalContext.current
@@ -271,6 +283,7 @@ fun DashboardScreen(
                 // Subscription & Free Tier Progress Banner
                 SubscriptionTierBanner(
                     isUnlimited = isUnlimited,
+                    subscriptionTier = subscriptionTier,
                     freeSkipsUsed = freeSkipsUsed,
                     onOpenPaywall = onOpenPaywall
                 )
@@ -285,12 +298,17 @@ fun DashboardScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // 2. Metrics & Analytics 2x2 Grid
+                // 2. Metrics & Analytics 2x2 Grid with Platform Breakdown Pop-up
                 StatCardsRow(
                     totalAdsSkipped = totalAdsSkipped,
                     totalSecondsSaved = totalSecondsSaved,
-                    spotifyAdsMuted = spotifyAdsMuted,
-                    activeDays = activeDays
+                    activeDays = activeDays,
+                    audioAdsCount = audioAdsCount,
+                    audioAdsSeconds = audioAdsSeconds,
+                    videoAdsCount = videoAdsCount,
+                    videoAdsSeconds = videoAdsSeconds,
+                    platformStats = platformStats,
+                    activeRunningPlatform = activeRunningPlatform
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -298,31 +316,25 @@ fun DashboardScreen(
                 // 3. 3D Swipe & Drag-to-Lock Platform Protection Carousel
                 SectionHeader(title = "PLATFORM CONTROLS (SWIPE & DRAG TO LOCK)")
                 PlatformProtectionCarousel(
-                    isYouTubeLocked = isAutoSkipEnabled && isAutoMuteEnabled,
-                    isHotstarLocked = isOttSkipEnabled,
-                    isJioLocked = isOttSkipEnabled,
-                    isSpotifyLocked = isSpotifyMuteEnabled,
+                    enabledPlatforms = enabledPlatforms,
                     onTogglePlatformLock = { platformId, shouldLock ->
-                        when (platformId) {
-                            "youtube" -> {
-                                onToggleAutoSkip(shouldLock)
-                                onToggleAutoMute(shouldLock)
-                            }
-                            "hotstar", "jiocinema" -> {
-                                onToggleOttSkip(shouldLock)
-                            }
-                            "spotify" -> {
-                                onToggleSpotifyMute(shouldLock)
-                            }
-                        }
+                        onTogglePlatformLock(platformId, shouldLock)
                     }
                 )
 
                 Spacer(modifier = Modifier.height(22.dp))
 
-                // 4. Smart Automation & Hands-Free Gestures (Unique Controls)
-                SectionHeader(title = "SMART CONTROLS & GESTURES")
+                // 4. Smart Gesture (Wave Proximity Sensor)
+                SectionHeader(title = "SMART GESTURE")
 
+                SmartGestureCard(
+                    isWaveEnabled = isWaveEnabled,
+                    onToggleWave = onToggleWave
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Auto-Close Popup Banners Control
                 FeatureSwitchCard(
                     title = "Auto-Close Popup Banners",
                     description = "Dismisses popup and overlay banners in portrait and full-screen without cutting video sound",
@@ -330,29 +342,7 @@ fun DashboardScreen(
                     accentColor = CyberCyan,
                     isChecked = isAutoCloseBannersEnabled,
                     onCheckedChange = onToggleAutoCloseBanners,
-                    tag = "Dismiss"
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                FeatureSwitchCard(
-                    title = "Wave-to-Skip Proximity Sensor",
-                    description = "Wave hand over phone's front sensor to force skip (perfect for cooking or messy gym hands)",
-                    icon = Icons.Default.FrontHand,
-                    accentColor = SunsetOrange,
-                    isChecked = isWaveEnabled,
-                    onCheckedChange = onToggleWave,
-                    tag = "Hands-Free"
-                )
-
-                Spacer(modifier = Modifier.height(22.dp))
-
-                // 5. Interactive Simulator Sandbox
-                SimulatorCard(
-                    isSimulating = isSimulating,
-                    countdown = simCountdown,
-                    isMuted = isSimMuted,
-                    onStartTest = onStartSimulation
+                    tag = "Auto-Dismiss"
                 )
 
                 Spacer(modifier = Modifier.height(32.dp))
@@ -388,10 +378,149 @@ private fun SectionHeader(title: String) {
 @Composable
 private fun SubscriptionTierBanner(
     isUnlimited: Boolean,
+    subscriptionTier: SubscriptionTier,
     freeSkipsUsed: Int,
     onOpenPaywall: () -> Unit
 ) {
-    if (isUnlimited) {
+    if (subscriptionTier == SubscriptionTier.PREMIUM_ALL) {
+        androidx.compose.material3.Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .clickable(onClick = onOpenPaywall),
+            shape = RoundedCornerShape(16.dp),
+            colors = androidx.compose.material3.CardDefaults.cardColors(
+                containerColor = Color(0xFF0D1E24).copy(alpha = 0.88f)
+            ),
+            border = BorderStroke(1.dp, EmeraldAccent.copy(alpha = 0.6f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(EmeraldAccent.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = EmeraldAccent,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "SkipFlow Premium",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(EmeraldAccent.copy(alpha = 0.25f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text("ALL-ACCESS", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = EmeraldAccent)
+                            }
+                        }
+                        Text(
+                            text = "YouTube, OTT Streaming & Spotify immunity unlocked",
+                            fontSize = 11.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                    contentDescription = null,
+                    tint = Color(0xFF64748B),
+                    modifier = Modifier.size(13.dp)
+                )
+            }
+        }
+    } else if (subscriptionTier == SubscriptionTier.BASIC_YOUTUBE) {
+        androidx.compose.material3.Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .clickable(onClick = onOpenPaywall),
+            shape = RoundedCornerShape(16.dp),
+            colors = androidx.compose.material3.CardDefaults.cardColors(
+                containerColor = Color(0xFF0F1B2B).copy(alpha = 0.88f)
+            ),
+            border = BorderStroke(1.dp, CyberCyan.copy(alpha = 0.6f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(CyberCyan.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Tv,
+                            contentDescription = null,
+                            tint = CyberCyan,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "SkipFlow Basic",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(CyberCyan.copy(alpha = 0.25f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text("YOUTUBE", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = CyberCyan)
+                            }
+                        }
+                        Text(
+                            text = "YouTube unlocked • Tap to add OTT & Spotify",
+                            fontSize = 11.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(HeroGradient)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text("UPGRADE", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                }
+            }
+        }
+    } else if (isUnlimited) {
         androidx.compose.material3.Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -527,7 +656,7 @@ private fun SubscriptionTierBanner(
                             }
                         }
                         Text(
-                            text = if (isExhausted) "Auto-skip locked. Tap to unlock Unlimited!" else "Tap to unlock Unlimited for ₹29/mo or ₹299/yr",
+                            text = if (isExhausted) "Basic (₹29) or Premium (₹49) to unlock!" else "Basic ₹29/mo (YouTube) • Premium ₹49/mo (All)",
                             fontSize = 11.sp,
                             color = Color(0xFF94A3B8)
                         )
@@ -540,7 +669,7 @@ private fun SubscriptionTierBanner(
                         .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
                     Text(
-                        text = if (isExhausted) "UPGRADE" else "GET PRO",
+                        text = if (isExhausted) "UPGRADE" else "CHOOSE PLAN",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White
@@ -550,4 +679,5 @@ private fun SubscriptionTierBanner(
         }
     }
 }
+
 
