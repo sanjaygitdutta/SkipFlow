@@ -90,6 +90,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     private var hotstarMutePollerRunnable: Runnable? = null
     private var hotstarConsecutiveNonAdChecks = 0
     @Volatile
+    private var lastHotstarTimerSeconds = -1
+    private var lastHotstarTimerTimestamp = 0L
+    @Volatile
     private var isMxPlayerAdPlaying = false
     private var mxPlayerMutePollerRunnable: Runnable? = null
     private var mxPlayerConsecutiveNonAdChecks = 0
@@ -130,6 +133,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         // Register Spotify background ad muter receiver with dynamic status callback
         try {
             spotifyAdReceiver = SpotifyAdReceiver(audioController, statsRepo, preferencesRepo) { isMuted ->
+                isSpotifyAdPlaying = isMuted
                 updatePersistentNotification(isMuted)
             }
             ContextCompat.registerReceiver(
@@ -187,9 +191,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
         val packageName = event.packageName?.toString() ?: return
         val isYouTube = DetectionDictionary.YOUTUBE_PACKAGES.contains(packageName)
-        val isSpotify = DetectionDictionary.SPOTIFY_PACKAGES.contains(packageName)
-        val isHotstar = DetectionDictionary.HOTSTAR_PACKAGES.contains(packageName) || packageName.contains("hotstar")
-        val isMxPlayer = DetectionDictionary.MX_PLAYER_PACKAGES.contains(packageName) || packageName.contains("videoplayer") || packageName.contains("mxtech")
+        val isSpotify = DetectionDictionary.SPOTIFY_PACKAGES.contains(packageName) || packageName.contains("spotify")
+        val isHotstar = DetectionDictionary.HOTSTAR_PACKAGES.contains(packageName) || packageName.contains("hotstar") || packageName.contains("jiohotstar")
+        val isMxPlayer = DetectionDictionary.MX_PLAYER_PACKAGES.contains(packageName) || packageName.contains("videoplayer") || packageName.contains("mxtech") || packageName.contains("mxplayer")
         val isPrimeVideo = DetectionDictionary.PRIME_VIDEO_PACKAGES.contains(packageName) || packageName.contains("amazon.avod")
         val isNetflix = DetectionDictionary.NETFLIX_PACKAGES.contains(packageName) || packageName.contains("netflix")
         val isSonyLiv = DetectionDictionary.SONYLIV_PACKAGES.contains(packageName) || packageName.contains("sonyliv")
@@ -235,6 +239,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     !activePackage.contains("hotstar") &&
                     !activePackage.contains("videoplayer") &&
                     !activePackage.contains("mxtech") &&
+                    !activePackage.contains("mxplayer") &&
                     !activePackage.contains("amazon.avod") &&
                     !activePackage.contains("netflix") &&
                     !activePackage.contains("sonyliv") &&
@@ -258,8 +263,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     stopSonyLivMutePoller()
                     stopZee5MutePoller()
                     stopSaavnMutePoller()
-                    // Don't prematurely unmute if any media app is actively playing an ad
-                    if (audioController.isCurrentlyMuted() && !isSpotifyAdPlaying && !isHotstarAdPlaying &&
+                    // Don't prematurely unmute if any media app is actively playing an ad or Spotify is actively muted in background
+                    if (audioController.isCurrentlyMuted() && !isSpotifyAdPlaying && !SpotifyAdReceiver.isCurrentlyMuting() && !isHotstarAdPlaying &&
                         !isMxPlayerAdPlaying && !isPrimeVideoAdPlaying && !isNetflixAdPlaying && !isSonyLivAdPlaying &&
                         !isZee5AdPlaying && !isSaavnAdPlaying
                     ) {
@@ -290,7 +295,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         // Check per-platform granular protection locks
         if (isYouTube && !preferencesRepo.isPlatformLockedSync("youtube")) return
         if (isSpotify && (!isSpotifyMuteEnabled || !preferencesRepo.isPlatformLockedSync("spotify"))) return
-        if (isOtt && !isOttSkipEnabled) return
+        if (isOtt && !isOttSkipEnabled && !isAutoMuteEnabled) return
 
         // Handle Spotify foreground app
         if (isSpotify) {
@@ -937,18 +942,21 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         val combined = "$title $text $subText $bigText $eventTexts".lowercase()
         Log.d(TAG, "Spotify Notification: title='$title', text='$text', subText='$subText', all='$combined'")
 
-        // Commercial video/audio ad breaks show "left in the break" or "Advertisement • X of Y" or pure "Advertisement" as title with no song
+        // Commercial video/audio ad breaks show "left in the break" or "Advertisement • X of Y" or pure "Advertisement" / "Sponsored"
         val isCommercialAd = combined.contains("left in the break") ||
-                combined.contains("advertisement •") ||
-                combined.contains("advertisement ·") ||
-                (title.equals("advertisement", ignoreCase = true) && !text.contains(" - ")) ||
-                (title.equals("spotify", ignoreCase = true) && text.isEmpty()) ||
+                combined.contains("left in break") ||
+                combined.contains("advertisement") ||
+                combined.contains("sponsored") ||
+                title.equals("ad", ignoreCase = true) ||
+                text.equals("ad", ignoreCase = true) ||
+                title.equals("spotify free", ignoreCase = true) ||
+                (title.equals("spotify", ignoreCase = true) && (text.isEmpty() || text.equals("spotify", ignoreCase = true) || text.contains("ad"))) ||
                 combined.contains("spotify:ad")
 
         if (isCommercialAd) {
             isSpotifyAdPlaying = true
             if (!audioController.isCurrentlyMuted()) {
-                Log.i(TAG, "Spotify Video/Audio Ad detected via notification! Muting media audio stream (0ms).")
+                Log.i(TAG, "Spotify Video/Audio Ad detected via notification (screen on/off)! Muting media audio stream (0ms).")
                 audioController.muteAdAudio()
                 updatePersistentNotification(isMuted = true)
                 serviceScope.launch { statsRepo.recordSpotifyAdMuted() }
@@ -1257,6 +1265,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         cancelPendingUnmute()
                         audioController.unmuteAdAudio()
                         updatePersistentNotification(isMuted = false)
+                        serviceScope.launch { statsRepo.recordAdEvent("hotstar", isAudioOnly = false) }
                     } else {
                         audioController.recordUserVolume()
                     }
@@ -1276,10 +1285,12 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
     /**
      * Inspects active window hierarchy for Disney+ Hotstar / JioHotstar in-stream video ad indicators.
-     * Accurately detects ads where NO "Ad" word is present (e.g. "1 of 1 . 00:15", "1 of 3 . 00:14",
-     * "2 of 3 . 00:14", "3 of 3 . 00:08", "1 of 2 . 00:30", "2 of 2 . 00:15"), break counters
-     * with timer countdowns in half-screen or full-screen video frames, companion card CTA buttons,
-     * and known ad view IDs.
+     * Accurately detects ads where NO "Ad" word is present:
+     * - Standalone countdown timer in video frame: "59" (counting 59 down to 1) or "1:29" (counting down toward 1)
+     * - Break counters with timers: "1 of 1 . 00:15", "1 of 3 . 00:14", "2 of 3 . 00:14", "3 of 3 . 00:08", "1 of 2 . 00:30"
+     * - Bare break counters: "1 of 1", "1 of 2", "2 of 2", "1 of 3"
+     * - Companion card CTA buttons and known ad view IDs
+     * Protects normal movie playback from false positives by verifying absence of seekbars / playback controls.
      */
     private fun isHotstarAdActive(root: AccessibilityNodeInfo): Boolean {
         var hasAdCountdown = false
@@ -1290,6 +1301,18 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         var hasBreakCounter = false
         var foundSeparatorWithCounter = false
         var foundStandaloneTimer = false
+        var hasStandaloneAdTimer = false
+        var hasMovieSeekBar = false
+        var hasMovieControls = false
+
+        val windowBounds = Rect()
+        root.getBoundsInScreen(windowBounds)
+        val screenHeight = if (windowBounds.height() > 0) windowBounds.height() else resources.displayMetrics.heightPixels
+        val screenWidth = if (windowBounds.width() > 0) windowBounds.width() else resources.displayMetrics.widthPixels
+        val isPortrait = screenHeight >= screenWidth
+        // In portrait mode, the video player frame occupies the upper ~55% of the screen.
+        // In landscape mode, the video player frame occupies the entire screen.
+        val maxVideoBottomY = if (isPortrait) (screenHeight * 0.55f).toInt() else screenHeight
 
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         for (i in 0 until root.childCount) {
@@ -1298,6 +1321,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
         var inspected = 0
         val maxInspect = 140
+        val nodeBounds = Rect()
 
         while (queue.isNotEmpty() && inspected < maxInspect) {
             val node = queue.poll() ?: continue
@@ -1307,7 +1331,35 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 val text = node.text?.toString()?.trim() ?: ""
                 val desc = node.contentDescription?.toString()?.trim() ?: ""
                 val viewId = node.viewIdResourceName?.lowercase() ?: ""
+                val className = node.className?.toString() ?: ""
                 val combined = "$text $desc $viewId".lowercase()
+
+                node.getBoundsInScreen(nodeBounds)
+                val isInVideoFrame = if (nodeBounds.height() > 0) {
+                    nodeBounds.top >= 0 && nodeBounds.bottom <= maxVideoBottomY
+                } else {
+                    viewId.contains("player") || viewId.contains("video") || viewId.contains("ad") ||
+                    viewId.contains("timer") || !isPortrait
+                }
+
+                // Check for normal movie player controls / seekbar:
+                // Normal content has a seekbar or rewind/forward controls.
+                // In-stream video ads in Hotstar DO NOT have normal movie seekbar or rewind/forward controls.
+                val isAdElement = viewId.contains("ad_") || viewId.contains("ad_container") || viewId.contains("ad_view")
+                if (!isAdElement && (
+                    className.contains("SeekBar", ignoreCase = true) ||
+                    viewId.contains("seekbar") || viewId.contains("seek_bar") ||
+                    viewId.contains("exo_progress") || viewId.contains("player_progress") ||
+                    viewId.contains("exo_rew") || viewId.contains("exo_ffwd") ||
+                    viewId.contains("rewind") || viewId.contains("forward")
+                )) {
+                    hasMovieSeekBar = true
+                    hasMovieControls = true
+                }
+
+                if (text.contains("/") || desc.contains("/")) {
+                    hasMovieControls = true
+                }
 
                 // Check 1: Hotstar / JioHotstar countdown & compound ad counter (WITHOUT "Ad" word):
                 // Matches "1 of 1 . 00:15", "1 of 3 . 00:14", "2 of 3 . 00:14", "3 of 3 . 00:08", "1 of 2 . 00:30", "2 of 2 . 00:15"
@@ -1327,7 +1379,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     DetectionDictionary.HOTSTAR_SINGLE_AD_REGEX.containsMatchIn(combined) ||
                     DetectionDictionary.SINGLE_AD_TIMER_REGEX.containsMatchIn(combined) ||
                     combined.contains("ad will end in") || combined.contains("ad ends in") ||
-                    combined.contains("skip in ")
+                    combined.contains("skip in ") || combined.contains("video will play after") ||
+                    combined.contains("video will resume after")
                 ) {
                     hasAdCountdown = true
                 }
@@ -1351,11 +1404,26 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     }
                 }
 
-                // Check 1c: Standalone timer in video frame (e.g. "00:15", "0:14", "15s")
-                if (DetectionDictionary.STANDALONE_TIMER_REGEX.containsMatchIn(text) ||
+                // Check 1c: Standalone timer in video frame:
+                // Matches "59" (counting 59 down to 1), "1:29" (counting down toward 1),
+                // "· 59", "• 59", ". 59", "59s", "· 1:29", "• 1:29", ". 1:29", "(59)", "(1:29)"
+                val parsedSecs = DetectionDictionary.parseHotstarCountdownSeconds(text)
+                    ?: DetectionDictionary.parseHotstarCountdownSeconds(desc)
+
+                if (parsedSecs != null) {
+                    foundStandaloneTimer = true
+                    if (isInVideoFrame) {
+                        hasStandaloneAdTimer = true
+                        lastHotstarTimerSeconds = parsedSecs
+                        lastHotstarTimerTimestamp = System.currentTimeMillis()
+                    }
+                } else if (DetectionDictionary.STANDALONE_TIMER_REGEX.containsMatchIn(text) ||
                     DetectionDictionary.STANDALONE_TIMER_REGEX.containsMatchIn(desc)
                 ) {
                     foundStandaloneTimer = true
+                    if (isInVideoFrame) {
+                        hasStandaloneAdTimer = true
+                    }
                 }
 
                 // Check 2: Known Hotstar Ad View IDs
@@ -1420,7 +1488,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         return hasAdCountdown || foundSeparatorWithCounter || (hasBreakCounter && foundStandaloneTimer) ||
                hasAdViewId || hasSkipButton || hasBreakCounter ||
                (hasAdBadge && hasBreakCounter) || (hasAdBadge && hasAdCta) ||
-               (hasAdBadge && hasAdCountdown) || (hasAdBadge && (hasAdViewId || hasAdCta))
+               (hasAdBadge && hasAdCountdown) || (hasAdBadge && (hasAdViewId || hasAdCta)) ||
+               (hasStandaloneAdTimer && !hasMovieSeekBar && !hasMovieControls)
     }
 
     private fun startHotstarMutePoller() {
@@ -1505,6 +1574,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
     private fun stopHotstarMutePoller() {
         hotstarConsecutiveNonAdChecks = 0
+        lastHotstarTimerSeconds = -1
         hotstarMutePollerRunnable?.let {
             mainHandler.removeCallbacks(it)
             hotstarMutePollerRunnable = null
@@ -1530,6 +1600,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 val skipped = scanAndSkip(rootNode, isYouTube = false, platformId = "mxplayer")
                 if (skipped) {
                     // Skip button was clicked! Audio is unmuted at 0ms in onSkipAttempted.
+                    stopMxPlayerMutePoller()
+                    isMxPlayerAdPlaying = false
                     return
                 }
             }
@@ -1557,6 +1629,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         cancelPendingUnmute()
                         audioController.unmuteAdAudio()
                         updatePersistentNotification(isMuted = false)
+                        serviceScope.launch { statsRepo.recordAdEvent("mxplayer", isAudioOnly = false) }
                     } else {
                         audioController.recordUserVolume()
                     }
@@ -1576,40 +1649,68 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
     /**
      * Inspects active window hierarchy for MX Player in-stream video ad indicators.
-     * Matches countdown strings ("Ad 2 of 3 (0:31)", "Ad 1 of 2"), "Learn More" buttons,
-     * ad timers, and skip buttons.
+     * Accurately detects ads matching:
+     * - "ad 1 of 3 : {time count}", "ad 2 of 3 : (countdown toward 0)", "ad 3 of 3 : (countdown toward 0)"
+     * - "ad 1 of 2 : (countdown toward 0)", "ad 2 of 2 : (countdown toward 0)", "ad 1 of 1 : (countdown toward 0)"
+     * - "1 of 3 : 15", "2 of 3 : (15)", "3 of 3 : (10)", "2 of 2 : (5)", "1 of 1 : 29"
+     * - Sometime present: "Skip Ad", "Skip Ads", "Skip" buttons appearing after few seconds of ad
+     * - "Learn More" buttons and known MX Player ad view IDs
+     * Protects normal movie playback from false positives by verifying absence of movie seekbars.
      */
     private fun isMxPlayerAdActive(root: AccessibilityNodeInfo): Boolean {
         var hasAdCountdown = false
         var hasLearnMore = false
         var hasAdViewId = false
         var hasSkipButton = false
+        var hasMovieSeekBar = false
 
         val queue = ArrayDeque<AccessibilityNodeInfo>()
-        for (i in 0 until root.childCount) {
-            root.getChild(i)?.let { queue.add(it) }
-        }
+        queue.add(root)
 
         var inspected = 0
-        val maxInspect = 120
+        val maxInspect = 160
+        val nodeBounds = Rect()
 
         while (queue.isNotEmpty() && inspected < maxInspect) {
             val node = queue.poll() ?: continue
             inspected++
 
-            if (node.isVisibleToUser) {
-                val text = node.text?.toString()?.trim() ?: ""
-                val desc = node.contentDescription?.toString()?.trim() ?: ""
-                val viewId = node.viewIdResourceName?.lowercase() ?: ""
-                val combined = "$text $desc $viewId".lowercase()
+            val text = node.text?.toString()?.trim() ?: ""
+            val desc = node.contentDescription?.toString()?.trim() ?: ""
+            val viewId = node.viewIdResourceName?.lowercase() ?: ""
+            val className = node.className?.toString() ?: ""
+            val combined = "$text $desc $viewId".lowercase()
 
-                // Check 1: MX Player countdown string e.g. "Ad 2 of 3 (0:31)", "Ad 1 of 2 (0:15)", "Ad 1 of 1"
-                if (DetectionDictionary.MX_PLAYER_COUNTDOWN_REGEX.containsMatchIn(text) ||
+            node.getBoundsInScreen(nodeBounds)
+            val hasBounds = nodeBounds.width() > 0 && nodeBounds.height() > 0
+            val isEligible = node.isVisibleToUser || hasBounds || text.isNotEmpty() || desc.isNotEmpty()
+
+            if (isEligible) {
+                // Check for normal movie player controls / seekbar:
+                // Normal content has a seekbar or rewind/forward controls.
+                // In-stream video ads in MX Player DO NOT have normal movie seekbars.
+                val isAdElement = viewId.contains("ad_") || viewId.contains("ad_container") || viewId.contains("ad_view") || viewId.contains("ad_skip")
+                if (!isAdElement && (
+                    className.contains("SeekBar", ignoreCase = true) ||
+                    viewId.contains("seekbar") || viewId.contains("seek_bar") ||
+                    viewId.contains("mx_progress") || viewId.contains("player_progress")
+                )) {
+                    hasMovieSeekBar = true
+                }
+
+                // Check 1: MX Player countdown & break counter:
+                // Matches "ad 1 of 3 : 15", "ad 2 of 3 : (15)", "ad 3 of 3 : (0)", "ad 2 of 2 : (5)", "ad 1 of 1 : 29"
+                // Matches "1 of 3 : 15", "2 of 3 : (10)", "3 of 3 : 5", "ad 1 of 3", "ad 2 of 3", "ad 3 of 3", "ad 2 of 2"
+                // Matches separators: " : ", " : (", " · ", " • ", " - ", " | ", " . ", " (", " )"
+                if (DetectionDictionary.MX_PLAYER_AD_REGEX.containsMatchIn(text) ||
+                    DetectionDictionary.MX_PLAYER_AD_REGEX.containsMatchIn(desc) ||
+                    DetectionDictionary.MX_PLAYER_AD_REGEX.containsMatchIn(combined) ||
+                    DetectionDictionary.MX_PLAYER_COUNTDOWN_REGEX.containsMatchIn(text) ||
                     DetectionDictionary.MX_PLAYER_COUNTDOWN_REGEX.containsMatchIn(desc) ||
                     DetectionDictionary.MX_PLAYER_TIMER_REGEX.containsMatchIn(text) ||
                     DetectionDictionary.MX_PLAYER_TIMER_REGEX.containsMatchIn(desc) ||
                     DetectionDictionary.MX_PLAYER_COUNTER_REGEX.containsMatchIn(text) ||
-                    DetectionDictionary.COMPOUND_AD_COUNTER_REGEX.containsMatchIn(combined) ||
+                    DetectionDictionary.MX_PLAYER_COUNTER_REGEX.containsMatchIn(desc) ||
                     DetectionDictionary.COUNTER_WITH_TIMER_REGEX.containsMatchIn(combined) ||
                     DetectionDictionary.SINGLE_AD_TIMER_REGEX.containsMatchIn(combined) ||
                     combined.contains("ad will end in") || combined.contains("ad ends in") ||
@@ -1618,7 +1719,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     hasAdCountdown = true
                 }
 
-                // Check 2: "Learn More" button in video player (pinned at top-right during video ads)
+                // Check 2: "Learn More" button in video player (pinned during video ads)
                 val cleanText = text.trim().lowercase()
                 val cleanDesc = desc.trim().lowercase()
                 if (cleanText == "learn more" || cleanDesc == "learn more" || cleanText.startsWith("learn more") || viewId.contains("learn_more")) {
@@ -1633,18 +1734,21 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 }
 
                 // Check 4: Skip button presence (if any)
-                if (combined.contains("skip ad") || (combined.contains("skip") && !combined.contains("intro") && !combined.contains("next")) ||
+                if (cleanText == "skip ad" || cleanText == "skip ads" || cleanDesc == "skip ad" || cleanDesc == "skip ads" ||
+                    combined.contains("skip ad") || combined.contains("skip ads") ||
+                    (combined.contains("skip") && !combined.contains("intro") && !combined.contains("next")) ||
                     viewId.contains("btn_skip") || viewId.contains("skip_btn") || viewId.contains("ad_skip")
                 ) {
                     hasSkipButton = true
                 }
 
-                // Early exit if definitive ad indicator found
-                if (hasAdCountdown || (hasLearnMore && hasAdCountdown) || hasAdViewId || hasSkipButton) {
+                // Early exit if definitive ad countdown or skip button found
+                if (hasAdCountdown || hasSkipButton || (hasLearnMore && !hasMovieSeekBar) || (hasAdViewId && !hasMovieSeekBar)) {
                     while (queue.isNotEmpty()) {
-                        queue.poll()?.recycle()
+                        val rem = queue.poll()
+                        if (rem != root) rem?.recycle()
                     }
-                    node.recycle()
+                    if (node != root) node.recycle()
                     return true
                 }
             }
@@ -1652,14 +1756,17 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             for (i in 0 until node.childCount) {
                 node.getChild(i)?.let { queue.add(it) }
             }
-            node.recycle()
+            if (node != root) {
+                node.recycle()
+            }
         }
 
         while (queue.isNotEmpty()) {
-            queue.poll()?.recycle()
+            val rem = queue.poll()
+            if (rem != root) rem?.recycle()
         }
 
-        return hasAdCountdown || hasLearnMore || hasAdViewId || hasSkipButton
+        return (hasAdCountdown || hasSkipButton || (hasLearnMore && !hasMovieSeekBar) || (hasAdViewId && !hasMovieSeekBar))
     }
 
     private fun startMxPlayerMutePoller() {
@@ -1686,8 +1793,12 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 if (root != null) {
                     try {
                         val pkg = root.packageName?.toString() ?: ""
-                        if (!DetectionDictionary.MX_PLAYER_PACKAGES.contains(pkg) && !pkg.contains("videoplayer") && !pkg.contains("mxtech")) {
-                            Log.i(TAG, "Foreground package changed from MX Player. Restoring audio.")
+                        val isMxPkg = DetectionDictionary.MX_PLAYER_PACKAGES.contains(pkg) ||
+                                pkg.contains("videoplayer") || pkg.contains("mxtech") || pkg.contains("mxplayer") ||
+                                pkg == "com.google.android.gms" || pkg.contains("gms.policy_ads")
+
+                        if (pkg.isNotEmpty() && !isMxPkg) {
+                            Log.i(TAG, "Foreground package changed from MX Player ($pkg). Restoring audio.")
                             stopMxPlayerMutePoller()
                             isMxPlayerAdPlaying = false
                             audioController.unmuteAdAudio()
@@ -3217,7 +3328,6 @@ class SkipFlowAccessibilityService : AccessibilityService() {
      * Excludes active countdown states ("Skip in 5s", "5", etc.) and track controls ("intro", "next").
      */
     private fun isActionableSkipButton(node: AccessibilityNodeInfo): Boolean {
-        if (!node.isVisibleToUser) return false
         val rect = Rect()
         node.getBoundsInScreen(rect)
         if (rect.width() < 15 || rect.height() < 15) return false
@@ -3564,7 +3674,40 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             }
         }
         cancelPendingUnmute()
-        stopActiveMutePoller()
+        when (platformId) {
+            "mxplayer" -> {
+                stopMxPlayerMutePoller()
+                isMxPlayerAdPlaying = false
+            }
+            "hotstar" -> {
+                stopHotstarMutePoller()
+                isHotstarAdPlaying = false
+            }
+            "primevideo" -> {
+                stopPrimeVideoMutePoller()
+                isPrimeVideoAdPlaying = false
+            }
+            "netflix" -> {
+                stopNetflixMutePoller()
+                isNetflixAdPlaying = false
+            }
+            "sonyliv" -> {
+                stopSonyLivMutePoller()
+                isSonyLivAdPlaying = false
+            }
+            "zee5" -> {
+                stopZee5MutePoller()
+                isZee5AdPlaying = false
+            }
+            "saavn" -> {
+                stopSaavnMutePoller()
+                isSaavnAdPlaying = false
+            }
+            else -> {
+                stopActiveMutePoller()
+                isAdPlaying = false
+            }
+        }
         if (audioController.isCurrentlyMuted()) {
             Log.i(TAG, "Ad skipped on $platformId! Instantly restoring content audio with 0ms delay.")
             audioController.unmuteAdAudio()

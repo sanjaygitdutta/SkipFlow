@@ -58,6 +58,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import com.adskiper.skipflow.R
 import com.adskiper.skipflow.ui.components.HandsFreeStoryCarousel
+import com.adskiper.skipflow.ui.components.MoodFlowSimulatorCard
+import com.adskiper.skipflow.ui.components.SidewayHourglassFilter
 import com.adskiper.skipflow.ui.theme.CyberCyan
 import com.adskiper.skipflow.ui.theme.EmeraldAccent
 import com.adskiper.skipflow.ui.theme.HeroGradient
@@ -248,6 +250,20 @@ fun OnboardingWelcomeScreen(
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
+
+                // Concept 2: Interactive Before/After Vibe Simulator
+                MoodFlowSimulatorCard(
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // 3D Sideway Hourglass Filter Pipeline Animation
+                SidewayHourglassFilter(
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(22.dp))
 
                 // Dynamic Design: Floating Interactive Media Matrix (Headphones, YouTube, Phone, TV)
                 Column(

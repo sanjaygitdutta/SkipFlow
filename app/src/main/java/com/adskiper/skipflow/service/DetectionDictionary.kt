@@ -35,7 +35,10 @@ object DetectionDictionary {
         "com.mxtech.videoplayer.pro",      // MX Player Pro
         "com.mxtech.videoplayer.television",
         "com.mxtech.videoplayer.beta",
-        "com.mxtech.videoplayer"
+        "com.mxtech.videoplayer",
+        "tv.mxplayer",
+        "com.amazon.mxplayer",
+        "com.mxplayer"
     )
 
     val PRIME_VIDEO_PACKAGES = setOf(
@@ -111,6 +114,44 @@ object DetectionDictionary {
         RegexOption.IGNORE_CASE
     )
 
+    // JioHotstar standalone countdown timer during video ad playback:
+    // Matches when ONLY the countdown timer is displayed on screen without any 'Ad' word or '1 of 1' text:
+    // - "59", "58", ..., "1" (time count counting 59 down to 1)
+    // - "1:29", "1:28", ..., "0:01" (time count of ad counting down towards 1)
+    // - Suffixes/prefixes: "59s", "15s", ". 59", "· 59", "• 59", ":59", ". 1:29", "· 1:29", "• 1:29", "(59)", "(1:29)"
+    // - Also matches optional Ad prefix ("Ad 59", "Ad · 1:29") or break counter prefix ("1 of 1 . 59", "1 of 2 . 1:29")
+    val HOTSTAR_STANDALONE_TIMER_REGEX = Regex(
+        """^(?:(?:ad\s*)?\d+\s*(?:of|\/)\s*\d+\s*[•·\.\-:|\s]*)?(?:ad\s*[•·\.\-:|\s]*)?(?:[•·\.\-:(\[\s|]*)(?:(\d{1,2}):(\d{2})|([1-9]|[1-9][0-9]|1[0-7][0-9]|180))(?:\s*s(?:ec)?(?:onds?)?|\s*remaining)?(?:[•·\.\-:)\]\s]*)$""",
+        RegexOption.IGNORE_CASE
+    )
+
+    /**
+     * Parses a standalone Hotstar countdown timer string into total remaining seconds.
+     * Returns the integer seconds (1 to 180) if text is an ad countdown timer, or null otherwise.
+     */
+    fun parseHotstarCountdownSeconds(text: String): Int? {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return null
+        val match = HOTSTAR_STANDALONE_TIMER_REGEX.matchEntire(trimmed) ?: return null
+        val minsGroup = match.groups[1]?.value
+        val secsGroup = match.groups[2]?.value
+        val bareSecsGroup = match.groups[3]?.value
+
+        return when {
+            minsGroup != null && secsGroup != null -> {
+                val m = minsGroup.toIntOrNull() ?: return null
+                val s = secsGroup.toIntOrNull() ?: return null
+                val total = m * 60 + s
+                if (total in 1..180) total else null
+            }
+            bareSecsGroup != null -> {
+                val s = bareSecsGroup.toIntOrNull() ?: return null
+                if (s in 1..180) s else null
+            }
+            else -> null
+        }
+    }
+
     // Single ad with timer or countdown (e.g. "Ad • 00:14", "Ad · 00:13", "Ad 0:15", "Ad (0:15)", "Ad • 15s", "Ad ends in 5s", "Ad will end in 10s")
     val SINGLE_AD_TIMER_REGEX = Regex(
         """\bad\b\s*(?:[•·\.\-|:(]\s*)?(?:(\d{1,2}:\d{2})|(\d+\s*s(?:ec)?(?:onds?)?))\b""",
@@ -153,6 +194,17 @@ object DetectionDictionary {
         "learn more", "download now", "get offer", "book now", "sign up", "explore now"
     )
 
+    // MX Player in-stream video ad pattern:
+    // Matches "ad 1 of 3 : (0:19)", "ad 2 of 3 : (0:19)", "ad 3 of 3 : (0:39)", "ad 3 of 3 : (0:00)"
+    // Matches "ad 1 of 3 : 15", "ad 2 of 3 : (15)", "ad 3 of 3 : (10)", "ad 2 of 2 : (5)", "ad 1 of 1 : 29"
+    // Also matches variations: "ad 2 of 3", "ad 3 of 3", "ad 2 of 2", "ad 1 of 3", "ad 1 of 1", "ad 1 of 2"
+    // With separators: ' : ', ' : (', ' · ', ' • ', ' - ', ' | ', ' . ', ' ('
+    // With countdown: in parentheses "(0:19)", "(0:39)", "(0:00)", "(15)", bare time strings "0:19", "0:39", bare seconds "15", "0"
+    val MX_PLAYER_AD_REGEX = Regex(
+        """\b(?:ad\s*[•·\.\-|:()\[\]]*\s*)?\d+\s*(?:of|\/)\s*\d+(?:\s*[•·\.\-|:()\[\]\s]*\(?\s*(?:\d{1,2}:\d{1,2}|\d+\s*s(?:ec)?(?:onds?)?|\d{1,3})\s*\)?(?:\s*remaining)?)?|\bad\s*[•·\.\-|:()\[\]\s]*(?:\d+\s*(?:of|\/)\s*\d+|\(?\s*(?:\d{1,2}:\d{1,2}|\d+\s*s)\s*\)?)""",
+        RegexOption.IGNORE_CASE
+    )
+
     // MX Player in-stream ad countdown and break counters (e.g. "Ad 2 of 3 (0:31)", "Ad 1 of 2 (0:15)", "Ad 1 of 1 (0:15)")
     val MX_PLAYER_COUNTDOWN_REGEX = COMPOUND_AD_COUNTER_REGEX
     val MX_PLAYER_TIMER_REGEX = COUNTER_WITH_TIMER_REGEX
@@ -166,6 +218,10 @@ object DetectionDictionary {
         "com.mxtech.videoplayer.ad:id/skip_btn",
         "com.mxtech.videoplayer.ad:id/ad_skip_button",
         "com.mxtech.videoplayer.ad:id/btn_skip_ad",
+        "com.mxtech.videoplayer.ad:id/skip_button",
+        "com.mxtech.videoplayer.ad:id/skip",
+        "com.mxtech.videoplayer.television:id/btn_skip",
+        "com.mxtech.videoplayer.pro:id/btn_skip",
         "com.mxtech.videoplayer.ad:id/ad_timer",
         "com.mxtech.videoplayer.ad:id/ad_countdown",
         "com.mxtech.videoplayer.ad:id/ad_progress",
@@ -181,9 +237,13 @@ object DetectionDictionary {
         "skip_btn",
         "ad_skip_button",
         "btn_skip_ad",
+        "skip_button",
         "ad_timer",
         "ad_countdown",
-        "ad_learn_more"
+        "ad_learn_more",
+        "ad_time_remaining",
+        "ima_skip_button",
+        "ima_ad_container"
     )
 
     // Amazon Prime Video in-stream ad countdown and view IDs
@@ -340,6 +400,12 @@ object DetectionDictionary {
         "com.mxtech.videoplayer.ad:id/skip_btn",
         "com.mxtech.videoplayer.ad:id/ad_skip_button",
         "com.mxtech.videoplayer.ad:id/btn_skip_ad",
+        "com.mxtech.videoplayer.ad:id/skip_button",
+        "com.mxtech.videoplayer.ad:id/skip",
+        "com.mxtech.videoplayer.television:id/btn_skip",
+        "com.mxtech.videoplayer.pro:id/btn_skip",
+        "skip_button",
+        "ima_skip_button",
         // Amazon Prime Video
         "com.amazon.avod.thirdpartyclient:id/skip_ad",
         "com.amazon.avod.thirdpartyclient:id/btn_skip",

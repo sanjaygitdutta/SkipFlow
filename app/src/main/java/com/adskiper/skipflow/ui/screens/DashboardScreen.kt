@@ -63,6 +63,7 @@ import com.adskiper.skipflow.data.PlatformStat
 import com.adskiper.skipflow.data.PreferencesRepository
 import com.adskiper.skipflow.data.SubscriptionTier
 import com.adskiper.skipflow.ui.components.FeatureSwitchCard
+import com.adskiper.skipflow.ui.components.MoodFlowSimulatorCard
 import com.adskiper.skipflow.ui.components.PlatformProtectionCarousel
 import com.adskiper.skipflow.ui.components.ServiceStatusCard
 import com.adskiper.skipflow.ui.components.SmartGestureCard
@@ -207,7 +208,7 @@ fun DashboardScreen(
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Text(
-                                            text = "v1.2.14",
+                                            text = "v1.2.15",
                                             color = IndigoLight,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.ExtraBold
@@ -330,6 +331,15 @@ fun DashboardScreen(
                 SmartGestureCard(
                     isWaveEnabled = isWaveEnabled,
                     onToggleWave = onToggleWave
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // 5. Interactive Mood & Vibe Simulator (Concept 2)
+                SectionHeader(title = "MOOD & VIBE PRESERVATION")
+
+                MoodFlowSimulatorCard(
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(14.dp))

@@ -45,6 +45,17 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
+        <!-- Spotify Broadcast Receiver for Background & Minimized 0ms Ad Muting -->
+        <receiver
+            android:name=".audio.SpotifyAdReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.spotify.music.metadatachanged" />
+                <action android:name="com.spotify.music.playbackstatechanged" />
+                <action android:name="com.spotify.music.queuechanged" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>
