@@ -105,7 +105,8 @@ fun DashboardScreen(
     enabledPlatforms: Set<String> = PreferencesRepository.DEFAULT_ENABLED_PLATFORMS,
     isSimulating: Boolean = false,
     simCountdown: Int = 0,
-    isSimMuted: Boolean = false,
+    isNotificationAccessEnabled: Boolean = false,
+    onEnableNotificationAccessClicked: () -> Unit = {},
     onEnableServiceClicked: () -> Unit,
     onOpenPaywall: () -> Unit,
     onTogglePlatformLock: (platformId: String, shouldLock: Boolean) -> Unit = { _, _ -> },
@@ -207,7 +208,7 @@ fun DashboardScreen(
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Text(
-                                            text = "v1.2.16",
+                                            text = "v1.2.17",
                                             color = IndigoLight,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.ExtraBold
@@ -330,6 +331,15 @@ fun DashboardScreen(
                 SmartGestureCard(
                     isWaveEnabled = isWaveEnabled,
                     onToggleWave = onToggleWave
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // 5. Screen-Off & Pocket Music Protection Card
+                SectionHeader(title = "SCREEN-OFF & POCKET MUSIC PROTECTION")
+                ScreenOffMusicMuteCard(
+                    isGranted = isNotificationAccessEnabled,
+                    onEnableClicked = onEnableNotificationAccessClicked
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -673,6 +683,99 @@ private fun SubscriptionTierBanner(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScreenOffMusicMuteCard(
+    isGranted: Boolean,
+    onEnableClicked: () -> Unit
+) {
+    androidx.compose.material3.Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(enabled = !isGranted, onClick = onEnableClicked),
+        shape = RoundedCornerShape(16.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = if (isGranted) Color(0xFF0F1E17).copy(alpha = 0.9f) else Color(0xFF1E170F).copy(alpha = 0.9f)
+        ),
+        border = BorderStroke(
+            1.dp,
+            if (isGranted) SpotifyGreen.copy(alpha = 0.6f) else SunsetOrange.copy(alpha = 0.6f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(if (isGranted) SpotifyGreen.copy(alpha = 0.18f) else SunsetOrange.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Headphones,
+                    contentDescription = null,
+                    tint = if (isGranted) SpotifyGreen else SunsetOrange,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Screen-Off Spotify Muting",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isGranted) SpotifyGreen.copy(alpha = 0.25f) else SunsetOrange.copy(alpha = 0.25f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = if (isGranted) "ARMED" else "ACTION NEEDED",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (isGranted) SpotifyGreen else SunsetOrange
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = if (isGranted)
+                        "Mutes Spotify ads instantly even when screen is sleeping or in your pocket."
+                    else
+                        "Tap to enable 1-click background access for screen-off & pocket ad muting.",
+                    fontSize = 11.sp,
+                    color = Color(0xFF94A3B8)
+                )
+            }
+            if (!isGranted) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(SunsetOrange)
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "ENABLE",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.Black
                     )
                 }
             }

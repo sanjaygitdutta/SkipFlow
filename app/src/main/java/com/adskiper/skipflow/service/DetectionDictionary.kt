@@ -584,11 +584,22 @@ object DetectionDictionary {
     // Exact in-stream countdown phrases that only appear during in-stream video ads
     val IN_STREAM_COUNTDOWN_MARKERS = setOf(
         // Modern YouTube single ad & countdown badges
+        "sponsored",
         "sponsored ·",
         "sponsored •",
         "ad ·",
         "ad •",
-        // Multi-ad indicators (strictly require "ad" prefix to avoid matching "Part 1 of 2" in normal video titles)
+        // Multi-ad indicators & counters
+        "1 of 2",
+        "2 of 2",
+        "1 of 3",
+        "2 of 3",
+        "1 of 1",
+        "1/2",
+        "2/2",
+        "1/3",
+        "2/3",
+        "1/1",
         "ad 1 of",
         "ad 2 of",
         "ad 3 of",

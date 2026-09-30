@@ -45,6 +45,17 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
+        <!-- 24/7 Background Notification & MediaSession Listener Service for Screen-Off & Pocket Music Muting -->
+        <service
+            android:name=".service.SkipFlowNotificationListenerService"
+            android:label="SkipFlow Background Music Muter"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- Spotify Broadcast Receiver for Background & Minimized 0ms Ad Muting -->
         <receiver
             android:name=".audio.SpotifyAdReceiver"

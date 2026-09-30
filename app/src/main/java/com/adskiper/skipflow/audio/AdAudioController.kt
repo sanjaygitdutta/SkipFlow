@@ -21,6 +21,15 @@ class AdAudioController(context: Context) {
         private const val TAG = "AdAudioController"
         private const val DEFAULT_MUTE_WATCHDOG_MS = 180_000L // 3-minute failsafe watchdog (renewed actively by poller while ad confirmed playing so it never breaks mid-ad)
         private const val DEFAULT_FALLBACK_VOLUME = 8
+
+        @Volatile
+        private var instance: AdAudioController? = null
+
+        fun getInstance(context: Context): AdAudioController {
+            return instance ?: synchronized(this) {
+                instance ?: AdAudioController(context.applicationContext).also { instance = it }
+            }
+        }
     }
 
     @Synchronized

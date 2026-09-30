@@ -142,6 +142,8 @@ private fun MainAppContent(
     val premiumMonthlyPrice by viewModel.premiumMonthlyPrice.collectAsState()
     val premiumYearlyPrice by viewModel.premiumYearlyPrice.collectAsState()
 
+    val isNotificationAccessEnabled by viewModel.isNotificationAccessEnabled.collectAsState()
+
     val isAutoSkipEnabled by viewModel.isAutoSkipEnabled.collectAsState()
     val isAutoCloseBannersEnabled by viewModel.isAutoCloseBannersEnabled.collectAsState()
     val isAutoMuteEnabled by viewModel.isAutoMuteEnabled.collectAsState()
@@ -192,6 +194,8 @@ private fun MainAppContent(
                     isSimulating = isSimulating,
                     simCountdown = simCountdown,
                     isSimMuted = isSimMuted,
+                    isNotificationAccessEnabled = isNotificationAccessEnabled,
+                    onEnableNotificationAccessClicked = { viewModel.onEnableNotificationAccessClicked(activity) },
                     onEnableServiceClicked = { viewModel.onEnableServiceClicked(activity) },
                     onOpenPaywall = { currentScreen = Screen.PAYWALL },
                     onTogglePlatformLock = { platformId, shouldLock -> viewModel.togglePlatformLock(platformId, shouldLock) },

@@ -15,6 +15,7 @@ import com.adskiper.skipflow.data.PreferencesRepository
 import com.adskiper.skipflow.data.StatsRepository
 import com.adskiper.skipflow.data.SubscriptionTier
 import com.adskiper.skipflow.service.SkipFlowAccessibilityService
+import com.adskiper.skipflow.service.SkipFlowNotificationListenerService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +38,9 @@ class MainViewModel(
 
     private val _isAccessibilityEnabled = MutableStateFlow(false)
     val isAccessibilityEnabled: StateFlow<Boolean> = _isAccessibilityEnabled.asStateFlow()
+
+    private val _isNotificationAccessEnabled = MutableStateFlow(false)
+    val isNotificationAccessEnabled: StateFlow<Boolean> = _isNotificationAccessEnabled.asStateFlow()
 
     private val _showDisclosure = MutableStateFlow(false)
     val showDisclosure: StateFlow<Boolean> = _showDisclosure.asStateFlow()
@@ -154,9 +158,21 @@ class MainViewModel(
 
         val enabled = isSecureSettingsEnabled || isAmEnabled || isServiceRunning
         _isAccessibilityEnabled.value = enabled
+        _isNotificationAccessEnabled.value = SkipFlowNotificationListenerService.isPermissionGranted(context)
 
         if (enabled) {
             _showDisclosure.value = false
+        }
+    }
+
+    fun onEnableNotificationAccessClicked(context: Context) {
+        try {
+            val intent = SkipFlowNotificationListenerService.getPermissionIntent(context)
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            })
         }
     }
 

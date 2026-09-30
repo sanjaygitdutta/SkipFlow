@@ -1,16 +1,21 @@
 package com.adskiper.skipflow.ui.screens
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,7 +31,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
@@ -42,20 +46,23 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.Image
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import com.adskiper.skipflow.R
 import com.adskiper.skipflow.ui.components.HandsFreeStoryCarousel
 import com.adskiper.skipflow.ui.components.MoodFlowSimulatorCard
@@ -74,7 +81,10 @@ fun OnboardingWelcomeScreen(
     onStartClicked: () -> Unit
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "floating")
-    
+
+    // Interactive Showcase Tab state (0: Life Stories, 1: Vibe Waves, 2: 0ms Pipeline)
+    var selectedShowcaseTab by remember { mutableIntStateOf(0) }
+
     // Floating micro-animations for device cards
     val floatOffset1 by infiniteTransition.animateFloat(
         initialValue = -5f,
@@ -104,6 +114,28 @@ fun OnboardingWelcomeScreen(
             repeatMode = RepeatMode.Reverse
         ),
         label = "buttonPulse"
+    )
+
+    // Shimmer highlight pass animation for CTA button
+    val shimmerTranslate by infiniteTransition.animateFloat(
+        initialValue = -300f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmer"
+    )
+
+    // Pulsing beacon animation for top badge
+    val beaconScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.55f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1100, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "beacon"
     )
 
     Surface(
@@ -170,6 +202,7 @@ fun OnboardingWelcomeScreen(
                     )
             )
 
+            // Scrollable Content
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -177,45 +210,101 @@ fun OnboardingWelcomeScreen(
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(36.dp))
+                Spacer(modifier = Modifier.height(34.dp))
 
-                // Brand Pill Header
-                Box(
-                    modifier = Modifier
-                        .background(
-                            Brush.linearGradient(
-                                listOf(IndigoPrimary.copy(alpha = 0.2f), VioletNeon.copy(alpha = 0.2f))
-                            ),
-                            RoundedCornerShape(30.dp)
-                        )
-                        .border(
-                            1.dp,
-                            Brush.linearGradient(
-                                listOf(IndigoLight.copy(alpha = 0.5f), CyberCyan.copy(alpha = 0.3f))
-                            ),
-                            RoundedCornerShape(30.dp)
-                        )
-                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                // Enhanced Brand & Trust Header
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(EmeraldAccent)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "SMART HANDS-FREE ASSISTANT",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = IndigoLight,
-                            letterSpacing = 1.sp
-                        )
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        IndigoPrimary.copy(alpha = 0.35f),
+                                        VioletNeon.copy(alpha = 0.25f),
+                                        Color(0xFF0F172A).copy(alpha = 0.8f)
+                                    )
+                                ),
+                                RoundedCornerShape(30.dp)
+                            )
+                            .border(
+                                1.2.dp,
+                                Brush.linearGradient(
+                                    listOf(
+                                        EmeraldAccent.copy(alpha = 0.7f),
+                                        CyberCyan.copy(alpha = 0.5f),
+                                        VioletNeon.copy(alpha = 0.4f)
+                                    )
+                                ),
+                                RoundedCornerShape(30.dp)
+                            )
+                            .padding(horizontal = 16.dp, vertical = 7.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Animated pulsing beacon
+                            Box(contentAlignment = Alignment.Center) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(14.dp)
+                                        .scale(beaconScale)
+                                        .clip(CircleShape)
+                                        .background(EmeraldAccent.copy(alpha = 0.3f))
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(EmeraldAccent)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(9.dp))
+                            Text(
+                                text = "SMART HANDS-FREE AI ASSISTANT",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White,
+                                letterSpacing = 1.2.sp
+                            )
+                            Spacer(modifier = Modifier.width(7.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(EmeraldAccent.copy(alpha = 0.25f))
+                                    .padding(horizontal = 6.dp, vertical = 1.5.dp)
+                            ) {
+                                Text(
+                                    text = "0ms ⚡",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = EmeraldAccent
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Social Proof Reassurance Sub-Pill
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFF0F172A).copy(alpha = 0.65f))
+                            .border(0.8.dp, Color(0xFF334155).copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
+                        Text(text = "⭐ 4.9 Rating", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SunsetOrange)
+                        Text(text = "  •  ", fontSize = 10.sp, color = Color(0xFF64748B))
+                        Text(text = "🛡️ 100% On-Device", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = CyberCyan)
+                        Text(text = "  •  ", fontSize = 10.sp, color = Color(0xFF64748B))
+                        Text(text = "🔓 Zero Sign-Up", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = EmeraldAccent)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // Eye-Catching Main Headline
                 Text(
@@ -242,26 +331,98 @@ fun OnboardingWelcomeScreen(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // High-Quality Lifestyle Hands-Free Carousel (Auto-Swipe with smooth manual drag support)
-                HandsFreeStoryCarousel(
-                    heightDp = 290,
-                    autoSwipeDelayMs = 2000L,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                // 3-Tab Interactive Showcase Switcher
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Segmented Glass Tabs
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF0D1424).copy(alpha = 0.85f))
+                            .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(16.dp))
+                            .padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        val tabs = listOf(
+                            Triple(0, "Life Stories", "🏋️"),
+                            Triple(1, "Vibe Waves", "🎵"),
+                            Triple(2, "0ms Pipeline", "⏳")
+                        )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                        tabs.forEach { (index, title, emoji) ->
+                            val isSelected = selectedShowcaseTab == index
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        if (isSelected) {
+                                            Brush.horizontalGradient(
+                                                listOf(IndigoPrimary, VioletNeon)
+                                            )
+                                        } else {
+                                            SolidColor(Color.Transparent)
+                                        }
+                                    )
+                                    .clickable { selectedShowcaseTab = index }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text(text = emoji, fontSize = 13.sp)
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = title,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                                        color = if (isSelected) Color.White else Color(0xFF94A3B8)
+                                    )
+                                }
+                            }
+                        }
+                    }
 
-                // Concept 2: Interactive Before/After Vibe Simulator
-                MoodFlowSimulatorCard(
-                    modifier = Modifier.fillMaxWidth()
-                )
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // 3D Sideway Hourglass Filter Pipeline Animation
-                SidewayHourglassFilter(
-                    modifier = Modifier.fillMaxWidth()
-                )
+                    // Showcase Content Container with smooth Crossfade
+                    Crossfade(
+                        targetState = selectedShowcaseTab,
+                        animationSpec = tween(350),
+                        label = "showcaseTabTransition"
+                    ) { tabIndex ->
+                        when (tabIndex) {
+                            0 -> {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    HandsFreeStoryCarousel(
+                                        heightDp = 290,
+                                        autoSwipeDelayMs = 2500L,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
+                            1 -> {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    MoodFlowSimulatorCard(
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
+                            2 -> {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    SidewayHourglassFilter(
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(22.dp))
 
@@ -319,7 +480,7 @@ fun OnboardingWelcomeScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(22.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
                 // Three Reassurance Feature Capsules
                 Row(
@@ -343,66 +504,115 @@ fun OnboardingWelcomeScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(30.dp))
+                // Generous bottom spacer so content never gets covered by the sticky CTA bar
+                Spacer(modifier = Modifier.height(115.dp))
+            }
 
-                // Primary Magnetic CTA Button
-                Button(
-                    onClick = onStartClicked,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .scale(buttonScale)
-                        .border(
-                            1.dp,
-                            Brush.linearGradient(listOf(Color.White.copy(alpha = 0.4f), Color.Transparent)),
-                            RoundedCornerShape(16.dp)
-                        ),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary)
+            // Sticky Floating Glassmorphic Bottom CTA Bar
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            0.0f to Color.Transparent,
+                            0.20f to Color(0xFF070B14).copy(alpha = 0.85f),
+                            0.50f to Color(0xFF070B14).copy(alpha = 0.96f),
+                            1.0f to Color(0xFF070B14)
+                        )
+                    )
+                    .padding(horizontal = 22.dp, vertical = 12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    Button(
+                        onClick = onStartClicked,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                            .scale(buttonScale)
+                            .border(
+                                1.2.dp,
+                                Brush.linearGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.5f),
+                                        CyberCyan.copy(alpha = 0.6f),
+                                        VioletNeon.copy(alpha = 0.3f)
+                                    )
+                                ),
+                                RoundedCornerShape(18.dp)
+                            ),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(HeroGradient),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            // Shimmer highlight pass
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            listOf(
+                                                Color.Transparent,
+                                                Color.White.copy(alpha = 0.22f),
+                                                Color.Transparent
+                                            ),
+                                            startX = shimmerTranslate - 300f,
+                                            endX = shimmerTranslate + 300f
+                                        )
+                                    )
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = "Tap to Start",
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(7.dp))
+
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        Text(
-                            text = "Tap to Start",
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color.White,
-                            letterSpacing = 0.5.sp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            imageVector = Icons.Default.Lock,
                             contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
+                            tint = Color(0xFF64748B),
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = "No login or email required • 100% On-Device & Private",
+                            fontSize = 11.sp,
+                            color = Color(0xFF64748B),
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = null,
-                        tint = Color(0xFF64748B),
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = "No login, email, or password required • 100% Private",
-                        fontSize = 11.sp,
-                        color = Color(0xFF64748B),
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(28.dp))
             }
         }
     }

@@ -41,51 +41,49 @@ jobs:
 
       - name: Prepare APKs for Release
         run: |
-          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.2.16.apk
-          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.2.16-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.2.17.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.2.17-debug.apk
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SkipFlow-v1.2.16-Release-APK
-          path: SkipFlow-v1.2.16.apk
+          name: SkipFlow-v1.2.17-Release-APK
+          path: SkipFlow-v1.2.17.apk
           retention-days: 30
 
       - name: Create GitHub Release with Direct APK Download
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.2.16' }}
-          name: "SkipFlow v1.2.16 (4-Pillar Zero-Delay Ad Detection & 0ms Content Return)"
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.2.17' }}
+          name: "SkipFlow v1.2.17 (Zero YouTube Ad Delay, Mid-Ad Leakage Fix & Ad 2 Mute Persistence)"
           body: |
-            ### 🚀 SkipFlow v1.2.16 — 4-Pillar Zero-Delay Ad Start Detection & 0ms Content Return
+            ### 🚀 SkipFlow v1.2.17 — Zero YouTube Ad Delay, Mid-Ad Leakage Fix & Ad 2 Mute Persistence
 
-            #### 🌟 What's New in v1.2.16:
-            - ⚡ **4-Pillar Zero-Delay Ad Start Detection Engine (YouTube & All OTT Platforms)**:
-              - Completely eliminates the 2–3s delay when ads start across all platforms (YouTube, JioHotstar, MX Player, Prime Video, Netflix, SonyLIV, Zee5, JioSaavn, Spotify).
-              - **Pillar 1: 100ms Foreground Radar Heartbeat**: Actively probes active media window at 10Hz, discovering ad start transitions in `<100ms` without waiting for throttled OS events.
-              - **Pillars 2 & 3: Pre-Render Container Detection**: Matches layout containers (`ad_presenter`, `video_ad_container`, `skip_ad_button_container`, `skip_ad_countdown`, `player_learn_more_button`, etc.) within player bounds at second **0.0** before countdown text renders or alpha fade-ins finish.
-              - **Pillar 4: Seamless Handover & 0ms Content Return**: Mutes audio immediately, hands over to 25ms active poller, and restores audio instantly at **0ms** as soon as normal content returns or ad is skipped.
-            - 🏋️ **Gym & Workout Story Carousel (Manual & Auto-Swiping)**:
-              - Added dedicated gym workout slide: *"Gym Beats Without Disturbed Workout"* — keeps workout pump uninterrupted and weights lifted without touching screen to skip sudden loud ads.
-              - Full manual swipe freedom: users can swipe through all story slides manually with zero resistance or tap discrete edge arrows, while idle states continue auto-swiping continuously.
-            - 🎬 **MX Player 0ms Ad Audio Muting & Fast Audio Recovery**:
-              - Accurately detects and silences in-stream video ads formatted as `ad 1 of 3 : 15`, `ad 2 of 3 : (15)`, `ad 3 of 3 : (10)`, `ad 1 of 2 : (10)`, `ad 2 of 2 : (5)`, `ad 1 of 1 : 29` counting down towards 0.
-              - Multi-layout inspection supporting bare break counters (`2 of 3 : (15)`, `3 of 3 : (10)`, `2 of 2 : (5)`, `1 of 3`, `1 of 1`, `1 of 2`) with parentheses `( )`, colons `: `, brackets, or prefixes/suffixes.
-              - **Instant 0ms Muting & Restoration**: Silenced instantly at 0ms and restored at 0ms the moment normal content resumes.
-            - 📺 **JioHotstar Standalone Ad Countdown Timers (0ms Mute & 0ms Recovery)**:
-              - Accurately detects and mutes in-stream video ads that display **ONLY the time count** on screen without any "Ad" word or "1 of 1" break counter.
-              - Full support for bare numbers (`59`, `29`, `15`, `5`, `1`), time formats (`1:29`, `0:59`, `0:15`), and prefix/suffix variations (`· 59`, `• 59`, `59s`, `:59`, `(59)`).
-            - 🎵 **Spotify Screen-Sleep Ad Audio Muting & 0ms Fast Recovery**:
-              - Automated MediaSession & Notification Action inspection: detects when Spotify removes or disables the "Next Track" skip button during commercial ads while screen is asleep or locked.
-            - 📺 **YouTube Clean Screen Auto-Dismiss Engine**:
-              - Automatically auto-fades and dismisses stuck accessibility player controls after 2.5 seconds of normal playback, restoring an unobstructed clean view on every video.
-              - Post-skip instant dismissal so returning content plays without overlay clutter.
-            - 🤩 **Interactive Mood & Vibe Simulator**:
-              - Dynamic Canvas mood waveform graph with live Before/After interactive toggle switch.
+            #### 🌟 What's New in v1.2.17:
+            - ⚡ **Instant 0.0s YouTube Ad Audio Muting (Litho UI Engine)**:
+              - Added **Strategy 0.5 (Direct Instant Litho Ad Badge & Counter Lookup)**: OS-level text indexed search (<1ms) for standalone `"Sponsored"`, `"Ad"`, `"1 of 2"`, `"2 of 2"`, `"1/2"`, `"2/2"`, `"Video will play after"`, `"Playback will resume"`, and `"Visit advertiser"` inside the active video canvas.
+              - Eliminates the 1s–4s delay when ads start on modern YouTube without waiting for countdowns or "Skip in 5s" to paint.
+            - 🛡️ **Zero Mid-Ad Audio Leakage**:
+              - Fixed `isNormalContentPlaying` false-positive bug: strictly excluded persistent generic video player containers (`player_view`, `surface_view`, `watch_player`) that caused the poller to falsely believe normal content was playing during ads.
+              - Reinforced poller debounce: requires verified scrub bar timestamp (`time_current`) for rapid 50ms unmuting, or 8 consecutive non-ad checks (200ms) for unverified states. Single-tick redraw glitches never leak audio again.
+            - 🔄 **Seamless Ad 1 ➔ Ad 2 Mute Persistence**:
+              - Expanded `hasDistinctSecondaryAd` to detect all modern YouTube Ad 2 indicators (`"2 of 2"`, `"2/2"`, `"2 of 3"`, `"Video will play after"`, dedicated ad countdown IDs).
+              - Updated `onSkipAttempted`: when Ad 1 is skipped, if Ad 2 is already queued or active, audio remains seamlessly muted with active polling intact.
+            - 🎯 **Spatial Hierarchy Pruning for Strategy 3 (BFS)**:
+              - Node expansion strictly pruned by video canvas bounds (`validAdBounds`), completely preventing the search queue from getting overwhelmed by recommendation feed or comment cards.
+            - 🎵 **24/7 Screen-Off & Pocket Music Protection (Spotify MediaSession Listener)**:
+              - Added dedicated `SkipFlowNotificationListenerService` that hooks live `MediaSession` tokens 24/7.
+              - Eliminates screen-sleep restrictions: detects ads at **0.0s** by monitoring Spotify's stripped playback actions (`ACTION_SKIP_TO_NEXT`) and commercial ad durations even with screen completely black, locked, or in your pocket.
+              - Added 1-tap setup card on Dashboard: no need to hunt for hidden settings inside Spotify.
+            - ✨ **Onboarding Welcome Screen Complete Overhaul**:
+              - **Sticky Floating Glassmorphic CTA Bar**: "Tap to Start" button pinned with a frosted gradient blur scrim—eager users can start instantly without long scrolling!
+              - **Interactive 3-Tab Showcase Switcher**: Segmented glass tabs (`Life Stories`, `Vibe Waves`, `0ms Pipeline`) with smooth `Crossfade` transitions to eliminate scroll fatigue.
+              - **Vibrant Brand & Social Proof Header**: Upgraded plain pill into an animated pulsing beacon with `0ms ⚡` tag and trust reassurance (`⭐ 4.9 Rating • 🛡️ 100% On-Device • 🔓 Zero Sign-Up`).
+              - **Shimmering Hero Gradient Button**: Upgraded CTA button with animated light sweep and glowing ambient border.
 
-            > 💡 **Recommended**: Download **SkipFlow-v1.2.16.apk** (Release, Signed).
+            > 💡 **Recommended**: Download **SkipFlow-v1.2.17.apk** (Release, Signed).
           files: |
-            SkipFlow-v1.2.16.apk
-            SkipFlow-v1.2.16-debug.apk
+            SkipFlow-v1.2.17.apk
+            SkipFlow-v1.2.17-debug.apk
           prerelease: false

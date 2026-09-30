@@ -135,7 +135,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
         preferencesRepo = PreferencesRepository.getInstance(applicationContext)
         statsRepo = StatsRepository.getInstance(applicationContext)
-        audioController = AdAudioController(applicationContext)
+        audioController = AdAudioController.getInstance(applicationContext)
 
         waveDetector = ProximityWaveDetector(applicationContext) {
             handleHandsFreeWave()
@@ -507,31 +507,17 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     }
 
     private fun isNormalContentPlaying(root: AccessibilityNodeInfo): Boolean {
+        // True content timeline indicators (scrub bar timestamps, duration)
+        // Strictly exclude generic video containers (player_view, surface_view, etc.) which persist during ads
         val contentIds = listOf(
-            "com.google.android.youtube:id/player_view",
-            "com.google.android.youtube:id/watch_player",
-            "com.google.android.youtube:id/inline_player_layout",
             "com.google.android.youtube:id/time_current",
             "com.google.android.youtube:id/current_time",
-            "com.google.android.youtube:id/time_bar",
             "com.google.android.youtube:id/time_total",
-            "com.google.android.youtube:id/player_video_title",
-            "com.google.android.youtube:id/video_title",
-            "com.google.android.youtube:id/title",
-            "com.google.android.youtube:id/play_pause_button",
             "time_current",
             "current_time",
-            "time_bar",
             "time_total",
-            "exo_time",
-            "exo_duration",
-            "exo_progress",
-            "exo_content_frame",
-            "exo_player",
-            "player_view",
-            "video_view",
-            "player_container",
-            "surface_view"
+            "exo_position",
+            "exo_duration"
         )
         for (id in contentIds) {
             val nodes = root.findAccessibilityNodeInfosByViewId(id)
@@ -539,7 +525,11 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 var found = false
                 for (node in nodes) {
                     if (node.isVisibleToUser) {
-                        found = true
+                        val text = node.text?.toString()?.trim() ?: ""
+                        // Verify it's a real timestamp (e.g., "0:15", "1:23", "12:45") and not ad countdown text
+                        if (text.isNotEmpty() && text.contains(":") && !text.contains("ad", ignoreCase = true)) {
+                            found = true
+                        }
                     }
                     node.recycle()
                 }
@@ -634,27 +624,52 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
     private fun hasDistinctSecondaryAd(root: AccessibilityNodeInfo): Boolean {
         val playerBounds = getActiveVideoPlayerBounds(root, isYouTube = true)
+
+        fun isInPlayer(node: AccessibilityNodeInfo): Boolean {
+            if (!node.isVisibleToUser) return false
+            if (isCaptionOrSubtitleNode(node) || isPlaybackControlOrVideoTitle(node)) return false
+            val rect = Rect()
+            node.getBoundsInScreen(rect)
+            return Rect.intersects(rect, playerBounds) && rect.top < playerBounds.bottom && rect.centerY() < playerBounds.bottom
+        }
+
         val secondaryMarkers = listOf(
-            "ad 2 of", "ad 2 of 2", "skip in", "skip ad in",
-            "anuncio 2 de 2", "publicité 2 sur 2", "werbung 2 von 2"
+            "2 of 2", "2 of 3", "2 of 4", "2/2", "2/3", "2/4",
+            "ad 2 of", "ad 2 of 2", "ad 2 of 3", "ad 2/2", "ad 2/3",
+            "ad · 2 of", "ad • 2 of", "ad · 2 of 2", "ad • 2 of 2",
+            "skip in", "skip ad in",
+            "video will play after", "playback will resume", "ad will end in", "ad ends in",
+            "anuncio 2 de", "publicité 2 sur", "werbung 2 von", "광고 2/", "广告 2/", "広告 2/"
         )
         for (marker in secondaryMarkers) {
             val nodes = root.findAccessibilityNodeInfosByText(marker)
             if (!nodes.isNullOrEmpty()) {
                 var found = false
                 for (node in nodes) {
-                    if (node.isVisibleToUser && !isCaptionOrSubtitleNode(node) && !isPlaybackControlOrVideoTitle(node)) {
-                        val rect = Rect()
-                        node.getBoundsInScreen(rect)
-                        if (Rect.intersects(rect, playerBounds) && rect.top < playerBounds.bottom && rect.centerY() < playerBounds.bottom) {
-                            found = true
-                        }
+                    if (isInPlayer(node)) {
+                        found = true
                     }
                     node.recycle()
                 }
                 if (found) return true
             }
         }
+
+        // Also check if any dedicated ad countdown IDs are visible in player area
+        for (cId in DetectionDictionary.IN_STREAM_AD_COUNTDOWN_IDS) {
+            val nodes = root.findAccessibilityNodeInfosByViewId(cId)
+            if (!nodes.isNullOrEmpty()) {
+                var found = false
+                for (node in nodes) {
+                    if (isInPlayer(node)) {
+                        found = true
+                    }
+                    node.recycle()
+                }
+                if (found) return true
+            }
+        }
+
         return false
     }
 
@@ -905,9 +920,14 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         val normalPlaying = isNormalContentPlaying(root)
                         root.recycle()
                         if (!secondaryAd) {
-                            if (normalPlaying || consecutiveNonAdChecks >= 2) {
+                            // If normal content playing is definitively confirmed (valid scrub bar time_current),
+                            // require 2 checks (50ms) to ensure it's not a transient glitch.
+                            // If normal content is NOT confirmed (e.g. controls hidden or transition between ads),
+                            // require 8 consecutive non-ad checks (200ms) to protect against ad transition gaps & digit ticks.
+                            val requiredChecks = if (normalPlaying) 2 else 8
+                            if (consecutiveNonAdChecks >= requiredChecks) {
                                 consecutiveNonAdChecks = 0
-                                Log.i(TAG, "Ad ended confirmed by active poller (normalPlaying=$normalPlaying, checks=$consecutiveNonAdChecks). Restoring audio instantly with 0ms delay.")
+                                Log.i(TAG, "Ad ended confirmed by active poller (normalPlaying=$normalPlaying, checks=$requiredChecks). Restoring audio instantly.")
                                 cancelPendingUnmute()
                                 stopActiveMutePoller()
                                 audioController.unmuteAdAudio()
@@ -3692,6 +3712,47 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             }
         }
 
+        // Strategy 0.5: Direct Instant Litho Ad Badge & Multi-Ad Counter Lookup (0ms reaction at second 0.0)
+        // Modern YouTube uses Litho (Server-Driven UI) where viewIdResourceName is null.
+        // Direct OS-level text indexing matches ad badges, multi-ad counters, and CTAs inside validAdBounds in <1ms.
+        val instantLithoAdMarkers = listOf(
+            "Sponsored", "sponsored",
+            "1 of 2", "2 of 2", "1 of 3", "2 of 3", "1 of 1",
+            "1/2", "2/2", "1/3", "2/3", "1/1",
+            "Video will play after", "Playback will resume",
+            "Ad will end in", "Ad ends in",
+            "Visit advertiser"
+        )
+        for (marker in instantLithoAdMarkers) {
+            val nodes = root.findAccessibilityNodeInfosByText(marker)
+            if (!nodes.isNullOrEmpty()) {
+                var instantFound = false
+                for (node in nodes) {
+                    val rect = isValidAdNode(node, minW = 4, minH = 4, requireVisible = false)
+                    if (rect != null && !isFeedShoppingCard(node)) {
+                        val text = node.text?.toString()?.trim() ?: ""
+                        val desc = node.contentDescription?.toString()?.trim() ?: ""
+                        val lower = "$text $desc".lowercase()
+
+                        if (marker.equals("Sponsored", ignoreCase = true)) {
+                            if (lower == "sponsored" || isAdBadgeText(lower)) {
+                                instantFound = true
+                            }
+                        } else if (marker.contains("of") || marker.contains("/")) {
+                            // Verify standalone counter or ad counter (short length, not long video title)
+                            if (text.length <= 15 && (text.contains(marker, ignoreCase = true) || desc.contains(marker, ignoreCase = true))) {
+                                instantFound = true
+                            }
+                        } else {
+                            instantFound = true
+                        }
+                    }
+                    node.recycle()
+                }
+                if (instantFound) return true
+            }
+        }
+
         // Strategy 1: Check in-stream countdown & badge IDs inside active video bounds
         for (countdownId in DetectionDictionary.IN_STREAM_AD_COUNTDOWN_IDS) {
             val nodes = root.findAccessibilityNodeInfosByViewId(countdownId)
@@ -3753,7 +3814,15 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         // Inspects leaf and container nodes directly (catches Litho / Compose nodes without standard IDs)
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         for (i in 0 until root.childCount) {
-            root.getChild(i)?.let { queue.add(it) }
+            root.getChild(i)?.let { child ->
+                val r = Rect()
+                child.getBoundsInScreen(r)
+                if (r.isEmpty || Rect.intersects(r, validAdBounds)) {
+                    queue.add(child)
+                } else {
+                    child.recycle()
+                }
+            }
         }
         var inspectedCount = 0
         val maxInspect = 100
@@ -3812,12 +3881,20 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             if (!bfsFoundAd) {
                 for (i in 0 until current.childCount) {
                     current.getChild(i)?.let { child ->
-                        val childViewId = child.viewIdResourceName?.lowercase() ?: ""
-                        // Prioritize player and overlay containers to inspect ad components first
-                        if (childViewId.contains("player") || childViewId.contains("overlay") || childViewId.contains("watch")) {
-                            queue.addFirst(child)
+                        val childRect = Rect()
+                        child.getBoundsInScreen(childRect)
+                        // Spatial pruning: ONLY enqueue nodes that intersect validAdBounds!
+                        // Prevents traversing hundreds of recommendation feed and comment cards below the video player.
+                        if (childRect.isEmpty || Rect.intersects(childRect, validAdBounds)) {
+                            val childViewId = child.viewIdResourceName?.lowercase() ?: ""
+                            // Prioritize player and overlay containers to inspect ad components first
+                            if (childViewId.contains("player") || childViewId.contains("overlay") || childViewId.contains("watch")) {
+                                queue.addFirst(child)
+                            } else {
+                                queue.add(child)
+                            }
                         } else {
-                            queue.add(child)
+                            child.recycle()
                         }
                     }
                 }
@@ -4241,6 +4318,20 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 isSaavnAdPlaying = false
             }
             else -> {
+                if (isYouTube) {
+                    val root = rootInActiveWindow
+                    val hasSecondAd = root?.let { r ->
+                        val res = hasDistinctSecondaryAd(r)
+                        r.recycle()
+                        res
+                    } ?: false
+
+                    if (hasSecondAd) {
+                        Log.i(TAG, "Ad skipped on YouTube, but secondary ad (e.g. Ad 2 of 2) is active! Retaining audio mute.")
+                        startActiveMutePoller(isYouTube = true, isOtt = false)
+                        return
+                    }
+                }
                 stopActiveMutePoller()
             }
         }
