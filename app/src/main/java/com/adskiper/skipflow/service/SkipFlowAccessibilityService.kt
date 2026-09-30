@@ -3705,7 +3705,6 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             }
             else -> {
                 stopActiveMutePoller()
-                isAdPlaying = false
             }
         }
         if (audioController.isCurrentlyMuted()) {
