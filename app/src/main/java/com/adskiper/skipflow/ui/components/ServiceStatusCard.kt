@@ -216,10 +216,36 @@ fun ServiceStatusCard(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 if (isActive) {
-                    // Sideway Hourglass Filter Pipeline Animation
-                    SidewayHourglassFilter(
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(EmeraldAccent.copy(alpha = 0.12f))
+                            .border(1.dp, EmeraldAccent.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(EmeraldAccent)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Zero-Delay Shield Active",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = EmeraldAccent
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Text(
+                            text = "9 Apps Armed",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
                 } else {
                     Button(
                         onClick = onEnableClicked,
