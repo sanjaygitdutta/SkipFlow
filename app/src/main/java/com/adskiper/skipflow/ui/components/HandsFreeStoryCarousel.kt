@@ -35,6 +35,8 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Icon
@@ -75,10 +77,17 @@ data class LifestyleSlide(
 fun HandsFreeStoryCarousel(
     modifier: Modifier = Modifier,
     heightDp: Int = 265,
-    autoSwipeDelayMs: Long = 1500L
+    autoSwipeDelayMs: Long = 1800L
 ) {
     val slides = remember {
         listOf(
+            LifestyleSlide(
+                drawableRes = R.drawable.lifestyle_gym,
+                badge = "GYM & WORKOUT",
+                headline = "Gym Beats Without Disturbed Workout",
+                subtitle = "Never lose your workout pump or drop dumbbells to skip sudden loud ads",
+                accentColor = Color(0xFFFF2A6D)
+            ),
             LifestyleSlide(
                 drawableRes = R.drawable.lifestyle_dining,
                 badge = "DINING & MEALS",
@@ -105,7 +114,7 @@ fun HandsFreeStoryCarousel(
                 badge = "SOFA & MOVIE NIGHT",
                 headline = "Non-Stop Cinema Magic",
                 subtitle = "Grab your popcorn, relax on the sofa, and stream without commercial breaks",
-                accentColor = Color(0xFFFF2A6D)
+                accentColor = Color(0xFFFFB800)
             ),
             LifestyleSlide(
                 drawableRes = R.drawable.lifestyle_music,
@@ -128,19 +137,29 @@ fun HandsFreeStoryCarousel(
     val coroutineScope = rememberCoroutineScope()
     val slideProgress = remember { Animatable(0f) }
 
-    // Auto-advance synchronized with 1.5s animated story countdown
-    LaunchedEffect(pagerState.currentPage) {
+    // Auto-advance synchronized with story progress
+    // If user is manually swiping/dragging, pause and reset timer so user has full control.
+    // If idle, automatically swipes to the next image like before.
+    LaunchedEffect(pagerState.currentPage, pagerState.isScrollInProgress) {
+        if (pagerState.isScrollInProgress) {
+            slideProgress.snapTo(0f)
+            return@LaunchedEffect
+        }
         slideProgress.snapTo(0f)
-        slideProgress.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = autoSwipeDelayMs.toInt(), easing = LinearEasing)
-        )
-        if (!pagerState.isScrollInProgress) {
-            val next = (pagerState.currentPage + 1) % slides.size
-            pagerState.animateScrollToPage(
-                page = next,
-                animationSpec = tween(durationMillis = 550, easing = FastOutSlowInEasing)
+        try {
+            slideProgress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = autoSwipeDelayMs.toInt(), easing = LinearEasing)
             )
+            if (!pagerState.isScrollInProgress) {
+                val next = (pagerState.currentPage + 1) % slides.size
+                pagerState.animateScrollToPage(
+                    page = next,
+                    animationSpec = tween(durationMillis = 550, easing = FastOutSlowInEasing)
+                )
+            }
+        } catch (_: Exception) {
+            // Interrupted by manual swipe, safely handled
         }
     }
 
@@ -342,6 +361,11 @@ fun HandsFreeStoryCarousel(
                         .width(widthDp)
                         .clip(RoundedCornerShape(2.dp))
                         .background(Color.White.copy(alpha = 0.32f))
+                        .clickable {
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(index, animationSpec = tween(400, easing = FastOutSlowInEasing))
+                            }
+                        }
                 ) {
                     if (isPast) {
                         Box(
@@ -361,35 +385,53 @@ fun HandsFreeStoryCarousel(
             }
         }
 
-        // Left & Right Tap Zones to Navigate Stories Instantly
-        Row(modifier = Modifier.fillMaxSize()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .weight(0.35f)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        val prev = if (pagerState.currentPage > 0) pagerState.currentPage - 1 else slides.size - 1
-                        coroutineScope.launch {
-                            pagerState.animateScrollToPage(prev, animationSpec = tween(400, easing = FastOutSlowInEasing))
-                        }
+        // Floating Left Arrow (Previous Slide) — compact 32dp edge button so full card swiping is completely unimpeded
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = 10.dp)
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.45f))
+                .border(0.8.dp, Color.White.copy(alpha = 0.22f), CircleShape)
+                .clickable {
+                    val prev = if (pagerState.currentPage > 0) pagerState.currentPage - 1 else slides.size - 1
+                    coroutineScope.launch {
+                        pagerState.animateScrollToPage(prev, animationSpec = tween(400, easing = FastOutSlowInEasing))
                     }
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Previous Slide",
+                tint = Color.White.copy(alpha = 0.9f),
+                modifier = Modifier.size(16.dp)
             )
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .weight(0.65f)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        val next = (pagerState.currentPage + 1) % slides.size
-                        coroutineScope.launch {
-                            pagerState.animateScrollToPage(next, animationSpec = tween(400, easing = FastOutSlowInEasing))
-                        }
+        }
+
+        // Floating Right Arrow (Next Slide) — compact 32dp edge button so full card swiping is completely unimpeded
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 10.dp)
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.45f))
+                .border(0.8.dp, Color.White.copy(alpha = 0.22f), CircleShape)
+                .clickable {
+                    val next = (pagerState.currentPage + 1) % slides.size
+                    coroutineScope.launch {
+                        pagerState.animateScrollToPage(next, animationSpec = tween(400, easing = FastOutSlowInEasing))
                     }
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = "Next Slide",
+                tint = Color.White.copy(alpha = 0.9f),
+                modifier = Modifier.size(16.dp)
             )
         }
     }

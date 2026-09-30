@@ -232,7 +232,7 @@ fun OnboardingWelcomeScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Cooking, dining, or driving? SkipFlow automatically skips ads and silences commercial noise across your favorite apps without lifting a finger.",
+                    text = "Gym workout, cooking, dining, or driving? SkipFlow automatically skips ads and silences commercial noise across your favorite apps without lifting a finger.",
                     style = MaterialTheme.typography.bodyMedium,
                     fontSize = 14.sp,
                     lineHeight = 21.sp,
@@ -242,10 +242,10 @@ fun OnboardingWelcomeScreen(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // High-Quality Lifestyle Hands-Free Carousel (1.5s Auto-Swipe Stay, Large Immersive Hero)
+                // High-Quality Lifestyle Hands-Free Carousel (Auto-Swipe with smooth manual drag support)
                 HandsFreeStoryCarousel(
                     heightDp = 290,
-                    autoSwipeDelayMs = 1500L,
+                    autoSwipeDelayMs = 2000L,
                     modifier = Modifier.fillMaxWidth()
                 )
 

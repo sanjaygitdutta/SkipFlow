@@ -31,7 +31,15 @@ class SpotifyAdReceiver : BroadcastReceiver {
         var isPlaybackActive = true
             private set
 
+        @Volatile
+        private var isCurrentTrackAd = false
+
         fun isCurrentlyMuting(): Boolean = isCurrentlyMutingSpotify
+
+        fun resetMuteState() {
+            isCurrentlyMutingSpotify = false
+            isCurrentTrackAd = false
+        }
 
         fun createIntentFilter(): IntentFilter {
             return IntentFilter().apply {
@@ -106,25 +114,24 @@ class SpotifyAdReceiver : BroadcastReceiver {
     }
 
     private fun handleMetadataChanged(context: Context, intent: Intent, controller: AdAudioController) {
-        val id = intent.getStringExtra("id") ?: ""
-        val track = intent.getStringExtra("track") ?: ""
-        val artist = intent.getStringExtra("artist") ?: ""
-        val album = intent.getStringExtra("album") ?: ""
-        // Spotify's metadatachanged broadcast does not supply the 'playing' extra.
-        // If 'playing' extra is present in the intent, use it; otherwise fall back to isPlaybackActive (defaulting to true).
+        val id = intent.getStringExtra("id")?.trim() ?: ""
+        val track = intent.getStringExtra("track")?.trim() ?: ""
+        val artist = intent.getStringExtra("artist")?.trim() ?: ""
+        val album = intent.getStringExtra("album")?.trim() ?: ""
         val playing = if (intent.hasExtra("playing")) {
             intent.getBooleanExtra("playing", true)
         } else {
             isPlaybackActive
         }
 
-        Log.d(TAG, "Spotify Metadata (minimized/foreground): id=$id, track=$track, artist=$artist, album=$album, playing=$playing, isPlaybackActive=$isPlaybackActive")
+        Log.d(TAG, "Spotify Metadata (minimized/sleep): id='$id', track='$track', artist='$artist', album='$album', playing=$playing")
 
         val isAd = isSpotifyAd(id, track, artist, album)
+        isCurrentTrackAd = isAd
 
-        if (isAd && playing) {
+        if (isAd) {
             if (!isCurrentlyMutingSpotify) {
-                Log.i(TAG, "Detected Spotify Ad while minimized/foreground (track='$track', artist='$artist', album='$album')! Silencing audio stream (0ms).")
+                Log.i(TAG, "Detected Spotify Ad via broadcast (id='$id', track='$track', artist='$artist', album='$album')! Silencing audio stream (0ms).")
                 controller.muteAdAudio()
                 isCurrentlyMutingSpotify = true
                 onStateChanged?.invoke(true)
@@ -135,11 +142,12 @@ class SpotifyAdReceiver : BroadcastReceiver {
                     scope.launch { repo.recordSpotifyAdMuted() }
                 }
             }
-        } else if (!isAd) {
-            if (isCurrentlyMutingSpotify) {
-                Log.i(TAG, "Spotify normal track resumed while minimized/foreground ('$track' by '$artist'). Restoring audio (0ms).")
+        } else if (!isAd && (track.isNotEmpty() || id.startsWith("spotify:track:", ignoreCase = true))) {
+            if (isCurrentlyMutingSpotify || controller.isCurrentlyMuted()) {
+                Log.i(TAG, "Spotify normal track resumed via broadcast ('$track' by '$artist'). Restoring audio (0ms).")
                 controller.unmuteAdAudio()
                 isCurrentlyMutingSpotify = false
+                isCurrentTrackAd = false
                 onStateChanged?.invoke(false)
             }
         }
@@ -148,10 +156,15 @@ class SpotifyAdReceiver : BroadcastReceiver {
     private fun handlePlaybackStateChanged(intent: Intent, controller: AdAudioController) {
         val playing = intent.getBooleanExtra("playing", false)
         isPlaybackActive = playing
-        Log.d(TAG, "Spotify playback state changed: playing=$playing, wasMuting=$isCurrentlyMutingSpotify")
-        if (!playing && isCurrentlyMutingSpotify) {
-            // When paused, restore volume so user's phone isn't left at 0 volume
-            Log.i(TAG, "Spotify paused while ad was muted. Restoring audio (0ms).")
+        Log.d(TAG, "Spotify playback state changed: playing=$playing, isCurrentTrackAd=$isCurrentTrackAd, wasMuting=$isCurrentlyMutingSpotify")
+
+        if (playing && isCurrentTrackAd && !isCurrentlyMutingSpotify) {
+            Log.i(TAG, "Spotify playback resumed during confirmed ad. Muting audio (0ms).")
+            controller.muteAdAudio()
+            isCurrentlyMutingSpotify = true
+            onStateChanged?.invoke(true)
+        } else if (playing && !isCurrentTrackAd && (isCurrentlyMutingSpotify || controller.isCurrentlyMuted())) {
+            Log.i(TAG, "Spotify playback resumed during normal track. Restoring audio (0ms).")
             controller.unmuteAdAudio()
             isCurrentlyMutingSpotify = false
             onStateChanged?.invoke(false)
@@ -159,22 +172,31 @@ class SpotifyAdReceiver : BroadcastReceiver {
     }
 
     private fun isSpotifyAd(id: String, track: String, artist: String, album: String): Boolean {
-        // 1. Spotify ad track URIs start with "spotify:ad:" or contain ":ad:"
+        // 1. Explicit Spotify ad URIs
         if (id.startsWith("spotify:ad:", ignoreCase = true) || id.contains(":ad:", ignoreCase = true)) return true
 
-        // 2. Explicit ad keywords in track, artist, or album
+        // 2. In Spotify on Android, every real song starts with "spotify:track:" and podcast with "spotify:episode:"
+        // Non-track URIs or empty IDs during playback indicate advertisements
+        if (id.isNotEmpty() && !id.startsWith("spotify:track:", ignoreCase = true) && !id.startsWith("spotify:episode:", ignoreCase = true)) return true
+
+        // 3. Explicit ad keywords in track, artist, or album
         if (album.contains("Advertisement", ignoreCase = true) || album.contains("Sponsored", ignoreCase = true)) return true
         if (track.contains("Advertisement", ignoreCase = true) || track.contains("Sponsored", ignoreCase = true)) return true
         if (artist.contains("Advertisement", ignoreCase = true) || artist.contains("Sponsored", ignoreCase = true)) return true
 
-        // 3. Ad titles/labels
+        // 4. Sponsor labels, missing artist/album, or generic Spotify titles
         val trimTrack = track.trim()
         val trimArtist = artist.trim()
+        val trimAlbum = album.trim()
+
         if (trimTrack.equals("Ad", ignoreCase = true) || trimTrack.startsWith("Ad •") || trimTrack.startsWith("Ad ·")) return true
         if (trimTrack.contains("left in the break", ignoreCase = true) || trimTrack.contains("left in break", ignoreCase = true)) return true
         if (trimTrack.equals("Spotify Free", ignoreCase = true)) return true
-        if (trimTrack.equals("Spotify", ignoreCase = true) && (trimArtist.equals("Spotify", ignoreCase = true) || trimArtist.isEmpty())) return true
-        if (trimArtist.equals("Spotify", ignoreCase = true) && trimTrack.isNotEmpty() && !trimTrack.contains(" - ")) return true
+        if (trimArtist.equals("Spotify", ignoreCase = true)) return true
+        if (trimAlbum.equals("Spotify", ignoreCase = true)) return true
+        if (trimTrack.equals("Spotify", ignoreCase = true)) return true
+        if (id.isEmpty() && (trimAlbum.isEmpty() || trimArtist.isEmpty())) return true
+
         return false
     }
 

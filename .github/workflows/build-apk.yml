@@ -80,11 +80,17 @@ jobs:
               - **Instant 0ms Muting**: Audio is muted at 0ms as soon as the countdown timer appears in the video player frame.
               - **Instant 0ms Audio Recovery**: Normal content audio is restored at 0ms the moment the countdown finishes and disappears.
               - Zero false positives on normal movie playback via seekbar & playback controls protection.
-            - 🎵 **Spotify Screen-Off Ad Audio Muting & 0ms Audio Recovery**:
-              - Fixed background broadcast receiver where missing `playing` extra in Spotify's `metadatachanged` intent prevented ad muting when the device screen was turned off or locked.
-              - Active playback state tracking across both `playbackstatechanged` and `metadatachanged` intents.
-              - Instant 0ms audio muting when an ad starts with screen light off, and instant 0ms content audio restoration the moment normal music resumes.
-              - Enhanced ongoing notification listener with complete advertisement keyword recognition.
+            - 🎵 **Spotify Screen-Sleep Ad Audio Muting & 0ms Fast Recovery**:
+              - Automated MediaSession & Notification Action inspection: detects when Spotify removes or disables the "Next Track" skip button during commercial ads while screen is asleep or locked.
+              - Advanced ad identification catching sponsor brand titles (empty album, "Spotify" artist/label, non-track URI IDs).
+            - 📺 **YouTube Clean Screen Auto-Dismiss Engine**:
+              - Solves YouTube's stuck accessibility controls (Pause, 10s Rewind, 10s Forward, Close 'X' button) 100% automatically without requiring user to touch YouTube settings.
+              - Automatically auto-fades and dismisses player controls after 2.5 seconds of normal playback, restoring an unobstructed clean view on every video.
+              - Instantly dismisses player controls post-skip so returning videos play with a completely clean screen.
+              - Intelligently preserves controls when the video is paused by the user.
+            - 🏋️ **Gym & Workout Story Carousel (Manual & Auto-Swiping)**:
+              - Added dedicated gym workout slide: *"Gym Beats Without Disturbed Workout"* — keeps workout pump uninterrupted and weights lifted without touching screen to skip sudden loud ads.
+              - Full manual swipe freedom: users can swipe through all story slides manually with zero resistance or tap discrete edge arrows, while idle states continue auto-swiping continuously.
             - ⏳ **Sideways Hourglass Filter Pipeline**:
               - Interactive horizontal hourglass animation with laser core and filtered audio waves.
             - 🖐️ **Smart Gesture Wave Sensor Card**:
