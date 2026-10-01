@@ -116,18 +116,18 @@ object DetectionDictionary {
 
     // JioHotstar standalone countdown timer during video ad playback:
     // Matches when ONLY the countdown timer is displayed on screen without any 'Ad' word or '1 of 1' text:
-    // - "59", "58", ..., "1" (time count counting 59 down to 1)
-    // - "1:29", "1:28", ..., "0:01" (time count of ad counting down towards 1)
-    // - Suffixes/prefixes: "59s", "15s", ". 59", "· 59", "• 59", ":59", ". 1:29", "· 1:29", "• 1:29", "(59)", "(1:29)"
-    // - Also matches optional Ad prefix ("Ad 59", "Ad · 1:29") or break counter prefix ("1 of 1 . 59", "1 of 2 . 1:29")
+    // - "59", "58", ..., "19", ..., "1", "0" (time count counting 59 down to 0)
+    // - "1:29", "1:28", ..., "0:19", ..., "0:01", "0:00" (time count of ad counting down towards 0)
+    // - Suffixes/prefixes: "19s", "0s", "59s", "15s", ". 19", "· 19", "• 19", ":19", "(19)", "(0:19)", "19 sec", "19 seconds"
+    // - Also matches optional Ad prefix ("Ad 19", "Ad · 19", "Ad: 19") or break counter prefix ("1 of 1 . 19", "1 of 2 . 19")
     val HOTSTAR_STANDALONE_TIMER_REGEX = Regex(
-        """^(?:(?:ad\s*)?\d+\s*(?:of|\/)\s*\d+\s*[•·\.\-:|\s]*)?(?:ad\s*[•·\.\-:|\s]*)?(?:[•·\.\-:(\[\s|]*)(?:(\d{1,2}):(\d{2})|([1-9]|[1-9][0-9]|1[0-7][0-9]|180))(?:\s*s(?:ec)?(?:onds?)?|\s*remaining)?(?:[•·\.\-:)\]\s]*)$""",
+        """^(?:(?:ad\s*)?\d+\s*(?:of|\/)\s*\d+\s*[•·\.\-:|\s]*)?(?:ad\s*[•·\.\-:|\s]*)?(?:[•·\.\-:(\[\s|]*)(?:(\d{1,2}):(\d{2})|([0-9]|[1-9][0-9]|1[0-7][0-9]|180))(?:\s*s(?:ec)?(?:onds?)?|\s*remaining)?(?:[•·\.\-:)\]\s]*)$""",
         RegexOption.IGNORE_CASE
     )
 
     /**
      * Parses a standalone Hotstar countdown timer string into total remaining seconds.
-     * Returns the integer seconds (1 to 180) if text is an ad countdown timer, or null otherwise.
+     * Returns the integer seconds (0 to 180) if text is an ad countdown timer, or null otherwise.
      */
     fun parseHotstarCountdownSeconds(text: String): Int? {
         val trimmed = text.trim()
@@ -142,19 +142,19 @@ object DetectionDictionary {
                 val m = minsGroup.toIntOrNull() ?: return null
                 val s = secsGroup.toIntOrNull() ?: return null
                 val total = m * 60 + s
-                if (total in 1..180) total else null
+                if (total in 0..180) total else null
             }
             bareSecsGroup != null -> {
                 val s = bareSecsGroup.toIntOrNull() ?: return null
-                if (s in 1..180) s else null
+                if (s in 0..180) s else null
             }
             else -> null
         }
     }
 
-    // Single ad with timer or countdown (e.g. "Ad • 00:14", "Ad · 00:13", "Ad 0:15", "Ad (0:15)", "Ad • 15s", "Ad ends in 5s", "Ad will end in 10s")
+    // Single ad with timer or countdown (e.g. "ad:(0:30)", "Ad • 00:14", "Ad · 00:13", "Ad 0:15", "Ad (0:15)", "Ad • 15s", "Ad ends in 5s", "Ad will end in 10s")
     val SINGLE_AD_TIMER_REGEX = Regex(
-        """\bad\b\s*(?:[•·\.\-|:(]\s*)?(?:(\d{1,2}:\d{2})|(\d+\s*s(?:ec)?(?:onds?)?))\b""",
+        """\bad\b[\s:•·\.\-|]*\(?\s*(?:(\d{1,2}:\d{2})|(\d+\s*s(?:ec)?(?:onds?)?))\s*\)?""",
         RegexOption.IGNORE_CASE
     )
 
@@ -180,12 +180,29 @@ object DetectionDictionary {
         "in.startv.hotstar:id/tv_timer",
         "in.startv.hotstar:id/cta_button",
         "in.startv.hotstar:id/ad_cta",
+        "com.jiohotstar.android:id/ad_timer",
+        "com.jiohotstar.android:id/ad_countdown",
+        "com.jiohotstar.android:id/ad_badge",
+        "com.jiohotstar.android:id/ad_container",
+        "com.jiohotstar.android:id/ad_view",
+        "com.jiohotstar.android:id/player_ad_layout",
+        "com.jiohotstar.android:id/ad_companion_container",
+        "com.jiohotstar.android:id/ad_companion",
+        "com.jiohotstar.android:id/ad_metadata",
+        "com.jiohotstar.android:id/ad_progress",
+        "com.jiohotstar.android:id/tv_ad_timer",
+        "com.jiohotstar.android:id/tv_timer",
+        "com.jiohotstar.android:id/cta_button",
+        "com.jiohotstar.android:id/ad_cta",
         "com.disney.hotstar:id/ad_timer",
         "com.disney.hotstar:id/ad_countdown",
         "com.disney.hotstar:id/ad_badge",
         "com.disney.hotstar:id/ad_container",
         "ad_companion_container",
-        "ad_companion"
+        "ad_companion",
+        "ad_timer",
+        "tv_ad_timer",
+        "ad_countdown"
     )
 
     // Hotstar companion sponsor card CTA button keywords that appear directly below video during in-stream ads
@@ -246,8 +263,18 @@ object DetectionDictionary {
         "ima_ad_container"
     )
 
-    // Amazon Prime Video in-stream ad countdown and view IDs
-    val PRIME_VIDEO_COUNTDOWN_REGEX = COMPOUND_AD_COUNTER_REGEX
+    // Amazon Prime Video in-stream ad countdown and view IDs:
+    // Matches "Ad 1 of 2 : (0:30)", "Ad 1 of 2 • 0:30", "Ad 1 of 2 - 0:30", "Ad 1 of 2 : 0:30", "Ad 1 of 2"
+    // Matches "Ad 2 of 2 : (0:15)", "Ad 1 of 1 : (0:30)", "Ad 2 of 2", "Ad 1 of 1"
+    // Matches "Ad : (0:30)", "Ad: (0:30)", "Ad:(0:30)", "Ad : 0:30", "Ad: 0:30", "Ad (0:30)", "Ad(0:30)"
+    // Matches "Ad • 0:30", "Ad · 0:30", "Ad - 0:30", "Ad | 0:30", "Ad 0:30", "Ad: 30s"
+    // Matches "0:30 remaining", "15s remaining", "30 sec remaining", "Ad break in progress", "Ad break"
+    // Matches "Skip in 5s", "Skip in 5", "Skip in 0:05", "Skip Ad in 5s", "Skip ad in 5"
+    val PRIME_VIDEO_AD_TIMER_REGEX = Regex(
+        """\bad\b(?:\s*\d+\s*(?:of|\/)\s*\d+)?[\s:•·\.\-|]*\(?\s*(?:\d{1,2}:\d{2}|\d+\s*s(?:ec)?(?:onds?)?|\d{1,3})\s*\)?(?:\s*remaining)?|\b\d+\s*(?:of|\/)\s*\d+[\s:•·\.\-|]*\(?\s*(?:\d{1,2}:\d{2}|\d+\s*s(?:ec)?(?:onds?)?|\d{1,3})\s*\)?(?:\s*remaining)?|\bad\b\s*:\s*\(?\s*\d{1,2}:\d{2}\s*\)?|\bskip\s*(?:ad\s*)?in\s*\(?\s*(?:\d{1,2}:\d{2}|\d+\s*s(?:ec)?(?:onds?)?|\d{1,2})\s*\)?|\bad\s*break(?:\s*in\s*progress)?\b|\b\d{1,2}:\d{2}\s*remaining\b""",
+        RegexOption.IGNORE_CASE
+    )
+    val PRIME_VIDEO_COUNTDOWN_REGEX = PRIME_VIDEO_AD_TIMER_REGEX
     val PRIME_VIDEO_TIMER_REGEX = COUNTER_WITH_TIMER_REGEX
     val PRIME_VIDEO_COUNTER_REGEX = BARE_BREAK_COUNTER_REGEX
     val PRIME_VIDEO_AD_VIEW_IDS = setOf(
@@ -255,11 +282,64 @@ object DetectionDictionary {
         "com.amazon.avod.thirdpartyclient:id/ad_time_remaining",
         "com.amazon.avod.thirdpartyclient:id/ad_indicator",
         "com.amazon.avod.thirdpartyclient:id/ad_overlay",
+        "com.amazon.avod.thirdpartyclient:id/ad_view",
+        "com.amazon.avod.thirdpartyclient:id/ad_container",
+        "com.amazon.avod.thirdpartyclient:id/ad_progress",
+        "com.amazon.avod.thirdpartyclient:id/ad_text",
+        "com.amazon.avod.thirdpartyclient:id/ad_timer",
+        "com.amazon.avod.thirdpartyclient:id/ad_badge",
+        "com.amazon.avod.thirdpartyclient:id/video_ad_layout",
+        "com.amazon.avod.thirdpartyclient:id/linear_ad_view",
         "com.amazon.avod.thirdpartyclient:id/skip_ad",
         "com.amazon.avod.thirdpartyclient:id/btn_skip",
         "com.amazon.avod.thirdpartyclient:id/learn_more",
+        "com.primevideo.android:id/ad_countdown",
+        "com.primevideo.android:id/ad_time_remaining",
+        "com.primevideo.android:id/ad_indicator",
+        "com.primevideo.android:id/ad_overlay",
+        "com.primevideo.android:id/ad_view",
+        "com.primevideo.android:id/skip_ad",
+        "com.primevideo.android:id/btn_skip",
         "ad_indicator",
-        "ad_overlay"
+        "ad_overlay",
+        "ad_countdown",
+        "ad_time_remaining",
+        "ad_view",
+        "ad_container",
+        "video_ad_layout",
+        "ad_progress",
+        "ad_text",
+        "tv_ad_countdown",
+        "ad_timer",
+        "ad_badge",
+        "linear_ad_view"
+    )
+
+    // Amazon Prime Video normal playback control view IDs (used for 0ms audio restoration)
+    val PRIME_VIDEO_NORMAL_CONTENT_VIEW_IDS = setOf(
+        "xray_button",
+        "xray_badge",
+        "xray_layout",
+        "xray_root",
+        "xray_container",
+        "quick_xray",
+        "view_xray",
+        "playback_controls",
+        "player_ui_container",
+        "playback_container",
+        "control_rewind_button",
+        "control_fast_forward_button",
+        "control_play_pause_button",
+        "exo_position",
+        "exo_duration",
+        "exo_progress",
+        "time_current",
+        "time_duration",
+        "subtitle_button",
+        "audio_button",
+        "audio_subtitle_settings",
+        "next_episode_button",
+        "episode_title"
     )
 
     // Netflix in-stream ad countdown and view IDs (Ad-supported plan)
@@ -277,9 +357,19 @@ object DetectionDictionary {
         "ad_break"
     )
 
-    // SonyLIV in-stream ad countdown and view IDs
-    val SONYLIV_COUNTDOWN_REGEX = COMPOUND_AD_COUNTER_REGEX
-    val SONYLIV_TIMER_REGEX = COUNTER_WITH_TIMER_REGEX
+    // SonyLIV in-stream ad countdown and view IDs:
+    // Matches "ad:(0:30)", "ad:(0:29)", "Ad:(0:30)", "AD:(0:15)", "Ad:(0:05)", "ad:(1:15)", "ad:(30)", "ad:(15s)"
+    // Matches "ad: (0:30)", "Ad: (0:30)", "Ad : (0:30)", "ad : (0:30)", "Ad (0:30)", "Ad(0:30)"
+    // Matches "ad: 0:30", "Ad: 0:30", "ad: 0:29", "Ad: 0:15", "ad: 15s", "Ad: 15 sec", "Ad: 15 seconds"
+    // Matches compound "Ad 1 of 2 : (0:30)", "Ad 1 of 2 (0:30)", "Ad 2 of 2 : (0:15)", "Ad 1/2 : (0:30)", "1 of 2 : (0:30)"
+    // Matches "Skip in 5s", "Skip Ad in 5s", "Skip in (0:05)", "Skip in 5", "Skip in 0:05"
+    val SONYLIV_AD_TIMER_REGEX = Regex(
+        """\bad\b(?:\s*\d+\s*(?:of|\/)\s*\d+)?[\s:•·\.\-|]*\(?\s*(?:\d{1,2}:\d{2}|\d+\s*s(?:ec)?(?:onds?)?|\d{1,3})\s*\)?|\b\d+\s*(?:of|\/)\s*\d+[\s:•·\.\-|]*\(?\s*(?:\d{1,2}:\d{2}|\d+\s*s(?:ec)?(?:onds?)?|\d{1,3})\s*\)?|\bad\b\s*:\s*\(?\s*\d{1,2}:\d{2}\s*\)?|\bskip\s*(?:ad\s*)?in\s*\(?\s*(?:\d{1,2}:\d{2}|\d+\s*s(?:ec)?(?:onds?)?|\d{1,2})\s*\)?""",
+        RegexOption.IGNORE_CASE
+    )
+
+    val SONYLIV_COUNTDOWN_REGEX = SONYLIV_AD_TIMER_REGEX
+    val SONYLIV_TIMER_REGEX = SONYLIV_AD_TIMER_REGEX
     val SONYLIV_COUNTER_REGEX = BARE_BREAK_COUNTER_REGEX
     val SONYLIV_AD_VIEW_IDS = setOf(
         "com.sonyliv:id/btn_skip",
@@ -289,9 +379,48 @@ object DetectionDictionary {
         "com.sonyliv:id/ad_countdown",
         "com.sonyliv:id/ad_view",
         "com.sonyliv:id/player_ad_view",
+        "com.sonyliv:id/player_ad",
         "com.sonyliv:id/ad_banner",
         "com.sonyliv:id/ad_title",
-        "player_ad_view"
+        "com.sonyliv:id/ad_container",
+        "com.sonyliv:id/ad_overlay",
+        "com.sonyliv:id/ad_layout",
+        "com.sonyliv:id/ad_element",
+        "com.sonyliv:id/ad_counter",
+        "com.sonyliv:id/ad_text",
+        "com.sonyliv:id/tv_ad_timer",
+        "com.sonyliv:id/tv_ad_countdown",
+        "com.sonyliv:id/ad_time",
+        "com.sonyliv:id/ll_ad_view",
+        "com.sonyliv:id/ad_progress",
+        "com.sonyliv:id/ad_remaining",
+        "com.sonyliv:id/ima_ad_container",
+        "com.sonyliv:id/ima_skip_button",
+        "com.sonyliv:id/tv_skip",
+        "com.sonyliv:id/btn_skip_ad",
+        "player_ad_view",
+        "ad_view"
+    )
+
+    // SonyLIV normal video player playback controls (indicates active non-ad streaming)
+    val SONYLIV_NORMAL_CONTENT_VIEW_IDS = setOf(
+        "com.sonyliv:id/exo_position",
+        "com.sonyliv:id/exo_duration",
+        "com.sonyliv:id/exo_progress",
+        "com.sonyliv:id/exo_play",
+        "com.sonyliv:id/exo_pause",
+        "com.sonyliv:id/player_current_time",
+        "com.sonyliv:id/player_total_time",
+        "com.sonyliv:id/tv_current_time",
+        "com.sonyliv:id/tv_total_time",
+        "com.sonyliv:id/player_seekbar",
+        "com.sonyliv:id/seekbar",
+        "com.sonyliv:id/track_seek_bar",
+        "com.sonyliv:id/btn_audio_subtitle",
+        "com.sonyliv:id/btn_rewind",
+        "com.sonyliv:id/btn_forward",
+        "exo_position",
+        "exo_duration"
     )
 
     // Zee5 in-stream ad countdown and view IDs
@@ -409,6 +538,12 @@ object DetectionDictionary {
         // Amazon Prime Video
         "com.amazon.avod.thirdpartyclient:id/skip_ad",
         "com.amazon.avod.thirdpartyclient:id/btn_skip",
+        "com.amazon.avod.thirdpartyclient:id/ad_skip_button",
+        "com.amazon.avod.thirdpartyclient:id/skip_btn",
+        "com.primevideo.android:id/skip_ad",
+        "com.primevideo.android:id/btn_skip",
+        "com.primevideo.android:id/ad_skip_button",
+        "com.primevideo.android:id/skip_btn",
         // Netflix
         "com.netflix.mediaclient:id/skip_ad",
         // Twitch

@@ -156,7 +156,6 @@ private fun MainAppContent(
 
     val isSimulating by viewModel.isSimulatingAd.collectAsState()
     val simCountdown by viewModel.simCountdown.collectAsState()
-    val isSimMuted by viewModel.isSimMuted.collectAsState()
 
     Crossfade(targetState = currentScreen, label = "screen_transition") { screen ->
         when (screen) {
@@ -193,7 +192,6 @@ private fun MainAppContent(
                     enabledPlatforms = enabledPlatforms,
                     isSimulating = isSimulating,
                     simCountdown = simCountdown,
-                    isSimMuted = isSimMuted,
                     isNotificationAccessEnabled = isNotificationAccessEnabled,
                     onEnableNotificationAccessClicked = { viewModel.onEnableNotificationAccessClicked(activity) },
                     onEnableServiceClicked = { viewModel.onEnableServiceClicked(activity) },

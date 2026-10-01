@@ -205,7 +205,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         val isSpotify = DetectionDictionary.SPOTIFY_PACKAGES.contains(packageName) || packageName.contains("spotify")
         val isHotstar = DetectionDictionary.HOTSTAR_PACKAGES.contains(packageName) || packageName.contains("hotstar") || packageName.contains("jiohotstar")
         val isMxPlayer = DetectionDictionary.MX_PLAYER_PACKAGES.contains(packageName) || packageName.contains("videoplayer") || packageName.contains("mxtech") || packageName.contains("mxplayer")
-        val isPrimeVideo = DetectionDictionary.PRIME_VIDEO_PACKAGES.contains(packageName) || packageName.contains("amazon.avod")
+        val isPrimeVideo = DetectionDictionary.PRIME_VIDEO_PACKAGES.contains(packageName) || packageName.contains("amazon.avod") || packageName.contains("primevideo") || packageName.contains("amazonvideo")
         val isNetflix = DetectionDictionary.NETFLIX_PACKAGES.contains(packageName) || packageName.contains("netflix")
         val isSonyLiv = DetectionDictionary.SONYLIV_PACKAGES.contains(packageName) || packageName.contains("sonyliv")
         val isZee5 = DetectionDictionary.ZEE5_PACKAGES.contains(packageName) || packageName.contains("graymatrix") || packageName.contains("zee5")
@@ -252,6 +252,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     !activePackage.contains("mxtech") &&
                     !activePackage.contains("mxplayer") &&
                     !activePackage.contains("amazon.avod") &&
+                    !activePackage.contains("primevideo") &&
+                    !activePackage.contains("amazonvideo") &&
                     !activePackage.contains("netflix") &&
                     !activePackage.contains("sonyliv") &&
                     !activePackage.contains("graymatrix") &&
@@ -1008,7 +1010,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                             DetectionDictionary.SPOTIFY_PACKAGES.contains(pkg) || pkg.contains("spotify") -> "spotify"
                             DetectionDictionary.HOTSTAR_PACKAGES.contains(pkg) || pkg.contains("hotstar") || pkg.contains("jiohotstar") -> "hotstar"
                             DetectionDictionary.MX_PLAYER_PACKAGES.contains(pkg) || pkg.contains("videoplayer") || pkg.contains("mxtech") || pkg.contains("mxplayer") -> "mxplayer"
-                            DetectionDictionary.PRIME_VIDEO_PACKAGES.contains(pkg) || pkg.contains("amazon.avod") -> "primevideo"
+                            DetectionDictionary.PRIME_VIDEO_PACKAGES.contains(pkg) || pkg.contains("amazon.avod") || pkg.contains("primevideo") || pkg.contains("amazonvideo") -> "primevideo"
                             DetectionDictionary.NETFLIX_PACKAGES.contains(pkg) || pkg.contains("netflix") -> "netflix"
                             DetectionDictionary.SONYLIV_PACKAGES.contains(pkg) || pkg.contains("sonyliv") -> "sonyliv"
                             DetectionDictionary.ZEE5_PACKAGES.contains(pkg) || pkg.contains("graymatrix") || pkg.contains("zee5") -> "zee5"
@@ -1510,6 +1512,122 @@ class SkipFlowAccessibilityService : AccessibilityService() {
      * Protects normal movie playback from false positives by verifying absence of seekbars / playback controls.
      */
     private fun isHotstarAdActive(root: AccessibilityNodeInfo): Boolean {
+        val windowBounds = Rect()
+        root.getBoundsInScreen(windowBounds)
+        val screenHeight = if (windowBounds.height() > 0) windowBounds.height() else resources.displayMetrics.heightPixels
+        val screenWidth = if (windowBounds.width() > 0) windowBounds.width() else resources.displayMetrics.widthPixels
+        val isPortrait = screenHeight >= screenWidth
+        val maxVideoBottomY = if (isPortrait) (screenHeight * 0.58f).toInt() else screenHeight
+
+        val pkg = root.packageName?.toString() ?: "in.startv.hotstar"
+
+        // Strategy 0: Direct Pre-Render Hotstar Ad Container Detection (0ms reaction at second 0.0)
+        // Works dynamically across all Hotstar packages: in.startv.hotstar, com.jiohotstar.android, com.disney.hotstar
+        val hotstarDirectIds = listOf(
+            "$pkg:id/ad_timer",
+            "$pkg:id/tv_ad_timer",
+            "$pkg:id/ad_countdown",
+            "$pkg:id/ad_container",
+            "$pkg:id/ad_view",
+            "$pkg:id/player_ad_layout",
+            "$pkg:id/tv_timer",
+            "$pkg:id/ad_badge",
+            "$pkg:id/ad_metadata",
+            "$pkg:id/ad_progress",
+            "$pkg:id/ad_slot",
+            "$pkg:id/ad_frame",
+            "$pkg:id/btn_skip",
+            "$pkg:id/skip_ad",
+            "in.startv.hotstar:id/ad_timer",
+            "in.startv.hotstar:id/tv_ad_timer",
+            "in.startv.hotstar:id/ad_countdown",
+            "in.startv.hotstar:id/ad_container",
+            "com.jiohotstar.android:id/ad_timer",
+            "com.jiohotstar.android:id/tv_ad_timer",
+            "com.jiohotstar.android:id/ad_countdown",
+            "com.jiohotstar.android:id/ad_container",
+            "com.disney.hotstar:id/ad_timer",
+            "com.disney.hotstar:id/ad_container"
+        )
+        for (cId in hotstarDirectIds) {
+            val cNodes = root.findAccessibilityNodeInfosByViewId(cId)
+            if (!cNodes.isNullOrEmpty()) {
+                var containerActive = false
+                for (cNode in cNodes) {
+                    if (cNode.isVisibleToUser) {
+                        val rect = Rect()
+                        cNode.getBoundsInScreen(rect)
+                        if (rect.width() >= 8 && rect.height() >= 8 && rect.top >= 0 && rect.bottom <= maxVideoBottomY) {
+                            containerActive = true
+                        }
+                    }
+                    cNode.recycle()
+                }
+                if (containerActive) return true
+            }
+        }
+
+        // Strategy 0.5: Direct Fast Text Indexing (<0.3ms) for Ad Badges and Counters
+        val adTextNodes = root.findAccessibilityNodeInfosByText("ad")
+        if (!adTextNodes.isNullOrEmpty()) {
+            for (node in adTextNodes) {
+                if (node.isVisibleToUser) {
+                    val rect = Rect()
+                    node.getBoundsInScreen(rect)
+                    if (rect.top >= 0 && rect.bottom <= maxVideoBottomY) {
+                        val text = node.text?.toString()?.trim() ?: ""
+                        val desc = node.contentDescription?.toString()?.trim() ?: ""
+                        val viewId = node.viewIdResourceName?.lowercase() ?: ""
+                        val combined = "$text $desc $viewId".trim()
+
+                        if (DetectionDictionary.HOTSTAR_NO_AD_WORD_COUNTER_REGEX.containsMatchIn(text) ||
+                            DetectionDictionary.HOTSTAR_COMPOUND_AD_REGEX.containsMatchIn(text) ||
+                            DetectionDictionary.HOTSTAR_SINGLE_AD_REGEX.containsMatchIn(text) ||
+                            DetectionDictionary.SINGLE_AD_TIMER_REGEX.containsMatchIn(text) ||
+                            combined.contains("skip ad", ignoreCase = true)
+                        ) {
+                            adTextNodes.forEach { it.recycle() }
+                            return true
+                        }
+
+                        val normalized = text.trimEnd(':', ' ', '.', '-', '•', '·')
+                        if (normalized.equals("Ad", ignoreCase = true) ||
+                            normalized.equals("Advertisement", ignoreCase = true) ||
+                            normalized.equals("Sponsored", ignoreCase = true)
+                        ) {
+                            adTextNodes.forEach { it.recycle() }
+                            return true
+                        }
+                    }
+                }
+                node.recycle()
+            }
+        }
+
+        val ofNodes = root.findAccessibilityNodeInfosByText("of")
+        if (!ofNodes.isNullOrEmpty()) {
+            for (node in ofNodes) {
+                if (node.isVisibleToUser) {
+                    val rect = Rect()
+                    node.getBoundsInScreen(rect)
+                    if (rect.top >= 0 && rect.bottom <= maxVideoBottomY) {
+                        val text = node.text?.toString()?.trim() ?: ""
+                        val desc = node.contentDescription?.toString()?.trim() ?: ""
+                        if (DetectionDictionary.BARE_BREAK_COUNTER_REGEX.containsMatchIn(text) ||
+                            DetectionDictionary.BARE_BREAK_COUNTER_REGEX.containsMatchIn(desc) ||
+                            DetectionDictionary.COUNTER_WITH_TIMER_REGEX.containsMatchIn(text) ||
+                            DetectionDictionary.COUNTER_WITH_TIMER_REGEX.containsMatchIn(desc)
+                        ) {
+                            ofNodes.forEach { it.recycle() }
+                            return true
+                        }
+                    }
+                }
+                node.recycle()
+            }
+        }
+
+        // Strategy 1: Breadth-First-Search (BFS) node inspection
         var hasAdCountdown = false
         var hasAdBadge = false
         var hasAdCta = false
@@ -1517,52 +1635,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         var hasSkipButton = false
         var hasBreakCounter = false
         var foundSeparatorWithCounter = false
-        var foundStandaloneTimer = false
         var hasStandaloneAdTimer = false
-        var hasMovieSeekBar = false
-        var hasMovieControls = false
-
-        val windowBounds = Rect()
-        root.getBoundsInScreen(windowBounds)
-        val screenHeight = if (windowBounds.height() > 0) windowBounds.height() else resources.displayMetrics.heightPixels
-        val screenWidth = if (windowBounds.width() > 0) windowBounds.width() else resources.displayMetrics.widthPixels
-        val isPortrait = screenHeight >= screenWidth
-        // In portrait mode, the video player frame occupies the upper ~55% of the screen.
-        // In landscape mode, the video player frame occupies the entire screen.
-        val maxVideoBottomY = if (isPortrait) (screenHeight * 0.55f).toInt() else screenHeight
-
-        // Pillar 2 & 3: Direct Pre-Render Hotstar Ad Container Detection (0ms reaction at second 0.0)
-        val hotstarAdContainerIds = listOf(
-            "in.startv.hotstar:id/ad_container",
-            "in.startv.hotstar:id/ad_timer",
-            "in.startv.hotstar:id/ad_view",
-            "in.startv.hotstar:id/player_ad_layout",
-            "in.startv.hotstar:id/ad_countdown",
-            "in.startv.hotstar:id/ad_metadata",
-            "in.startv.hotstar:id/ad_progress",
-            "in.startv.hotstar:id/tv_ad_timer",
-            "in.startv.hotstar:id/tv_timer",
-            "in.startv.hotstar:id/ad_slot",
-            "in.startv.hotstar:id/ad_frame",
-            "com.disney.hotstar:id/ad_timer",
-            "com.disney.hotstar:id/ad_container",
-            "com.disney.hotstar:id/ad_countdown"
-        )
-        for (cId in hotstarAdContainerIds) {
-            val cNodes = root.findAccessibilityNodeInfosByViewId(cId)
-            if (!cNodes.isNullOrEmpty()) {
-                var containerActive = false
-                for (cNode in cNodes) {
-                    val rect = Rect()
-                    cNode.getBoundsInScreen(rect)
-                    if (rect.width() >= 8 && rect.height() >= 8 && rect.top >= 0 && rect.bottom <= maxVideoBottomY) {
-                        containerActive = true
-                    }
-                    cNode.recycle()
-                }
-                if (containerActive) return true
-            }
-        }
+        var hasMovieDurationTimestamp = false
 
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         for (i in 0 until root.childCount) {
@@ -1577,13 +1651,10 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             val node = queue.poll() ?: continue
             inspected++
 
-            node.getBoundsInScreen(nodeBounds)
-            val isEligible = node.isVisibleToUser || (nodeBounds.width() > 0 && nodeBounds.height() > 0)
-            if (isEligible) {
+            if (node.isVisibleToUser) {
                 val text = node.text?.toString()?.trim() ?: ""
                 val desc = node.contentDescription?.toString()?.trim() ?: ""
                 val viewId = node.viewIdResourceName?.lowercase() ?: ""
-                val className = node.className?.toString() ?: ""
                 val combined = "$text $desc $viewId".lowercase()
 
                 node.getBoundsInScreen(nodeBounds)
@@ -1594,29 +1665,14 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     viewId.contains("timer") || !isPortrait
                 }
 
-                // Check for normal movie player controls / seekbar:
-                // Normal content has a seekbar or rewind/forward controls.
-                // In-stream video ads in Hotstar DO NOT have normal movie seekbar or rewind/forward controls.
-                val isAdElement = viewId.contains("ad_") || viewId.contains("ad_container") || viewId.contains("ad_view")
-                if (!isAdElement && (
-                    className.contains("SeekBar", ignoreCase = true) ||
-                    viewId.contains("seekbar") || viewId.contains("seek_bar") ||
-                    viewId.contains("exo_progress") || viewId.contains("player_progress") ||
-                    viewId.contains("exo_rew") || viewId.contains("exo_ffwd") ||
-                    viewId.contains("rewind") || viewId.contains("forward")
-                )) {
-                    hasMovieSeekBar = true
-                    hasMovieControls = true
+                // Check for genuine movie episode duration timestamp (e.g. "14:20 / 48:15" or "01:15:30 / 02:40:00")
+                if (Regex("""\b\d{1,2}:\d{2}(?::\d{2})?\s*\/\s*\d{1,2}:\d{2}(?::\d{2})?\b""").containsMatchIn(text) ||
+                    Regex("""\b\d{1,2}:\d{2}(?::\d{2})?\s*\/\s*\d{1,2}:\d{2}(?::\d{2})?\b""").containsMatchIn(desc)
+                ) {
+                    hasMovieDurationTimestamp = true
                 }
 
-                if (text.contains("/") || desc.contains("/")) {
-                    hasMovieControls = true
-                }
-
-                // Check 1: Hotstar / JioHotstar countdown & compound ad counter (WITHOUT "Ad" word):
-                // Matches "1 of 1 . 00:15", "1 of 3 . 00:14", "2 of 3 . 00:14", "3 of 3 . 00:08", "1 of 2 . 00:30", "2 of 2 . 00:15"
-                // Matches separators: " . ", " · ", " • ", " : ", " - ", " | ", " (", " )", " / "
-                // Matches optional "Ad" word if present: "Ad 1 of 1", "Ad • 1 of 2", "Ad · 2 of 3"
+                // Check 1: Hotstar countdown & compound ad counter (WITHOUT "Ad" word):
                 if (DetectionDictionary.HOTSTAR_NO_AD_WORD_COUNTER_REGEX.containsMatchIn(text) ||
                     DetectionDictionary.HOTSTAR_NO_AD_WORD_COUNTER_REGEX.containsMatchIn(desc) ||
                     DetectionDictionary.HOTSTAR_NO_AD_WORD_COUNTER_REGEX.containsMatchIn(combined) ||
@@ -1642,7 +1698,6 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     DetectionDictionary.BARE_BREAK_COUNTER_REGEX.containsMatchIn(desc)
                 ) {
                     hasBreakCounter = true
-                    // If node text also has period, middle dot, bullet, colon, hyphen, pipe, or parenthesis (e.g. "1 of 1 .", "2 of 3 ·")
                     if (text.contains(".") || desc.contains(".") ||
                         text.contains("·") || desc.contains("·") ||
                         text.contains("•") || desc.contains("•") ||
@@ -1657,25 +1712,19 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 }
 
                 // Check 1c: Standalone timer in video frame:
-                // Matches "59" (counting 59 down to 1), "1:29" (counting down toward 1),
-                // "· 59", "• 59", ". 59", "59s", "· 1:29", "• 1:29", ". 1:29", "(59)", "(1:29)"
+                // Matches "19", "18", ... "0", "19s", "0s", "15s", "30s", "19 sec", "· 19", "• 19", ". 19", "(19)", "(0:19)", "0:19"
                 val parsedSecs = DetectionDictionary.parseHotstarCountdownSeconds(text)
                     ?: DetectionDictionary.parseHotstarCountdownSeconds(desc)
 
-                if (parsedSecs != null) {
-                    foundStandaloneTimer = true
-                    if (isInVideoFrame) {
-                        hasStandaloneAdTimer = true
-                        lastHotstarTimerSeconds = parsedSecs
-                        lastHotstarTimerTimestamp = System.currentTimeMillis()
-                    }
-                } else if (DetectionDictionary.STANDALONE_TIMER_REGEX.containsMatchIn(text) ||
+                if (parsedSecs != null && isInVideoFrame) {
+                    hasStandaloneAdTimer = true
+                    lastHotstarTimerSeconds = parsedSecs
+                    lastHotstarTimerTimestamp = System.currentTimeMillis()
+                } else if (isInVideoFrame && (
+                    DetectionDictionary.STANDALONE_TIMER_REGEX.containsMatchIn(text) ||
                     DetectionDictionary.STANDALONE_TIMER_REGEX.containsMatchIn(desc)
-                ) {
-                    foundStandaloneTimer = true
-                    if (isInVideoFrame) {
-                        hasStandaloneAdTimer = true
-                    }
+                )) {
+                    hasStandaloneAdTimer = true
                 }
 
                 // Check 2: Known Hotstar Ad View IDs
@@ -1687,12 +1736,12 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
                 // Check 3: Hotstar Ad Badge (e.g. "Ad", "Ad ", "Advertisement", "Sponsored") if present
                 val cleanText = text.trim()
-                if (cleanText.equals("Ad", ignoreCase = true) || cleanText.equals("Ad ", ignoreCase = true) ||
-                    cleanText.equals("Advertisement", ignoreCase = true) || cleanText.equals("Sponsored", ignoreCase = true)
+                val normalizedAd = cleanText.trimEnd(':', ' ', '.', '-', '•', '·')
+                if (normalizedAd.equals("Ad", ignoreCase = true) ||
+                    cleanText.equals("Advertisement", ignoreCase = true) ||
+                    cleanText.equals("Sponsored", ignoreCase = true)
                 ) {
-                    if (cleanText.length <= 4 || cleanText.equals("Advertisement", ignoreCase = true) || cleanText.equals("Sponsored", ignoreCase = true)) {
-                        hasAdBadge = true
-                    }
+                    hasAdBadge = true
                 }
 
                 // Check 4: Hotstar Ad CTA buttons (e.g. "Buy Now", "Try Now", "Shop Now", "Install Now")
@@ -1709,13 +1758,14 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     hasSkipButton = true
                 }
 
-                // Early exit if definitive ad indicator found:
-                // 1) Countdown/timer counter ("1 of 1 . 00:15", "2 of 3 . 00:14", etc.) - NO "Ad" word needed
-                // 2) Break counter with separator ("1 of 1 .", "1 of 3 ·", etc.) - NO "Ad" word needed
-                // 3) Break counter + standalone timer in player layout - NO "Ad" word needed
+                // Immediate 0ms Early Exit if definitive ad indicator found:
+                // 1) Countdown/timer counter ("1 of 1 . 00:15", "2 of 3 . 00:14", etc.)
+                // 2) Break counter with separator ("1 of 1 .", "1 of 3 ·", etc.)
+                // 3) Standalone countdown timer (19 down to 0) in video frame without movie duration!
                 // 4) Hotstar ad view ID or skip button
-                // 5) Ad badge + break counter / CTA
-                if (hasAdCountdown || foundSeparatorWithCounter || (hasBreakCounter && foundStandaloneTimer) ||
+                // 5) Ad badge or Ad CTA button
+                if (hasAdCountdown || foundSeparatorWithCounter ||
+                    (hasStandaloneAdTimer && !hasMovieDurationTimestamp) ||
                     hasAdViewId || hasSkipButton || (hasAdBadge && hasBreakCounter) || (hasAdBadge && hasAdCta) ||
                     (hasAdBadge && (viewId.contains("ad") || viewId.contains("badge")))
                 ) {
@@ -1737,11 +1787,11 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             queue.poll()?.recycle()
         }
 
-        return hasAdCountdown || foundSeparatorWithCounter || (hasBreakCounter && foundStandaloneTimer) ||
+        return hasAdCountdown || foundSeparatorWithCounter ||
+               (hasStandaloneAdTimer && !hasMovieDurationTimestamp) ||
                hasAdViewId || hasSkipButton || hasBreakCounter ||
                (hasAdBadge && hasBreakCounter) || (hasAdBadge && hasAdCta) ||
-               (hasAdBadge && hasAdCountdown) || (hasAdBadge && (hasAdViewId || hasAdCta)) ||
-               (hasStandaloneAdTimer && !hasMovieSeekBar && !hasMovieControls)
+               (hasAdBadge && hasAdCountdown) || (hasAdBadge && (hasAdViewId || hasAdCta))
     }
 
     private fun startHotstarMutePoller() {
@@ -2193,6 +2243,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         audioController.unmuteAdAudio()
                         updatePersistentNotification(isMuted = false)
                         startForegroundRadar()
+                        serviceScope.launch { statsRepo.recordAdEvent("primevideo", isAudioOnly = false) }
                     } else {
                         audioController.recordUserVolume()
                     }
@@ -2210,16 +2261,101 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     }
 
     private fun isPrimeVideoAdActive(root: AccessibilityNodeInfo): Boolean {
-        // Pillar 2 & 3: Direct Pre-Render Prime Video Ad Container Detection
+        // Strategy 0: Direct Fast Text Indexing (<0.3ms) for Prime Video "ad", "skip", "remaining"
+        val adTextNodes = root.findAccessibilityNodeInfosByText("ad")
+        if (!adTextNodes.isNullOrEmpty()) {
+            for (node in adTextNodes) {
+                if (node.isVisibleToUser) {
+                    val text = node.text?.toString()?.trim() ?: ""
+                    val desc = node.contentDescription?.toString()?.trim() ?: ""
+                    val viewId = node.viewIdResourceName?.lowercase() ?: ""
+                    val combined = "$text $desc $viewId".trim()
+
+                    if (DetectionDictionary.PRIME_VIDEO_AD_TIMER_REGEX.containsMatchIn(text) ||
+                        DetectionDictionary.PRIME_VIDEO_AD_TIMER_REGEX.containsMatchIn(desc) ||
+                        DetectionDictionary.PRIME_VIDEO_AD_TIMER_REGEX.containsMatchIn(combined) ||
+                        DetectionDictionary.COMPOUND_AD_COUNTER_REGEX.containsMatchIn(text) ||
+                        DetectionDictionary.COMPOUND_AD_COUNTER_REGEX.containsMatchIn(combined)
+                    ) {
+                        adTextNodes.forEach { it.recycle() }
+                        return true
+                    }
+
+                    val cleanText = text.trim()
+                    val normalizedAd = cleanText.trimEnd(':', ' ', '.', '-', '•', '·')
+                    if (normalizedAd.equals("Ad", ignoreCase = true) ||
+                        cleanText.equals("Advertisement", ignoreCase = true) ||
+                        cleanText.equals("Sponsored", ignoreCase = true) ||
+                        cleanText.equals("Ad break", ignoreCase = true)
+                    ) {
+                        adTextNodes.forEach { it.recycle() }
+                        return true
+                    }
+
+                    if (combined.contains("skip ad", ignoreCase = true)) {
+                        adTextNodes.forEach { it.recycle() }
+                        return true
+                    }
+                }
+                node.recycle()
+            }
+        }
+
+        // Strategy 0.5: Direct Fast Text Indexing for "skip"
+        val skipNodes = root.findAccessibilityNodeInfosByText("skip")
+        if (!skipNodes.isNullOrEmpty()) {
+            for (node in skipNodes) {
+                if (node.isVisibleToUser) {
+                    val text = node.text?.toString()?.trim() ?: ""
+                    val desc = node.contentDescription?.toString()?.trim() ?: ""
+                    val viewId = node.viewIdResourceName?.lowercase() ?: ""
+                    val combined = "$text $desc $viewId".lowercase()
+
+                    if (combined.contains("skip ad") ||
+                        combined.contains("skip in ") ||
+                        DetectionDictionary.PRIME_VIDEO_AD_TIMER_REGEX.containsMatchIn(combined) ||
+                        (viewId.contains("skip") && !combined.contains("intro") && !combined.contains("recap") && !combined.contains("next"))
+                    ) {
+                        skipNodes.forEach { it.recycle() }
+                        return true
+                    }
+                }
+                node.recycle()
+            }
+        }
+
+        // Strategy 0.7: Direct Fast Text Indexing for "remaining"
+        val remainingNodes = root.findAccessibilityNodeInfosByText("remaining")
+        if (!remainingNodes.isNullOrEmpty()) {
+            for (node in remainingNodes) {
+                if (node.isVisibleToUser) {
+                    val text = node.text?.toString()?.trim() ?: ""
+                    val desc = node.contentDescription?.toString()?.trim() ?: ""
+                    if (DetectionDictionary.PRIME_VIDEO_AD_TIMER_REGEX.containsMatchIn(text) ||
+                        DetectionDictionary.PRIME_VIDEO_AD_TIMER_REGEX.containsMatchIn(desc)
+                    ) {
+                        remainingNodes.forEach { it.recycle() }
+                        return true
+                    }
+                }
+                node.recycle()
+            }
+        }
+
+        // Strategy 1: Direct Pre-Render Prime Video Ad Container Detection with dynamic package resolution
+        val pkg = root.packageName?.toString() ?: "com.amazon.avod.thirdpartyclient"
         for (cId in DetectionDictionary.PRIME_VIDEO_AD_VIEW_IDS) {
-            val cNodes = root.findAccessibilityNodeInfosByViewId(cId)
+            val fullId = if (cId.contains(":id/")) cId else "$pkg:id/$cId"
+            val cNodes = root.findAccessibilityNodeInfosByViewId(fullId)
             if (!cNodes.isNullOrEmpty()) {
                 var containerActive = false
                 for (cNode in cNodes) {
-                    val rect = Rect()
-                    cNode.getBoundsInScreen(rect)
-                    if (rect.width() >= 8 && rect.height() >= 8 && rect.left >= 0 && rect.top >= 0) {
-                        containerActive = true
+                    if (cNode.isVisibleToUser) {
+                        val rect = Rect()
+                        cNode.getBoundsInScreen(rect)
+                        if (rect.width() >= 8 && rect.height() >= 8 && rect.left >= 0 && rect.top >= 0) {
+                            containerActive = true
+                        }
                     }
                     cNode.recycle()
                 }
@@ -2227,6 +2363,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             }
         }
 
+        // Strategy 2: Breadth-First-Search (BFS) Fallback for obfuscated/custom overlays
         var hasAdCountdown = false
         var hasAdBadge = false
         var hasAdViewId = false
@@ -2250,14 +2387,15 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 val viewId = node.viewIdResourceName?.lowercase() ?: ""
                 val combined = "$text $desc $viewId".lowercase()
 
-                if (DetectionDictionary.PRIME_VIDEO_COUNTDOWN_REGEX.containsMatchIn(text) ||
-                    DetectionDictionary.PRIME_VIDEO_COUNTDOWN_REGEX.containsMatchIn(desc) ||
+                if (DetectionDictionary.PRIME_VIDEO_AD_TIMER_REGEX.containsMatchIn(text) ||
+                    DetectionDictionary.PRIME_VIDEO_AD_TIMER_REGEX.containsMatchIn(desc) ||
+                    DetectionDictionary.PRIME_VIDEO_AD_TIMER_REGEX.containsMatchIn(combined) ||
                     DetectionDictionary.PRIME_VIDEO_TIMER_REGEX.containsMatchIn(text) ||
                     DetectionDictionary.PRIME_VIDEO_TIMER_REGEX.containsMatchIn(desc) ||
-                    DetectionDictionary.PRIME_VIDEO_COUNTER_REGEX.containsMatchIn(text) ||
-                    DetectionDictionary.COMPOUND_AD_COUNTER_REGEX.containsMatchIn(combined) ||
-                    DetectionDictionary.COUNTER_WITH_TIMER_REGEX.containsMatchIn(combined) ||
+                    DetectionDictionary.SINGLE_AD_TIMER_REGEX.containsMatchIn(text) ||
                     DetectionDictionary.SINGLE_AD_TIMER_REGEX.containsMatchIn(combined) ||
+                    DetectionDictionary.COMPOUND_AD_COUNTER_REGEX.containsMatchIn(text) ||
+                    DetectionDictionary.COMPOUND_AD_COUNTER_REGEX.containsMatchIn(combined) ||
                     combined.contains("ad will end in") || combined.contains("ad ends in") ||
                     combined.contains("skip in ")
                 ) {
@@ -2265,8 +2403,11 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 }
 
                 val cleanText = text.trim()
-                if (cleanText.equals("Ad", ignoreCase = true) || cleanText.equals("Advertisement", ignoreCase = true) ||
-                    cleanText.equals("Sponsored", ignoreCase = true)
+                val normalizedAd = cleanText.trimEnd(':', ' ', '.', '-', '•', '·')
+                if (normalizedAd.equals("Ad", ignoreCase = true) ||
+                    cleanText.equals("Advertisement", ignoreCase = true) ||
+                    cleanText.equals("Sponsored", ignoreCase = true) ||
+                    cleanText.equals("Ad break", ignoreCase = true)
                 ) {
                     hasAdBadge = true
                 }
@@ -2277,7 +2418,8 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     }
                 }
 
-                if (combined.contains("skip ad") || (combined.contains("skip") && !combined.contains("intro") && !combined.contains("next")) ||
+                if (combined.contains("skip ad") ||
+                    (combined.contains("skip") && !combined.contains("intro") && !combined.contains("recap") && !combined.contains("next")) ||
                     viewId.contains("btn_skip") || viewId.contains("skip_btn") || viewId.contains("skip_ad")
                 ) {
                     hasSkipButton = true
@@ -2297,7 +2439,77 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         }
 
         while (queue.isNotEmpty()) queue.poll()?.recycle()
-        return hasAdCountdown || hasAdBadge || hasAdViewId || hasSkipButton
+        return false
+    }
+
+    /**
+     * Confirms whether normal video content (movie/show) is actively playing in Prime Video
+     * to trigger an instantaneous 0ms audio restoration.
+     */
+    private fun isPrimeVideoNormalContent(root: AccessibilityNodeInfo): Boolean {
+        if (isPrimeVideoAdActive(root)) return false
+
+        val pkg = root.packageName?.toString() ?: "com.amazon.avod.thirdpartyclient"
+
+        // 1. Check for visible Prime Video standard playback controls / X-Ray features
+        for (vId in DetectionDictionary.PRIME_VIDEO_NORMAL_CONTENT_VIEW_IDS) {
+            val fullId = if (vId.contains(":id/")) vId else "$pkg:id/$vId"
+            val nodes = root.findAccessibilityNodeInfosByViewId(fullId)
+            if (!nodes.isNullOrEmpty()) {
+                var isFound = false
+                for (node in nodes) {
+                    if (node.isVisibleToUser) {
+                        val rect = Rect()
+                        node.getBoundsInScreen(rect)
+                        if (rect.width() > 0 && rect.height() > 0) {
+                            isFound = true
+                        }
+                    }
+                    node.recycle()
+                }
+                if (isFound) return true
+            }
+        }
+
+        // 2. Direct fast check for X-Ray text ("x-ray", "xray") which only exists on normal movie/show content
+        val xrayNodes = root.findAccessibilityNodeInfosByText("x-ray")
+        if (!xrayNodes.isNullOrEmpty()) {
+            for (node in xrayNodes) {
+                if (node.isVisibleToUser) {
+                    xrayNodes.forEach { it.recycle() }
+                    return true
+                }
+                node.recycle()
+            }
+        }
+
+        // 3. Check for normal episode/movie playback timestamps (e.g. "14:20 / 48:15", "1:15:30 / 2:10:00", "-34:20")
+        val timeRegex = Regex("""\b(?:\d{1,2}:)?\d{1,2}:\d{2}\s*(?:\/|•|·|-)\s*(?:\d{1,2}:)?\d{1,2}:\d{2}\b|^-\d{1,2}:\d{2}$""")
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        for (i in 0 until root.childCount) {
+            root.getChild(i)?.let { queue.add(it) }
+        }
+        var inspected = 0
+        while (queue.isNotEmpty() && inspected < 60) {
+            val node = queue.poll() ?: continue
+            inspected++
+            if (node.isVisibleToUser) {
+                val text = node.text?.toString()?.trim() ?: ""
+                val desc = node.contentDescription?.toString()?.trim() ?: ""
+                if (timeRegex.containsMatchIn(text) || timeRegex.containsMatchIn(desc)) {
+                    while (queue.isNotEmpty()) queue.poll()?.recycle()
+                    node.recycle()
+                    return true
+                }
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { queue.add(it) }
+            }
+            node.recycle()
+        }
+        while (queue.isNotEmpty()) queue.poll()?.recycle()
+
+        return false
     }
 
     private fun startPrimeVideoMutePoller() {
@@ -2324,7 +2536,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 if (root != null) {
                     try {
                         val pkg = root.packageName?.toString() ?: ""
-                        if (!DetectionDictionary.PRIME_VIDEO_PACKAGES.contains(pkg) && !pkg.contains("amazon.avod")) {
+                        if (!DetectionDictionary.PRIME_VIDEO_PACKAGES.contains(pkg) && !pkg.contains("amazon.avod") && !pkg.contains("primevideo") && !pkg.contains("amazonvideo")) {
                             Log.i(TAG, "Foreground package changed from Prime Video. Restoring audio.")
                             stopPrimeVideoMutePoller()
                             isPrimeVideoAdPlaying = false
@@ -2351,9 +2563,13 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                             isPrimeVideoAdPlaying = true
                             audioController.renewWatchdogIfConfirmedAd(180_000L)
                         } else {
+                            val isNormalContent = isPrimeVideoNormalContent(root)
                             primeVideoConsecutiveNonAdChecks++
-                            if (primeVideoConsecutiveNonAdChecks >= 2) {
-                                Log.i(TAG, "Prime Video ad ended confirmed by poller! Restoring audio at 0ms.")
+                            // If normal content controls, X-Ray, or timestamps are verified, 1 tick (0ms) is enough!
+                            // Otherwise 2 ticks (50ms) to ensure transition stability between multi-ad pods.
+                            val threshold = if (isNormalContent) 1 else 2
+                            if (primeVideoConsecutiveNonAdChecks >= threshold) {
+                                Log.i(TAG, "Prime Video ad ended confirmed by poller! Restoring audio at 0ms (verifiedNormal=$isNormalContent).")
                                 primeVideoConsecutiveNonAdChecks = 0
                                 isPrimeVideoAdPlaying = false
                                 stopPrimeVideoMutePoller()
@@ -2646,6 +2862,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         audioController.unmuteAdAudio()
                         updatePersistentNotification(isMuted = false)
                         startForegroundRadar()
+                        serviceScope.launch { statsRepo.recordAdEvent("sonyliv", isAudioOnly = false) }
                     } else {
                         audioController.recordUserVolume()
                     }
@@ -2663,16 +2880,77 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     }
 
     private fun isSonyLivAdActive(root: AccessibilityNodeInfo): Boolean {
-        // Pillar 2 & 3: Direct Pre-Render SonyLIV Ad Container Detection
+        // Strategy 0: Direct Fast Text Indexing (<0.3ms) for SonyLIV "ad:(0:xx)", "ad", "skip"
+        val adTextNodes = root.findAccessibilityNodeInfosByText("ad")
+        if (!adTextNodes.isNullOrEmpty()) {
+            for (node in adTextNodes) {
+                if (node.isVisibleToUser) {
+                    val text = node.text?.toString()?.trim() ?: ""
+                    val desc = node.contentDescription?.toString()?.trim() ?: ""
+                    val viewId = node.viewIdResourceName?.lowercase() ?: ""
+                    val combined = "$text $desc $viewId".trim()
+
+                    if (DetectionDictionary.SONYLIV_AD_TIMER_REGEX.containsMatchIn(text) ||
+                        DetectionDictionary.SONYLIV_AD_TIMER_REGEX.containsMatchIn(desc) ||
+                        DetectionDictionary.SONYLIV_AD_TIMER_REGEX.containsMatchIn(combined)
+                    ) {
+                        adTextNodes.forEach { it.recycle() }
+                        return true
+                    }
+
+                    val normalized = text.trimEnd(':', ' ', '.', '-', '•', '·')
+                    if (normalized.equals("Ad", ignoreCase = true) ||
+                        normalized.equals("Advertisement", ignoreCase = true) ||
+                        normalized.equals("Sponsored", ignoreCase = true)
+                    ) {
+                        adTextNodes.forEach { it.recycle() }
+                        return true
+                    }
+
+                    if (combined.contains("skip ad", ignoreCase = true)) {
+                        adTextNodes.forEach { it.recycle() }
+                        return true
+                    }
+                }
+                node.recycle()
+            }
+        }
+
+        // Strategy 0.6: Direct Fast Text Indexing for "skip"
+        val skipNodes = root.findAccessibilityNodeInfosByText("skip")
+        if (!skipNodes.isNullOrEmpty()) {
+            for (node in skipNodes) {
+                if (node.isVisibleToUser) {
+                    val text = node.text?.toString()?.trim() ?: ""
+                    val desc = node.contentDescription?.toString()?.trim() ?: ""
+                    val viewId = node.viewIdResourceName?.lowercase() ?: ""
+                    val combined = "$text $desc $viewId".lowercase()
+
+                    if (combined.contains("skip ad") ||
+                        combined.contains("skip in ") ||
+                        DetectionDictionary.SONYLIV_AD_TIMER_REGEX.containsMatchIn(combined) ||
+                        viewId.contains("skip")
+                    ) {
+                        skipNodes.forEach { it.recycle() }
+                        return true
+                    }
+                }
+                node.recycle()
+            }
+        }
+
+        // Strategy 1: Direct Pre-Render SonyLIV Ad Container Detection
         for (cId in DetectionDictionary.SONYLIV_AD_VIEW_IDS) {
             val cNodes = root.findAccessibilityNodeInfosByViewId(cId)
             if (!cNodes.isNullOrEmpty()) {
                 var containerActive = false
                 for (cNode in cNodes) {
-                    val rect = Rect()
-                    cNode.getBoundsInScreen(rect)
-                    if (rect.width() >= 8 && rect.height() >= 8 && rect.left >= 0 && rect.top >= 0) {
-                        containerActive = true
+                    if (cNode.isVisibleToUser) {
+                        val rect = Rect()
+                        cNode.getBoundsInScreen(rect)
+                        if (rect.width() >= 8 && rect.height() >= 8 && rect.left >= 0 && rect.top >= 0) {
+                            containerActive = true
+                        }
                     }
                     cNode.recycle()
                 }
@@ -2680,6 +2958,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             }
         }
 
+        // Strategy 2: Breadth-First-Search (BFS) Fallback for obfuscated/custom overlays
         var hasAdCountdown = false
         var hasAdBadge = false
         var hasAdViewId = false
@@ -2703,13 +2982,10 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 val viewId = node.viewIdResourceName?.lowercase() ?: ""
                 val combined = "$text $desc $viewId".lowercase()
 
-                if (DetectionDictionary.SONYLIV_COUNTDOWN_REGEX.containsMatchIn(text) ||
-                    DetectionDictionary.SONYLIV_COUNTDOWN_REGEX.containsMatchIn(desc) ||
-                    DetectionDictionary.SONYLIV_TIMER_REGEX.containsMatchIn(text) ||
-                    DetectionDictionary.SONYLIV_TIMER_REGEX.containsMatchIn(desc) ||
-                    DetectionDictionary.SONYLIV_COUNTER_REGEX.containsMatchIn(text) ||
-                    DetectionDictionary.COMPOUND_AD_COUNTER_REGEX.containsMatchIn(combined) ||
-                    DetectionDictionary.COUNTER_WITH_TIMER_REGEX.containsMatchIn(combined) ||
+                if (DetectionDictionary.SONYLIV_AD_TIMER_REGEX.containsMatchIn(text) ||
+                    DetectionDictionary.SONYLIV_AD_TIMER_REGEX.containsMatchIn(desc) ||
+                    DetectionDictionary.SONYLIV_AD_TIMER_REGEX.containsMatchIn(combined) ||
+                    DetectionDictionary.SINGLE_AD_TIMER_REGEX.containsMatchIn(text) ||
                     DetectionDictionary.SINGLE_AD_TIMER_REGEX.containsMatchIn(combined) ||
                     combined.contains("ad will end in") || combined.contains("ad ends in") ||
                     combined.contains("skip in ")
@@ -2718,7 +2994,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 }
 
                 val cleanText = text.trim()
-                if (cleanText.equals("Ad", ignoreCase = true) || cleanText.equals("Advertisement", ignoreCase = true) ||
+                val normalizedAd = cleanText.trimEnd(':', ' ', '.', '-', '•', '·')
+                if (normalizedAd.equals("Ad", ignoreCase = true) ||
+                    cleanText.equals("Advertisement", ignoreCase = true) ||
                     cleanText.equals("Sponsored", ignoreCase = true)
                 ) {
                     hasAdBadge = true
@@ -2750,7 +3028,62 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         }
 
         while (queue.isNotEmpty()) queue.poll()?.recycle()
-        return hasAdCountdown || hasAdBadge || hasAdViewId || hasSkipButton
+        return false
+    }
+
+    /**
+     * Confirms whether normal video content (show/movie) is actively playing in SonyLIV
+     * to trigger an instantaneous 0ms audio restoration.
+     */
+    private fun isSonyLivNormalContent(root: AccessibilityNodeInfo): Boolean {
+        if (isSonyLivAdActive(root)) return false
+
+        // Check for visible SonyLIV standard video playback controls
+        for (vId in DetectionDictionary.SONYLIV_NORMAL_CONTENT_VIEW_IDS) {
+            val nodes = root.findAccessibilityNodeInfosByViewId(vId)
+            if (!nodes.isNullOrEmpty()) {
+                var isFound = false
+                for (node in nodes) {
+                    if (node.isVisibleToUser) {
+                        val rect = Rect()
+                        node.getBoundsInScreen(rect)
+                        if (rect.width() > 0 && rect.height() > 0) {
+                            isFound = true
+                        }
+                    }
+                    node.recycle()
+                }
+                if (isFound) return true
+            }
+        }
+
+        // Check for normal episode position/duration timestamp (e.g. "14:20 / 48:15") without any ad marker
+        val timeRegex = Regex("""\b\d{1,2}:\d{2}\s*(?:\/|•|·|-)\s*\d{1,2}:\d{2}\b""")
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        for (i in 0 until root.childCount) {
+            root.getChild(i)?.let { queue.add(it) }
+        }
+        var inspected = 0
+        while (queue.isNotEmpty() && inspected < 60) {
+            val node = queue.poll() ?: continue
+            inspected++
+            if (node.isVisibleToUser) {
+                val text = node.text?.toString()?.trim() ?: ""
+                val desc = node.contentDescription?.toString()?.trim() ?: ""
+                if (timeRegex.containsMatchIn(text) || timeRegex.containsMatchIn(desc)) {
+                    while (queue.isNotEmpty()) queue.poll()?.recycle()
+                    node.recycle()
+                    return true
+                }
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { queue.add(it) }
+            }
+            node.recycle()
+        }
+        while (queue.isNotEmpty()) queue.poll()?.recycle()
+
+        return false
     }
 
     private fun startSonyLivMutePoller() {
@@ -2804,9 +3137,13 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                             isSonyLivAdPlaying = true
                             audioController.renewWatchdogIfConfirmedAd(180_000L)
                         } else {
+                            val isNormalContent = isSonyLivNormalContent(root)
                             sonyLivConsecutiveNonAdChecks++
-                            if (sonyLivConsecutiveNonAdChecks >= 2) {
-                                Log.i(TAG, "SonyLIV ad ended confirmed by poller! Restoring audio at 0ms.")
+                            // If normal content controls or timestamps are verified, 1 tick (0ms) is enough!
+                            // Otherwise 2 ticks (50ms) to ensure transition stability without audio flicker.
+                            val threshold = if (isNormalContent) 1 else 2
+                            if (sonyLivConsecutiveNonAdChecks >= threshold) {
+                                Log.i(TAG, "SonyLIV ad ended confirmed by poller! Restoring audio at 0ms (verifiedNormal=$isNormalContent).")
                                 sonyLivConsecutiveNonAdChecks = 0
                                 isSonyLivAdPlaying = false
                                 stopSonyLivMutePoller()
