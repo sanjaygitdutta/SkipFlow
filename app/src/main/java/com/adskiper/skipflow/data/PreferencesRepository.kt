@@ -39,6 +39,8 @@ class PreferencesRepository(private val context: Context) {
         val KEY_SOUND_FEEDBACK = booleanPreferencesKey("pref_sound_feedback")
         val KEY_SPOTIFY_MUTE = booleanPreferencesKey("pref_spotify_mute")
         val KEY_OTT_SKIP = booleanPreferencesKey("pref_ott_skip")
+        val KEY_SKIP_INTRO = booleanPreferencesKey("pref_skip_intro")
+        val KEY_AUTO_RESUME = booleanPreferencesKey("pref_auto_resume")
         val KEY_ONBOARDING_COMPLETED = booleanPreferencesKey("pref_onboarding_completed")
 
         // Per-Platform Protection Lock Keys
@@ -76,6 +78,10 @@ class PreferencesRepository(private val context: Context) {
     @Volatile
     private var cachedIsReviewerBypass: Boolean = false
     @Volatile
+    private var cachedIsSkipIntro: Boolean = true
+    @Volatile
+    private var cachedIsAutoResume: Boolean = true
+    @Volatile
     private var cachedEnabledPlatforms: Set<String> = DEFAULT_ENABLED_PLATFORMS
 
     init {
@@ -96,6 +102,8 @@ class PreferencesRepository(private val context: Context) {
                 }
                 cachedIsPremiumActive = (cachedSubscriptionTier != SubscriptionTier.NONE)
                 cachedIsReviewerBypass = prefs[KEY_REVIEWER_BYPASS] ?: false
+                cachedIsSkipIntro = prefs[KEY_SKIP_INTRO] ?: true
+                cachedIsAutoResume = prefs[KEY_AUTO_RESUME] ?: true
                 cachedEnabledPlatforms = prefs[KEY_ENABLED_PLATFORMS] ?: DEFAULT_ENABLED_PLATFORMS
             }
         }
@@ -158,6 +166,14 @@ class PreferencesRepository(private val context: Context) {
         preferences[KEY_OTT_SKIP] ?: true
     }
 
+    val isSkipIntroEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[KEY_SKIP_INTRO] ?: true
+    }
+
+    val isAutoResumeEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[KEY_AUTO_RESUME] ?: true
+    }
+
     val isOnboardingCompleted: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[KEY_ONBOARDING_COMPLETED] ?: false
     }
@@ -216,6 +232,10 @@ class PreferencesRepository(private val context: Context) {
     fun isUnlimitedUnlockedSync(): Boolean {
         return cachedSubscriptionTier != SubscriptionTier.NONE || cachedIsReviewerBypass
     }
+
+    fun isSkipIntroEnabledSync(): Boolean = cachedIsSkipIntro
+
+    fun isAutoResumeEnabledSync(): Boolean = cachedIsAutoResume
 
     fun getFreeSkipsUsedSync(): Int = cachedFreeSkipsUsed
 
@@ -301,6 +321,16 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setOttSkip(enabled: Boolean) {
         context.dataStore.edit { it[KEY_OTT_SKIP] = enabled }
+    }
+
+    suspend fun setSkipIntro(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_SKIP_INTRO] = enabled }
+        cachedIsSkipIntro = enabled
+    }
+
+    suspend fun setAutoResume(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_AUTO_RESUME] = enabled }
+        cachedIsAutoResume = enabled
     }
 
     suspend fun setOnboardingCompleted(completed: Boolean) {

@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -71,6 +73,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -324,15 +327,18 @@ fun PlatformProtectionCarousel(
             Spacer(modifier = Modifier.height(20.dp))
 
             // 2. 3D Parabolic Curved Card Carousel
-            Box(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(285.dp),
                 contentAlignment = Alignment.Center
             ) {
+                val targetCardWidth = (maxWidth * 0.72f).coerceIn(230.dp, 320.dp)
+                val horizontalPadding = ((maxWidth - targetCardWidth) / 2).coerceAtLeast(16.dp)
+
                 HorizontalPager(
                     state = pagerState,
-                    contentPadding = PaddingValues(horizontal = 72.dp),
+                    contentPadding = PaddingValues(horizontal = horizontalPadding),
                     pageSpacing = 14.dp,
                     modifier = Modifier.fillMaxSize()
                 ) { page ->
@@ -587,6 +593,7 @@ private fun PlatformCardContent(
                 // Platform Badge Tag
                 Box(
                     modifier = Modifier
+                        .weight(1f, fill = false)
                         .background(item.primaryColor.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
                         .border(0.8.dp, item.secondaryColor.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
                         .padding(horizontal = 8.dp, vertical = 3.dp)
@@ -596,9 +603,14 @@ private fun PlatformCardContent(
                         color = item.secondaryColor,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.5.sp
+                        letterSpacing = 0.5.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
+
+                Spacer(modifier = Modifier.width(6.dp))
 
                 // Lock Status Indicator Pill
                 Box(
@@ -626,7 +638,9 @@ private fun PlatformCardContent(
                             text = if (item.isLocked) "LOCKED" else "READY",
                             color = if (item.isLocked) Color(0xFF10B981) else Color(0xFFFF9500),
                             fontSize = 9.sp,
-                            fontWeight = FontWeight.ExtraBold
+                            fontWeight = FontWeight.ExtraBold,
+                            softWrap = false,
+                            maxLines = 1
                         )
                     }
                 }
@@ -635,7 +649,9 @@ private fun PlatformCardContent(
             // Card Middle: Platform Icon & Name
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(vertical = 4.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -655,19 +671,23 @@ private fun PlatformCardContent(
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
-                Column {
+                Column(modifier = Modifier.weight(1f, fill = false)) {
                     Text(
                         text = item.name,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Black,
                         color = Color.White,
-                        letterSpacing = (-0.5).sp
+                        letterSpacing = (-0.5).sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = item.subtitle,
                         style = MaterialTheme.typography.bodySmall,
                         color = Color(0xFF94A3B8),
-                        fontSize = 11.sp
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -701,7 +721,10 @@ private fun PlatformCardContent(
                             style = MaterialTheme.typography.labelSmall,
                             color = Color(0xFFCBD5E1),
                             fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            softWrap = false
                         )
                     }
                 }
@@ -746,6 +769,7 @@ private fun LockReceptacleSlot(
         // The rounded capsule docking slot
         Box(
             modifier = Modifier
+                .widthIn(max = 280.dp)
                 .fillMaxWidth()
                 .height(48.dp)
                 .clip(RoundedCornerShape(24.dp))

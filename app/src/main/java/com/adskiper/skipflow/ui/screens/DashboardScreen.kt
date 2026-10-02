@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,6 +53,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Image
@@ -101,6 +103,8 @@ fun DashboardScreen(
     isWaveEnabled: Boolean,
     isSpotifyMuteEnabled: Boolean,
     isOttSkipEnabled: Boolean,
+    isSkipIntroEnabled: Boolean = true,
+    isAutoResumeEnabled: Boolean = true,
     spotifyAdsMuted: Long,
     enabledPlatforms: Set<String> = PreferencesRepository.DEFAULT_ENABLED_PLATFORMS,
     isSimulating: Boolean = false,
@@ -116,6 +120,8 @@ fun DashboardScreen(
     onToggleWave: (Boolean) -> Unit,
     onToggleSpotifyMute: (Boolean) -> Unit,
     onToggleOttSkip: (Boolean) -> Unit,
+    onToggleSkipIntro: (Boolean) -> Unit = {},
+    onToggleAutoResume: (Boolean) -> Unit = {},
     onStartSimulation: () -> Unit = {},
     onNavigateToSettings: () -> Unit
 ) {
@@ -272,14 +278,21 @@ fun DashboardScreen(
             },
             containerColor = Color.Transparent
         ) { padding ->
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 18.dp)
-                    .verticalScroll(rememberScrollState())
+                    .padding(padding),
+                contentAlignment = Alignment.TopCenter
             ) {
-                Spacer(modifier = Modifier.height(4.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 560.dp)
+                        .padding(horizontal = 18.dp)
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Spacer(modifier = Modifier.height(4.dp))
 
                 // Subscription & Free Tier Progress Banner
                 SubscriptionTierBanner(
@@ -344,6 +357,32 @@ fun DashboardScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
+                // Auto-Skip Intro & Recap Control
+                FeatureSwitchCard(
+                    title = "Auto-Skip Intro & Recap",
+                    description = "Automatically skip show intro, recap & opening credits in YouTube, Hotstar, Prime Video, Netflix, SonyLIV, Zee 5 & MX Player",
+                    icon = Icons.Default.FastForward,
+                    accentColor = VioletNeon,
+                    isChecked = isSkipIntroEnabled,
+                    onCheckedChange = onToggleSkipIntro,
+                    tag = "Instant Skip"
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // YouTube Auto-Resume "Video paused. Continue watching?" Control
+                FeatureSwitchCard(
+                    title = "Auto-Resume Paused Videos",
+                    description = "Automatically clicks 'Yes' when YouTube interrupts playback with 'Video paused. Continue watching?'",
+                    icon = Icons.Default.PlayArrow,
+                    accentColor = AmberWarning,
+                    isChecked = isAutoResumeEnabled,
+                    onCheckedChange = onToggleAutoResume,
+                    tag = "Non-Stop"
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
                 // Auto-Close Popup Banners Control
                 FeatureSwitchCard(
                     title = "Auto-Close Popup Banners",
@@ -356,6 +395,8 @@ fun DashboardScreen(
                 )
 
                 Spacer(modifier = Modifier.height(32.dp))
+                }
+            }
         }
     }
 }
@@ -427,13 +468,19 @@ private fun SubscriptionTierBanner(
                         )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Text(
                                 text = "SkipFlow Premium",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
-                                color = Color.White
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Box(
@@ -442,13 +489,15 @@ private fun SubscriptionTierBanner(
                                     .background(EmeraldAccent.copy(alpha = 0.25f))
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
-                                Text("ALL-ACCESS", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = EmeraldAccent)
+                                Text("ALL-ACCESS", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = EmeraldAccent, softWrap = false, maxLines = 1)
                             }
                         }
                         Text(
                             text = "YouTube, OTT Streaming & Spotify immunity unlocked",
                             fontSize = 11.sp,
-                            color = Color(0xFF94A3B8)
+                            color = Color(0xFF94A3B8),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -495,13 +544,19 @@ private fun SubscriptionTierBanner(
                         )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Text(
                                 text = "SkipFlow Basic",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
-                                color = Color.White
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Box(
@@ -510,13 +565,15 @@ private fun SubscriptionTierBanner(
                                     .background(CyberCyan.copy(alpha = 0.25f))
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
-                                Text("YOUTUBE", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = CyberCyan)
+                                Text("YOUTUBE", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = CyberCyan, softWrap = false, maxLines = 1)
                             }
                         }
                         Text(
                             text = "YouTube unlocked • Tap to add OTT & Spotify",
                             fontSize = 11.sp,
-                            color = Color(0xFF94A3B8)
+                            color = Color(0xFF94A3B8),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -549,7 +606,7 @@ private fun SubscriptionTierBanner(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
                             .size(34.dp)
@@ -565,13 +622,19 @@ private fun SubscriptionTierBanner(
                         )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Text(
                                 text = "SkipFlow Unlimited",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
-                                color = Color.White
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Box(
@@ -580,13 +643,15 @@ private fun SubscriptionTierBanner(
                                     .background(EmeraldAccent.copy(alpha = 0.25f))
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
-                                Text("ACTIVE", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = EmeraldAccent)
+                                Text("ACTIVE", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = EmeraldAccent, softWrap = false, maxLines = 1)
                             }
                         }
                         Text(
                             text = "Zero-delay 0ms skipping & audio immunity enabled",
                             fontSize = 11.sp,
-                            color = Color(0xFF94A3B8)
+                            color = Color(0xFF94A3B8),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -642,13 +707,19 @@ private fun SubscriptionTierBanner(
                         )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Text(
                                 text = if (isExhausted) "15 Free Skips Used" else "Free Tier: $remaining Skips Left",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
-                                color = Color.White
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Box(
@@ -661,14 +732,18 @@ private fun SubscriptionTierBanner(
                                     text = if (isExhausted) "LOCKED" else "$freeSkipsUsed/15",
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = if (isExhausted) RoseError else CyberCyan
+                                    color = if (isExhausted) RoseError else CyberCyan,
+                                    softWrap = false,
+                                    maxLines = 1
                                 )
                             }
                         }
                         Text(
                             text = if (isExhausted) "Basic (₹29) or Premium (₹49) to unlock!" else "Basic ₹29/mo (YouTube) • Premium ₹49/mo (All)",
                             fontSize = 11.sp,
-                            color = Color(0xFF94A3B8)
+                            color = Color(0xFF94A3B8),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -731,12 +806,18 @@ private fun ScreenOffMusicMuteCard(
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(
                         text = "Screen-Off Spotify Muting",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = Color.White
+                        fontSize = 13.sp,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Box(
@@ -749,7 +830,9 @@ private fun ScreenOffMusicMuteCard(
                             text = if (isGranted) "ARMED" else "ACTION NEEDED",
                             fontSize = 9.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = if (isGranted) SpotifyGreen else SunsetOrange
+                            color = if (isGranted) SpotifyGreen else SunsetOrange,
+                            softWrap = false,
+                            maxLines = 1
                         )
                     }
                 }

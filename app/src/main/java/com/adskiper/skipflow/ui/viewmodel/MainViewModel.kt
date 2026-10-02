@@ -87,6 +87,12 @@ class MainViewModel(
     val isOttSkipEnabled: StateFlow<Boolean> = preferencesRepo.isOttSkipEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    val isSkipIntroEnabled: StateFlow<Boolean> = preferencesRepo.isSkipIntroEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val isAutoResumeEnabled: StateFlow<Boolean> = preferencesRepo.isAutoResumeEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     val enabledPlatforms: StateFlow<Set<String>> = preferencesRepo.enabledPlatforms
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PreferencesRepository.DEFAULT_ENABLED_PLATFORMS)
 
@@ -264,6 +270,14 @@ class MainViewModel(
 
     fun toggleOttSkip(enabled: Boolean) {
         viewModelScope.launch { preferencesRepo.setOttSkip(enabled) }
+    }
+
+    fun toggleSkipIntro(enabled: Boolean) {
+        viewModelScope.launch { preferencesRepo.setSkipIntro(enabled) }
+    }
+
+    fun toggleAutoResume(enabled: Boolean) {
+        viewModelScope.launch { preferencesRepo.setAutoResume(enabled) }
     }
 
     fun togglePlatformLock(platformId: String, shouldLock: Boolean) {

@@ -176,6 +176,9 @@ object DetectionDictionary {
         "in.startv.hotstar:id/ad_companion",
         "in.startv.hotstar:id/ad_metadata",
         "in.startv.hotstar:id/ad_progress",
+        "in.startv.hotstar:id/ad_slot",
+        "in.startv.hotstar:id/ad_frame",
+        "in.startv.hotstar:id/ad_overlay",
         "in.startv.hotstar:id/tv_ad_timer",
         "in.startv.hotstar:id/tv_timer",
         "in.startv.hotstar:id/cta_button",
@@ -190,6 +193,11 @@ object DetectionDictionary {
         "com.jiohotstar.android:id/ad_companion",
         "com.jiohotstar.android:id/ad_metadata",
         "com.jiohotstar.android:id/ad_progress",
+        "com.jiohotstar.android:id/ad_slot",
+        "com.jiohotstar.android:id/ad_frame",
+        "com.jiohotstar.android:id/ad_overlay",
+        "com.jiohotstar.android:id/video_ad_layout",
+        "com.jiohotstar.android:id/ima_ad_container",
         "com.jiohotstar.android:id/tv_ad_timer",
         "com.jiohotstar.android:id/tv_timer",
         "com.jiohotstar.android:id/cta_button",
@@ -198,17 +206,43 @@ object DetectionDictionary {
         "com.disney.hotstar:id/ad_countdown",
         "com.disney.hotstar:id/ad_badge",
         "com.disney.hotstar:id/ad_container",
+        "com.disney.hotstar:id/ad_view",
+        "com.disney.hotstar:id/player_ad_layout",
+        "com.jio.hotstar:id/ad_timer",
+        "com.jio.hotstar:id/ad_countdown",
+        "com.jio.hotstar:id/ad_badge",
+        "com.jio.hotstar:id/ad_container",
+        "com.jio.hotstar:id/ad_view",
+        "com.jio.hotstar:id/player_ad_layout",
+        "ad_container",
+        "player_ad_layout",
+        "ad_view",
+        "ad_badge",
+        "ad_slot",
+        "ad_frame",
+        "ad_overlay",
+        "video_ad_layout",
+        "linear_ad_view",
+        "ima_ad_container",
+        "ad_ui_container",
         "ad_companion_container",
         "ad_companion",
+        "ad_metadata",
+        "ad_progress",
         "ad_timer",
         "tv_ad_timer",
-        "ad_countdown"
+        "ad_countdown",
+        "cta_button",
+        "ad_cta",
+        "sponsor_badge",
+        "sponsor_tag"
     )
 
     // Hotstar companion sponsor card CTA button keywords that appear directly below video during in-stream ads
     val HOTSTAR_AD_CTA_KEYWORDS = setOf(
         "buy now", "try now", "shop now", "install now", "order now",
-        "learn more", "download now", "get offer", "book now", "sign up", "explore now"
+        "learn more", "download now", "download", "get offer", "book now", "sign up", "explore now",
+        "explore", "get app", "visit site", "view more", "open app", "register now"
     )
 
     // MX Player in-stream video ad pattern:
@@ -261,6 +295,18 @@ object DetectionDictionary {
         "ad_time_remaining",
         "ima_skip_button",
         "ima_ad_container"
+    )
+
+    // MX Player normal video playback controls (indicates active non-ad streaming)
+    val MX_PLAYER_NORMAL_CONTENT_VIEW_IDS = setOf(
+        "seekbar",
+        "seek_bar",
+        "player_progress",
+        "mx_progress",
+        "btn_play",
+        "btn_pause",
+        "exo_position",
+        "exo_duration"
     )
 
     // Amazon Prime Video in-stream ad countdown and view IDs:
@@ -444,6 +490,26 @@ object DetectionDictionary {
         "com.graymatrix.did:id/learn_more",
         "player_ad",
         "player_ad_view"
+    )
+
+    // Zee5 normal video player playback controls (indicates active non-ad streaming)
+    val ZEE5_NORMAL_CONTENT_VIEW_IDS = setOf(
+        "com.graymatrix.did:id/exo_position",
+        "com.graymatrix.did:id/exo_duration",
+        "com.graymatrix.did:id/exo_progress",
+        "com.graymatrix.did:id/exo_play",
+        "com.graymatrix.did:id/exo_pause",
+        "com.graymatrix.did:id/player_current_time",
+        "com.graymatrix.did:id/player_total_time",
+        "com.graymatrix.did:id/tv_current_time",
+        "com.graymatrix.did:id/tv_total_time",
+        "com.graymatrix.did:id/player_seekbar",
+        "com.graymatrix.did:id/seekbar",
+        "com.graymatrix.did:id/track_seek_bar",
+        "com.graymatrix.did:id/btn_rewind",
+        "com.graymatrix.did:id/btn_forward",
+        "exo_position",
+        "exo_duration"
     )
 
     // JioSaavn in-stream ad countdown, audio ad cues, and view IDs
@@ -825,5 +891,174 @@ object DetectionDictionary {
         "cerrar anuncio", "fermer l'annonce", "schließen",
         "fechar anúncio", "chiudi annuncio",
         "закрыть рекламу", "閉じる", "विज्ञापन बंद करें"
+    )
+
+    // Multi-platform Skip Intro, Recap, and Opening Credits view IDs
+    val SKIP_INTRO_VIEW_IDS = setOf(
+        // Netflix
+        "com.netflix.mediaclient:id/skip_intro_button",
+        "com.netflix.mediaclient:id/skip_credits_button",
+        "com.netflix.mediaclient:id/skip_recap_button",
+        "com.netflix.mediaclient:id/netflix_skip_intro",
+        "skip_intro_button",
+        "skip_credits_button",
+        "skip_recap_button",
+        // Amazon Prime Video
+        "com.amazon.avod.thirdpartyclient:id/skip_intro_button",
+        "com.amazon.avod.thirdpartyclient:id/playback_skip_intro",
+        "com.amazon.avod.thirdpartyclient:id/skip_button",
+        "com.amazon.avod.thirdpartyclient:id/skip_intro",
+        "playback_skip_intro",
+        // JioHotstar / Disney+ Hotstar
+        "in.startv.hotstar:id/skip_intro",
+        "in.startv.hotstar:id/btn_skip_intro",
+        "in.startv.hotstar:id/skip_button",
+        "in.startv.hotstar:id/skipIntro",
+        "in.startv.hotstar:id/player_skip_intro",
+        // SonyLIV
+        "com.sonyliv:id/skip_intro",
+        "com.sonyliv:id/skip_intro_btn",
+        "com.sonyliv:id/btn_skip_intro",
+        "skip_intro_btn",
+        // Zee5
+        "com.graymatrix.did:id/skip_intro",
+        "com.graymatrix.did:id/skip_intro_button",
+        "com.graymatrix.did:id/btn_skip_intro",
+        // MX Player
+        "com.mxtech.videoplayer.ad:id/skip_intro",
+        "com.mxtech.videoplayer.ad:id/btn_skip_intro",
+        "com.mxtech.videoplayer.ad:id/skip_intro_btn",
+        // YouTube
+        "com.google.android.youtube:id/skip_intro_button",
+        // Generic unqualified view IDs
+        "skip_intro",
+        "btn_skip_intro",
+        "skipintro",
+        "skip_recap",
+        "btn_skip_recap",
+        "skiprecap"
+    )
+
+    // Multi-language Skip Intro & Recap button text phrases
+    val SKIP_INTRO_BUTTON_TEXTS = setOf(
+        // English
+        "skip intro", "skip introduction", "skip recap", "skip opening",
+        "skip prologue", "skip credits",
+        "skip intro >", "skip intro >>", "skip intro ->", "skip intro »",
+        "skip recap >", "skip recap >>", "skip recap ->", "skip recap »",
+        // Hindi & Indian regional
+        "इंट्रो छोड़ें", "स्किप इंट्रो", "इंट्रो स्किप करें", "रीकैप छोड़ें",
+        // Spanish
+        "omitir introducción", "saltar introducción", "omitir intro", "saltar intro", "omitir resumen",
+        // French
+        "passer l'intro", "ignorer l'intro", "passer l'introduction", "passer le récapitulatif",
+        // German
+        "intro überspringen", "rückblick überspringen", "vorspann überspringen",
+        // Portuguese
+        "pular introdução", "pular abertura", "pular intro", "pular resumo",
+        // Italian
+        "salta introduzione", "salta intro", "salta riassunto",
+        // Indonesian / Malay
+        "lewati intro", "lewati rekap",
+        // Russian
+        "пропустить заставку", "пропустить интро", "пропустить вступление",
+        // Japanese
+        "イントロをスキップ", "オープニングをスキップ", "あらすじをスキップ",
+        // Korean
+        "오프닝 건너뛰기", "인트로 건너뛰기", "요약 건너뛰기",
+        // Chinese
+        "跳过片头", "略過片頭", "跳过前情提要"
+    )
+
+    // Regex matching any "Skip Intro", "Skip Recap", "Skip Opening", etc.
+    val SKIP_INTRO_REGEX = Regex(
+        """\b(?:skip|omitir|passer|pular|salta|lewati)\s*(?:the\s*)?(?:intro|introduction|recap|opening|prologue|credits)\b|인트로\s*건너뛰기|오프닝\s*건너뛰기|跳过片头|स्किप\s*इंट्रो|इंट्रो\s*(?:छोड़ें|स्किप)""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // Multi-language YouTube "Video paused. Continue watching?" or "Still watching?" prompt phrases
+    val YOUTUBE_CONTINUE_WATCHING_PROMPTS = setOf(
+        "video paused. continue watching?",
+        "video paused",
+        "continue watching?",
+        "still watching?",
+        "are you still watching?",
+        "music paused. continue listening?",
+        "continue listening?",
+        "are you still listening?",
+        "still listening?",
+        // Spanish
+        "video pausado. ¿continuar viendo?",
+        "¿quieres seguir viendo?",
+        "¿sigues ahí?",
+        // Hindi
+        "क्या आप अब भी देख रहे हैं?",
+        "वीडियो रोक दिया गया है",
+        "जारी रखें?",
+        // Portuguese
+        "vídeo pausado. continuar assistindo?",
+        "continuar assistindo?",
+        // French
+        "vidéo en pause. poursuivre la lecture ?",
+        "poursuivre la lecture ?",
+        // German
+        "video pausiert. weiter ansehen?",
+        "weiter ansehen?",
+        // Russian
+        "видео приостановлено. продолжить просмотр?",
+        "продолжить просмотр?",
+        // Japanese
+        "動画が一時停止しました",
+        "続きを視聴しますか",
+        // Korean
+        "동영상이 일시중지되었습니다",
+        "계속 시청하시겠습니까",
+        // Indonesian
+        "video dijeda. lanjutkan menonton?",
+        "lanjutkan menonton?"
+    )
+
+    // Regex matching YouTube "Video paused / Continue watching" interruption prompt
+    val YOUTUBE_CONTINUE_WATCHING_REGEX = Regex(
+        """\b(?:video\s+paused|still\s+watching|continue\s+watching|continue\s+listening|still\s+listening|are\s+you\s+still\s+watching)\b|동영상이\s*일시중지|続きを視聴|видео\s*приостановлено|seguir\s*viendo|weiter\s*ansehen""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // Multi-language affirmative response button texts to click "Yes" / "Continue"
+    val YOUTUBE_CONFIRM_RESUME_TEXTS = setOf(
+        "yes",
+        "continue",
+        "resume",
+        "keep watching",
+        "watch",
+        "हाँ",
+        "जारी रखें",
+        "sí",
+        "continuar",
+        "oui",
+        "reprendre",
+        "ja",
+        "weiter",
+        "sim",
+        "да",
+        "продолжить",
+        "はい",
+        "예",
+        "ya"
+    )
+
+    // YouTube confirm button view IDs
+    val YOUTUBE_CONFIRM_RESUME_VIEW_IDS = setOf(
+        "com.google.android.youtube:id/confirm_button",
+        "com.google.android.youtube:id/ok_button",
+        "com.google.android.youtube:id/positive_button",
+        "com.google.android.youtube:id/dialog_button",
+        "com.google.android.apps.youtube.music:id/confirm_button",
+        "com.google.android.apps.youtube.music:id/positive_button",
+        "confirm_button",
+        "positive_button",
+        "ok_button",
+        "dialog_button",
+        "android:id/button1"
     )
 }

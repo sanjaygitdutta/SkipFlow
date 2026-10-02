@@ -292,23 +292,31 @@ private fun MetricCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Row(verticalAlignment = Alignment.Bottom) {
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(
                     text = value,
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color.White,
-                    lineHeight = 30.sp,
-                    fontSize = 24.sp
+                    lineHeight = if (value.length > 5) 24.sp else 28.sp,
+                    fontSize = if (value.length > 6) 17.sp else if (value.length > 4) 19.sp else 23.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = unit,
                     style = MaterialTheme.typography.labelSmall,
                     color = Color(0xFF94A3B8),
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 3.dp)
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.padding(bottom = 2.dp)
                 )
             }
 
@@ -319,7 +327,9 @@ private fun MetricCard(
                 style = MaterialTheme.typography.labelSmall,
                 color = Color.White,
                 fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
 
             Spacer(modifier = Modifier.height(2.dp))
@@ -330,7 +340,8 @@ private fun MetricCard(
                 color = Color(0xFF94A3B8),
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Normal,
-                maxLines = 1
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
         }
     }
@@ -392,27 +403,34 @@ private fun StreakLifetimeCard(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Text(
                             text = "$activeDays ${if (activeDays == 1) "Day" else "Days"}",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White,
-                            fontSize = 17.sp
+                            fontSize = 16.sp,
+                            maxLines = 1,
+                            softWrap = false
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Box(
                             modifier = Modifier
                                 .background(SunsetOrange.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
                                 .border(0.8.dp, SunsetOrange.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
-                                .padding(horizontal = 7.dp, vertical = 2.dp)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "Day Streak",
+                                text = "Streak",
                                 color = SunsetOrange,
                                 fontSize = 9.sp,
-                                fontWeight = FontWeight.ExtraBold
+                                fontWeight = FontWeight.ExtraBold,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
@@ -420,14 +438,18 @@ private fun StreakLifetimeCard(
                     Spacer(modifier = Modifier.height(2.dp))
 
                     Text(
-                        text = "Continuous protection streak",
+                        text = "Continuous protection",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color(0xFF94A3B8),
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Normal
+                        fontWeight = FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.width(8.dp))
 
             Column(
                 horizontalAlignment = Alignment.End
@@ -437,15 +459,19 @@ private fun StreakLifetimeCard(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
                     color = AmberWarning,
-                    fontSize = 18.sp
+                    fontSize = 17.sp,
+                    maxLines = 1,
+                    softWrap = false
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "Total Lifetime Saved",
+                    text = "Lifetime Saved",
                     style = MaterialTheme.typography.labelSmall,
                     color = Color(0xFF94A3B8),
                     fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
         }

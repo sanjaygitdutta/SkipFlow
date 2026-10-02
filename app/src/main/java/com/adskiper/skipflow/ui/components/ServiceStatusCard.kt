@@ -133,7 +133,10 @@ fun ServiceStatusCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         // Pulsing Beacon with Outer Glow Ring
                         Box(
                             contentAlignment = Alignment.Center,
@@ -145,7 +148,6 @@ fun ServiceStatusCard(
                                         .size(22.dp)
                                         .scale(pulseScale)
                                         .clip(CircleShape)
-                                        .background(EmeraldAccent.copy(alpha = pulseAlpha))
                                 )
                             }
                             Box(
@@ -158,23 +160,29 @@ fun ServiceStatusCard(
 
                         Spacer(modifier = Modifier.width(10.dp))
 
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = if (isActive) "Engine Active & Guarding" else "Setup Required",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp
+                                fontSize = 16.sp,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                             Text(
                                 text = if (isActive) "Hands-free skipping & muting armed" else "Enable permission to start",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (isActive) EmeraldAccent else AmberWarning,
                                 fontWeight = FontWeight.SemiBold,
-                                fontSize = 11.sp
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.width(8.dp))
 
                     Box(
                         modifier = Modifier

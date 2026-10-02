@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -61,6 +62,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.adskiper.skipflow.R
@@ -82,7 +84,7 @@ fun OnboardingWelcomeScreen(
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "floating")
 
-    // Interactive Showcase Tab state (0: Life Stories, 1: Vibe Waves, 2: 0ms Pipeline)
+    // Interactive Showcase Tab state (0: Life Moments, 1: Vibe Waves, 2: 0ms Pipeline)
     var selectedShowcaseTab by remember { mutableIntStateOf(0) }
 
     // Floating micro-animations for device cards
@@ -203,14 +205,19 @@ fun OnboardingWelcomeScreen(
             )
 
             // Scrollable Content
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 22.dp)
-                    .verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopCenter
             ) {
-                Spacer(modifier = Modifier.height(34.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 560.dp)
+                        .padding(horizontal = 22.dp)
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Spacer(modifier = Modifier.height(34.dp))
 
                 // Enhanced Brand & Trust Header
                 Column(
@@ -347,7 +354,7 @@ fun OnboardingWelcomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         val tabs = listOf(
-                            Triple(0, "Life Stories", "🏋️"),
+                            Triple(0, "Life Moments", "✨"),
                             Triple(1, "Vibe Waves", "🎵"),
                             Triple(2, "0ms Pipeline", "⏳")
                         )
@@ -381,7 +388,10 @@ fun OnboardingWelcomeScreen(
                                         text = title,
                                         fontSize = 12.sp,
                                         fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
-                                        color = if (isSelected) Color.White else Color(0xFF94A3B8)
+                                        color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -506,6 +516,7 @@ fun OnboardingWelcomeScreen(
 
                 // Generous bottom spacer so content never gets covered by the sticky CTA bar
                 Spacer(modifier = Modifier.height(115.dp))
+                }
             }
 
             // Sticky Floating Glassmorphic Bottom CTA Bar
@@ -521,10 +532,13 @@ fun OnboardingWelcomeScreen(
                             1.0f to Color(0xFF070B14)
                         )
                     )
-                    .padding(horizontal = 22.dp, vertical = 12.dp)
+                    .padding(horizontal = 22.dp, vertical = 12.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 560.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Button(

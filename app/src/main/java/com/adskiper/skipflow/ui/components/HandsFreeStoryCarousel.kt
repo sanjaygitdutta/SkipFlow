@@ -272,7 +272,9 @@ fun HandsFreeStoryCarousel(
                             color = Color.White,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 0.8.sp
+                            letterSpacing = 0.8.sp,
+                            softWrap = false,
+                            maxLines = 1
                         )
                     }
 

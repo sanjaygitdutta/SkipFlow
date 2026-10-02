@@ -150,6 +150,8 @@ private fun MainAppContent(
     val isWaveEnabled by viewModel.isWaveToSkipEnabled.collectAsState()
     val isSpotifyMuteEnabled by viewModel.isSpotifyMuteEnabled.collectAsState()
     val isOttSkipEnabled by viewModel.isOttSkipEnabled.collectAsState()
+    val isSkipIntroEnabled by viewModel.isSkipIntroEnabled.collectAsState()
+    val isAutoResumeEnabled by viewModel.isAutoResumeEnabled.collectAsState()
     val enabledPlatforms by viewModel.enabledPlatforms.collectAsState()
     val spotifyAdsMuted by viewModel.spotifyAdsMuted.collectAsState()
     val skipDelayMs by viewModel.skipDelayMs.collectAsState()
@@ -188,6 +190,8 @@ private fun MainAppContent(
                     isWaveEnabled = isWaveEnabled,
                     isSpotifyMuteEnabled = isSpotifyMuteEnabled,
                     isOttSkipEnabled = isOttSkipEnabled,
+                    isSkipIntroEnabled = isSkipIntroEnabled,
+                    isAutoResumeEnabled = isAutoResumeEnabled,
                     spotifyAdsMuted = spotifyAdsMuted,
                     enabledPlatforms = enabledPlatforms,
                     isSimulating = isSimulating,
@@ -203,6 +207,8 @@ private fun MainAppContent(
                     onToggleWave = { viewModel.toggleWaveToSkip(it) },
                     onToggleSpotifyMute = { viewModel.toggleSpotifyMute(it) },
                     onToggleOttSkip = { viewModel.toggleOttSkip(it) },
+                    onToggleSkipIntro = { viewModel.toggleSkipIntro(it) },
+                    onToggleAutoResume = { viewModel.toggleAutoResume(it) },
                     onStartSimulation = { viewModel.triggerInteractiveSimulator() },
                     onNavigateToSettings = { currentScreen = Screen.SETTINGS }
                 )
@@ -214,7 +220,11 @@ private fun MainAppContent(
                     subscriptionTier = subscriptionTier,
                     freeSkipsUsed = freeSkipsUsed,
                     isReviewerBypassEnabled = isReviewerBypassEnabled,
+                    isSkipIntroEnabled = isSkipIntroEnabled,
+                    isAutoResumeEnabled = isAutoResumeEnabled,
                     onDelayChanged = { viewModel.setSkipDelay(it) },
+                    onToggleSkipIntro = { viewModel.toggleSkipIntro(it) },
+                    onToggleAutoResume = { viewModel.toggleAutoResume(it) },
                     onDisableBatteryOptClicked = { viewModel.requestDisableBatteryOptimization(activity) },
                     onResetStatsClicked = { viewModel.resetStats() },
                     onShowOnboardingClicked = { currentScreen = Screen.ONBOARDING },
