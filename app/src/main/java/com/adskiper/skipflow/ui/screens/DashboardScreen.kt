@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.FrontHand
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material.icons.filled.Tv
@@ -214,7 +215,7 @@ fun DashboardScreen(
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Text(
-                                            text = "v1.2.17",
+                                            text = "v1.2.18",
                                             color = IndigoLight,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.ExtraBold
@@ -399,7 +400,6 @@ fun DashboardScreen(
             }
         }
     }
-}
 }
 
 @Composable
