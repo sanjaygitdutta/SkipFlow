@@ -1,6 +1,7 @@
 package com.adskiper.skipflow.service
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.accessibilityservice.GestureDescription
 import android.app.Notification
 import android.app.NotificationChannel
@@ -18,6 +19,7 @@ import android.media.session.PlaybackState
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -130,10 +132,30 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     private var saavnMutePollerRunnable: Runnable? = null
     private var saavnConsecutiveNonAdChecks = 0
 
+    // Active ad session duration tracking across all 9 platforms (YouTube, Hotstar, MX Player, Prime Video, Netflix, SonyLIV, Zee 5, JioSaavn, Spotify)
+    @Volatile
+    private var currentAdSessionMaxDurationSeconds = 0L
+    @Volatile
+    private var currentAdSessionStartTimeMs = 0L
+    @Volatile
+    private var currentAdSessionPlatformId = ""
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.i(TAG, "SkipFlow Accessibility Service Connected")
         _isServiceActive.value = true
+
+        try {
+            val info = serviceInfo ?: AccessibilityServiceInfo()
+            info.flags = info.flags or
+                AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS or
+                AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or
+                AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+            serviceInfo = info
+            Log.i(TAG, "Dynamic AccessibilityServiceInfo applied: FLAG_INCLUDE_NOT_IMPORTANT_VIEWS active")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to apply dynamic AccessibilityServiceInfo flags", e)
+        }
 
         preferencesRepo = PreferencesRepository.getInstance(applicationContext)
         statsRepo = StatsRepository.getInstance(applicationContext)
@@ -657,7 +679,6 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         val playerBounds = getActiveVideoPlayerBounds(root, isYouTube = true)
 
         fun isInPlayer(node: AccessibilityNodeInfo): Boolean {
-            if (!node.isVisibleToUser) return false
             if (isCaptionOrSubtitleNode(node) || isPlaybackControlOrVideoTitle(node)) return false
             val rect = Rect()
             node.getBoundsInScreen(rect)
@@ -819,6 +840,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
                 if (inStreamAdActive) {
                     cancelPendingUnmute()
+                    if (isYouTube) {
+                        startAdSession("youtube", isAudioOnly = false, root = rootNode)
+                    }
                     if (!audioController.isCurrentlyMuted()) {
                         stopForegroundRadar()
                         audioController.muteAdAudio()
@@ -844,6 +868,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                             audioController.unmuteAdAudio()
                             updatePersistentNotification(isMuted = false)
                             startForegroundRadar()
+                            if (isYouTube) {
+                                finishAdSessionAndRecord("youtube", isAudioOnly = false)
+                            }
                         } else {
                             // If normal controls not visible yet, ensure poller is running to verify transition without mid-ad flapping
                             startActiveMutePoller(isYouTube, isOtt)
@@ -980,6 +1007,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                                 audioController.unmuteAdAudio()
                                 updatePersistentNotification(isMuted = false)
                                 startForegroundRadar()
+                                if (isYouTube) {
+                                    finishAdSessionAndRecord("youtube", isAudioOnly = false)
+                                }
                                 return
                             } else {
                                 consecutiveNonAdChecks++
@@ -990,6 +1020,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         }
                     } else {
                         consecutiveNonAdChecks = 0
+                        if (isYouTube) {
+                            trackActiveAdDuration(root, "youtube")
+                        }
                         root.recycle()
                         // Confirmed ad is still actively playing on screen: renew watchdog so it never breaks mid-ad
                         cancelPendingUnmute()
@@ -1208,12 +1241,12 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
         if (isAd) {
             isSpotifyAdPlaying = true
+            startAdSession("spotify", isAudioOnly = true)
             cancelPendingUnmute()
             if (!audioController.isCurrentlyMuted()) {
                 Log.i(TAG, "Spotify Ad detected via notification/MediaSession (screen sleep/off)! Muting media audio stream (0ms).")
                 audioController.muteAdAudio()
                 updatePersistentNotification(isMuted = true)
-                serviceScope.launch { statsRepo.recordSpotifyAdMuted() }
             }
         } else if (isNormalTrack) {
             // Confirmed normal music track active! Restore audio at 0ms immediately
@@ -1225,6 +1258,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 SpotifyAdReceiver.resetMuteState()
                 audioController.unmuteAdAudio()
                 updatePersistentNotification(isMuted = false)
+                finishAdSessionAndRecord("spotify", isAudioOnly = true)
             } else {
                 audioController.recordUserVolume()
             }
@@ -1241,15 +1275,13 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
             if (isVideoOrAudioAd) {
                 isSpotifyAdPlaying = true
+                startAdSession("spotify", isAudioOnly = true, root = root)
                 cancelPendingUnmute()
                 if (!audioController.isCurrentlyMuted()) {
                     stopForegroundRadar()
                     Log.i(TAG, "Spotify Video/Audio Ad break detected! Muting media audio stream (0ms).")
                     audioController.muteAdAudio()
                     updatePersistentNotification(isMuted = true)
-                    serviceScope.launch {
-                        statsRepo.recordSpotifyAdMuted()
-                    }
                 }
                 startSpotifyMutePoller()
             } else {
@@ -1262,6 +1294,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     audioController.unmuteAdAudio()
                     updatePersistentNotification(isMuted = false)
                     startForegroundRadar()
+                    finishAdSessionAndRecord("spotify", isAudioOnly = true)
                 } else {
                     audioController.recordUserVolume()
                 }
@@ -1474,6 +1507,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                             val isAd = isSpotifyVideoOrAudioAdBreak(root)
                             if (isAd) {
                                 isSpotifyAdPlaying = true
+                                trackActiveAdDuration(root, "spotify")
                                 if (!audioController.isCurrentlyMuted()) {
                                     audioController.muteAdAudio()
                                     updatePersistentNotification(isMuted = true)
@@ -1488,6 +1522,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                                     startForegroundRadar()
                                 }
                                 stopSpotifyMutePoller()
+                                finishAdSessionAndRecord("spotify", isAudioOnly = true)
                                 return
                             }
                         }
@@ -1549,6 +1584,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
                 if (isAdActive) {
                     isHotstarAdPlaying = true
+                    startAdSession("hotstar", isAudioOnly = false, root = rootNode)
                     cancelPendingUnmute()
                     if (!audioController.isCurrentlyMuted()) {
                         stopForegroundRadar()
@@ -1568,7 +1604,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         audioController.unmuteAdAudio()
                         updatePersistentNotification(isMuted = false)
                         startForegroundRadar()
-                        serviceScope.launch { statsRepo.recordAdEvent("hotstar", isAudioOnly = false) }
+                        finishAdSessionAndRecord("hotstar", isAudioOnly = false)
                     } else {
                         audioController.recordUserVolume()
                     }
@@ -1650,12 +1686,10 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             if (!cNodes.isNullOrEmpty()) {
                 var containerActive = false
                 for (cNode in cNodes) {
-                    if (cNode.isVisibleToUser) {
-                        val rect = Rect()
-                        cNode.getBoundsInScreen(rect)
-                        if (rect.width() >= 8 && rect.height() >= 8 && rect.top >= 0) {
-                            containerActive = true
-                        }
+                    val rect = Rect()
+                    cNode.getBoundsInScreen(rect)
+                    if (rect.width() >= 4 && rect.height() >= 4 && rect.top >= 0 && rect.top <= maxVideoBottomY) {
+                        containerActive = true
                     }
                     cNode.recycle()
                 }
@@ -2058,6 +2092,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         if (isAdActive) {
                             hotstarConsecutiveNonAdChecks = 0
                             isHotstarAdPlaying = true
+                            trackActiveAdDuration(root, "hotstar")
                             // Renew watchdog so mute never expires during multi-ad break
                             audioController.renewWatchdogIfConfirmedAd(20_000L)
                         } else {
@@ -2074,7 +2109,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                                 audioController.unmuteAdAudio()
                                 updatePersistentNotification(isMuted = false)
                                 startForegroundRadar()
-                                serviceScope.launch { statsRepo.recordAdEvent("hotstar", isAudioOnly = false) }
+                                finishAdSessionAndRecord("hotstar", isAudioOnly = false)
                                 return
                             }
                         }
@@ -2140,6 +2175,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
                 if (isAdActive) {
                     isMxPlayerAdPlaying = true
+                    startAdSession("mxplayer", isAudioOnly = false, root = rootNode)
                     cancelPendingUnmute()
                     if (!audioController.isCurrentlyMuted()) {
                         stopForegroundRadar()
@@ -2159,7 +2195,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         audioController.unmuteAdAudio()
                         updatePersistentNotification(isMuted = false)
                         startForegroundRadar()
-                        serviceScope.launch { statsRepo.recordAdEvent("mxplayer", isAudioOnly = false) }
+                        finishAdSessionAndRecord("mxplayer", isAudioOnly = false)
                     } else {
                         audioController.recordUserVolume()
                     }
@@ -2303,12 +2339,10 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 if (!cNodes.isNullOrEmpty()) {
                     var containerActive = false
                     for (cNode in cNodes) {
-                        if (cNode.isVisibleToUser) {
-                            val rect = Rect()
-                            cNode.getBoundsInScreen(rect)
-                            if (rect.width() >= 8 && rect.height() >= 8 && rect.left >= 0 && rect.top >= 0) {
-                                containerActive = true
-                            }
+                        val rect = Rect()
+                        cNode.getBoundsInScreen(rect)
+                        if (rect.width() >= 4 && rect.height() >= 4 && rect.left >= 0 && rect.top >= 0) {
+                            containerActive = true
                         }
                         cNode.recycle()
                     }
@@ -2558,6 +2592,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         if (isAdActive) {
                             mxPlayerConsecutiveNonAdChecks = 0
                             isMxPlayerAdPlaying = true
+                            trackActiveAdDuration(root, "mxplayer")
                             // Renew watchdog so mute never expires during multi-ad break
                             audioController.renewWatchdogIfConfirmedAd(20_000L)
                         } else {
@@ -2574,7 +2609,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                                 audioController.unmuteAdAudio()
                                 updatePersistentNotification(isMuted = false)
                                 startForegroundRadar()
-                                serviceScope.launch { statsRepo.recordAdEvent("mxplayer", isAudioOnly = false) }
+                                finishAdSessionAndRecord("mxplayer", isAudioOnly = false)
                                 return
                             }
                         }
@@ -2634,6 +2669,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
                 if (isAdActive) {
                     isPrimeVideoAdPlaying = true
+                    startAdSession("primevideo", isAudioOnly = false, root = rootNode)
                     cancelPendingUnmute()
                     if (!audioController.isCurrentlyMuted()) {
                         stopForegroundRadar()
@@ -2653,7 +2689,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         audioController.unmuteAdAudio()
                         updatePersistentNotification(isMuted = false)
                         startForegroundRadar()
-                        serviceScope.launch { statsRepo.recordAdEvent("primevideo", isAudioOnly = false) }
+                        finishAdSessionAndRecord("primevideo", isAudioOnly = false)
                     } else {
                         audioController.recordUserVolume()
                     }
@@ -2791,12 +2827,10 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 if (!cNodes.isNullOrEmpty()) {
                     var containerActive = false
                     for (cNode in cNodes) {
-                        if (cNode.isVisibleToUser) {
-                            val rect = Rect()
-                            cNode.getBoundsInScreen(rect)
-                            if (rect.width() >= 8 && rect.height() >= 8 && rect.left >= 0 && rect.top >= 0) {
-                                containerActive = true
-                            }
+                        val rect = Rect()
+                        cNode.getBoundsInScreen(rect)
+                        if (rect.width() >= 4 && rect.height() >= 4 && rect.left >= 0 && rect.top >= 0) {
+                            containerActive = true
                         }
                         cNode.recycle()
                     }
@@ -3003,6 +3037,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         if (isAdActive) {
                             primeVideoConsecutiveNonAdChecks = 0
                             isPrimeVideoAdPlaying = true
+                            trackActiveAdDuration(root, "primevideo")
                             audioController.renewWatchdogIfConfirmedAd(20_000L)
                         } else {
                             val isNormalContent = isPrimeVideoNormalContent(root)
@@ -3018,7 +3053,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                                 audioController.unmuteAdAudio()
                                 updatePersistentNotification(isMuted = false)
                                 startForegroundRadar()
-                                serviceScope.launch { statsRepo.recordAdEvent("primevideo", isAudioOnly = false) }
+                                finishAdSessionAndRecord("primevideo", isAudioOnly = false)
                                 return
                             }
                         }
@@ -3071,13 +3106,13 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
                 if (isAdActive) {
                     isNetflixAdPlaying = true
+                    startAdSession("netflix", isAudioOnly = false, root = rootNode)
                     cancelPendingUnmute()
                     if (!audioController.isCurrentlyMuted()) {
                         stopForegroundRadar()
                         Log.i(TAG, "Netflix Ad detected! Silencing audio stream instantly at 0ms.")
                         audioController.muteAdAudio()
                         updatePersistentNotification(isMuted = true)
-                        serviceScope.launch { statsRepo.recordAdEvent("netflix", isAudioOnly = false) }
                     }
                     startNetflixMutePoller()
                 } else {
@@ -3090,6 +3125,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         audioController.unmuteAdAudio()
                         updatePersistentNotification(isMuted = false)
                         startForegroundRadar()
+                        finishAdSessionAndRecord("netflix", isAudioOnly = false)
                     } else {
                         audioController.recordUserVolume()
                     }
@@ -3229,6 +3265,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         if (isAdActive) {
                             netflixConsecutiveNonAdChecks = 0
                             isNetflixAdPlaying = true
+                            trackActiveAdDuration(root, "netflix")
                             audioController.renewWatchdogIfConfirmedAd(20_000L)
                         } else {
                             netflixConsecutiveNonAdChecks++
@@ -3241,6 +3278,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                                 audioController.unmuteAdAudio()
                                 updatePersistentNotification(isMuted = false)
                                 startForegroundRadar()
+                                finishAdSessionAndRecord("netflix", isAudioOnly = false)
                                 return
                             }
                         }
@@ -3300,6 +3338,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
                 if (isAdActive) {
                     isSonyLivAdPlaying = true
+                    startAdSession("sonyliv", isAudioOnly = false, root = rootNode)
                     cancelPendingUnmute()
                     if (!audioController.isCurrentlyMuted()) {
                         stopForegroundRadar()
@@ -3319,7 +3358,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         audioController.unmuteAdAudio()
                         updatePersistentNotification(isMuted = false)
                         startForegroundRadar()
-                        serviceScope.launch { statsRepo.recordAdEvent("sonyliv", isAudioOnly = false) }
+                        finishAdSessionAndRecord("sonyliv", isAudioOnly = false)
                     } else {
                         audioController.recordUserVolume()
                     }
@@ -3441,12 +3480,10 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 if (!cNodes.isNullOrEmpty()) {
                     var containerActive = false
                     for (cNode in cNodes) {
-                        if (cNode.isVisibleToUser) {
-                            val rect = Rect()
-                            cNode.getBoundsInScreen(rect)
-                            if (rect.width() >= 8 && rect.height() >= 8 && rect.left >= 0 && rect.top >= 0) {
-                                containerActive = true
-                            }
+                        val rect = Rect()
+                        cNode.getBoundsInScreen(rect)
+                        if (rect.width() >= 4 && rect.height() >= 4 && rect.left >= 0 && rect.top >= 0) {
+                            containerActive = true
                         }
                         cNode.recycle()
                     }
@@ -3632,6 +3669,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         if (isAdActive) {
                             sonyLivConsecutiveNonAdChecks = 0
                             isSonyLivAdPlaying = true
+                            trackActiveAdDuration(root, "sonyliv")
                             audioController.renewWatchdogIfConfirmedAd(20_000L)
                         } else {
                             val isNormalContent = isSonyLivNormalContent(root)
@@ -3647,7 +3685,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                                 audioController.unmuteAdAudio()
                                 updatePersistentNotification(isMuted = false)
                                 startForegroundRadar()
-                                serviceScope.launch { statsRepo.recordAdEvent("sonyliv", isAudioOnly = false) }
+                                finishAdSessionAndRecord("sonyliv", isAudioOnly = false)
                                 return
                             }
                         }
@@ -3697,11 +3735,11 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
         if (isCommercialAd) {
             isSaavnAdPlaying = true
+            startAdSession("saavn", isAudioOnly = true)
             if (!audioController.isCurrentlyMuted()) {
                 Log.i(TAG, "JioSaavn Audio Ad detected via notification! Muting media audio stream (0ms).")
                 audioController.muteAdAudio()
                 updatePersistentNotification(isMuted = true)
-                serviceScope.launch { statsRepo.recordSaavnAdMuted() }
             }
         } else if (title.isNotEmpty() || text.isNotEmpty()) {
             // Normal song is playing!
@@ -3710,6 +3748,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 isSaavnAdPlaying = false
                 audioController.unmuteAdAudio()
                 updatePersistentNotification(isMuted = false)
+                finishAdSessionAndRecord("saavn", isAudioOnly = true)
             }
         }
     }
@@ -3747,6 +3786,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
                 if (isAdActive) {
                     isZee5AdPlaying = true
+                    startAdSession("zee5", isAudioOnly = false, root = rootNode)
                     cancelPendingUnmute()
                     if (!audioController.isCurrentlyMuted()) {
                         stopForegroundRadar()
@@ -3766,6 +3806,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         audioController.unmuteAdAudio()
                         updatePersistentNotification(isMuted = false)
                         startForegroundRadar()
+                        finishAdSessionAndRecord("zee5", isAudioOnly = false)
                     } else {
                         audioController.recordUserVolume()
                     }
@@ -3891,12 +3932,10 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 if (!cNodes.isNullOrEmpty()) {
                     var containerActive = false
                     for (cNode in cNodes) {
-                        if (cNode.isVisibleToUser) {
-                            val rect = Rect()
-                            cNode.getBoundsInScreen(rect)
-                            if (rect.width() >= 8 && rect.height() >= 8 && rect.left >= 0 && rect.top >= 0) {
-                                containerActive = true
-                            }
+                        val rect = Rect()
+                        cNode.getBoundsInScreen(rect)
+                        if (rect.width() >= 4 && rect.height() >= 4 && rect.left >= 0 && rect.top >= 0) {
+                            containerActive = true
                         }
                         cNode.recycle()
                     }
@@ -4095,6 +4134,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         if (isAdActive) {
                             zee5ConsecutiveNonAdChecks = 0
                             isZee5AdPlaying = true
+                            trackActiveAdDuration(root, "zee5")
                             audioController.renewWatchdogIfConfirmedAd(20_000L)
                         } else {
                             val isNormalContent = isZee5NormalContent(root)
@@ -4110,7 +4150,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                                 audioController.unmuteAdAudio()
                                 updatePersistentNotification(isMuted = false)
                                 startForegroundRadar()
-                                serviceScope.launch { statsRepo.recordAdEvent("zee5", isAudioOnly = false) }
+                                finishAdSessionAndRecord("zee5", isAudioOnly = false)
                                 return
                             }
                         }
@@ -4162,13 +4202,13 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
                 if (isAdActive) {
                     isSaavnAdPlaying = true
+                    startAdSession("saavn", isAudioOnly = true, root = rootNode)
                     cancelPendingUnmute()
                     if (!audioController.isCurrentlyMuted()) {
                         stopForegroundRadar()
                         Log.i(TAG, "JioSaavn Ad detected! Silencing audio stream instantly at 0ms.")
                         audioController.muteAdAudio()
                         updatePersistentNotification(isMuted = true)
-                        serviceScope.launch { statsRepo.recordSaavnAdMuted() }
                     }
                     startSaavnMutePoller()
                 } else {
@@ -4182,6 +4222,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         audioController.unmuteAdAudio()
                         updatePersistentNotification(isMuted = false)
                         startForegroundRadar()
+                        finishAdSessionAndRecord("saavn", isAudioOnly = true)
                     } else {
                         audioController.recordUserVolume()
                     }
@@ -4345,6 +4386,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         if (isAdActive) {
                             saavnConsecutiveNonAdChecks = 0
                             isSaavnAdPlaying = true
+                            trackActiveAdDuration(root, "saavn")
                             audioController.renewWatchdogIfConfirmedAd(20_000L)
                         } else {
                             saavnConsecutiveNonAdChecks++
@@ -4357,6 +4399,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                                 audioController.unmuteAdAudio()
                                 updatePersistentNotification(isMuted = false)
                                 startForegroundRadar()
+                                finishAdSessionAndRecord("saavn", isAudioOnly = true)
                                 return
                             }
                         }
@@ -4718,7 +4761,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             if (!cNodes.isNullOrEmpty()) {
                 var containerActive = false
                 for (cNode in cNodes) {
-                    val rect = isValidAdNode(cNode, minW = 8, minH = 8, requireVisible = true)
+                    val rect = isValidAdNode(cNode, minW = 4, minH = 4, requireVisible = false)
                     if (rect != null && !isFeedShoppingCard(cNode)) {
                         containerActive = true
                     }
@@ -4737,7 +4780,10 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             "Ad ·", "Ad •", "Ad:", "Ad: (",
             "1 of 2", "2 of 2", "1 of 3", "2 of 3", "1 of 1",
             "1/2", "2/2", "1/3", "2/3", "1/1",
-            "Skip in", "Skip ad in", "Skip in 5", "Skip in 4", "Skip in 3",
+            "Skip in", "Skip ad in", "Skip in 5", "Skip in 4", "Skip in 3", "Skip in 2", "Skip in 1",
+            "5s", "4s", "3s", "2s", "1s",
+            "0:05", "0:04", "0:03", "0:02", "0:01",
+            "Ad 1 of", "Ad 2 of",
             "Skip Ad", "Skip Ads", "Skip ad", "Skip ads",
             "Video will play after", "Playback will resume",
             "Ad will end in", "Ad ends in",
@@ -4749,7 +4795,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             if (!nodes.isNullOrEmpty()) {
                 var instantFound = false
                 for (node in nodes) {
-                    val rect = isValidAdNode(node, minW = 4, minH = 4, requireVisible = true)
+                    val rect = isValidAdNode(node, minW = 4, minH = 4, requireVisible = false)
                     if (rect != null && !isFeedShoppingCard(node)) {
                         val text = node.text?.toString()?.trim() ?: ""
                         val desc = node.contentDescription?.toString()?.trim() ?: ""
@@ -4790,7 +4836,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             if (!nodes.isNullOrEmpty()) {
                 var matched = false
                 for (node in nodes) {
-                    val rect = isValidAdNode(node, minW = 4, minH = 4, requireVisible = true)
+                    val rect = isValidAdNode(node, minW = 4, minH = 4, requireVisible = false)
                     if (rect != null && !isFeedShoppingCard(node)) {
                         val text = node.text?.toString()?.trim() ?: ""
                         val desc = node.contentDescription?.toString()?.trim() ?: ""
@@ -4817,7 +4863,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             if (!nodes.isNullOrEmpty()) {
                 var matched = false
                 for (node in nodes) {
-                    val rect = isValidAdNode(node, minW = 6, minH = 6, requireVisible = true)
+                    val rect = isValidAdNode(node, minW = 4, minH = 4, requireVisible = false)
                     if (rect != null && !isFeedShoppingCard(node)) {
                         val text = node.text?.toString()?.trim()?.lowercase() ?: ""
                         val desc = node.contentDescription?.toString()?.trim()?.lowercase() ?: ""
@@ -4863,7 +4909,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             val current = queue.poll() ?: continue
             inspectedCount++
 
-            val rect = isValidAdNode(current, minW = 6, minH = 6, requireVisible = true)
+            val rect = isValidAdNode(current, minW = 4, minH = 4, requireVisible = false)
             if (rect != null && !isFeedShoppingCard(current)) {
                 val text = current.text?.toString()?.trim()?.lowercase() ?: ""
                 val desc = current.contentDescription?.toString()?.trim()?.lowercase() ?: ""
@@ -4897,13 +4943,19 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     val cleanText = text.replace("s", "").trim()
                     val isCountdownNumber = cleanText.isNotEmpty() && cleanText.length <= 2 &&
                             cleanText.all { it.isDigit() } && cleanText != "0"
-                    // Strictly match specific ad countdown IDs (never bare "button" or "timer" which match forward 10s or video duration)
-                    val isEarlyAdCountdown = isCountdownNumber && (viewId.contains("skip_ad") || viewId.contains("ad_countdown") || viewId.contains("ad_timer"))
+                    val countdownInt = cleanText.toIntOrNull()
+                    // Match ad countdown IDs OR standalone 1-30s countdown numbers inside video player corners
+                    val isEarlyAdCountdown = isCountdownNumber && (
+                        viewId.contains("skip_ad") || viewId.contains("ad_countdown") || viewId.contains("ad_timer") ||
+                        (countdownInt != null && countdownInt in 1..30 && (rect.bottom >= validAdBounds.height() * 0.45f || rect.top <= validAdBounds.height() * 0.35f))
+                    )
 
                     val hasAdViewId = (viewId.contains("skip_ad_button") || viewId.contains("ad_countdown")) &&
                             (text.isNotEmpty() || desc.isNotEmpty())
 
-                    if (isActionable || isCountdownOrBadge || hasAdViewId || isEarlyAdCountdown) {
+                    val hasSkipWithDigits = combined.contains("skip") && combined.any { it.isDigit() }
+
+                    if (isActionable || isCountdownOrBadge || hasAdViewId || isEarlyAdCountdown || hasSkipWithDigits) {
                         bfsFoundAd = true
                     }
                 }
@@ -4945,7 +4997,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             if (!nodes.isNullOrEmpty()) {
                 var matched = false
                 for (node in nodes) {
-                    val rect = isValidAdNode(node, minW = 6, minH = 6, requireVisible = true)
+                    val rect = isValidAdNode(node, minW = 4, minH = 4, requireVisible = false)
                     if (rect != null && !isFeedShoppingCard(node)) {
                         val text = node.text?.toString()?.trim()?.lowercase() ?: ""
                         val desc = node.contentDescription?.toString()?.trim()?.lowercase() ?: ""
@@ -5053,6 +5105,9 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     ): Boolean {
         val now = System.currentTimeMillis()
         if (now - lastClickTimestamp < CLICK_DEBOUNCE_MS) return false
+
+        // Track full ad duration from root whenever skip scan runs
+        trackActiveAdDuration(root, platformId ?: if (isYouTube) "youtube" else "hotstar")
 
         // Check if user has free skips remaining or has active subscription for this platform
         if (!preferencesRepo.canAutoSkipSync(isYouTube)) {
@@ -5233,7 +5288,12 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
         if (clicked) {
             lastClickTimestamp = now
-            onSkipAttempted(isYouTube, platformId ?: if (isYouTube) "youtube" else "hotstar")
+            val totalAdDuration = if (currentAdSessionMaxDurationSeconds >= 5L) {
+                currentAdSessionMaxDurationSeconds
+            } else {
+                if (isYouTube) 30L else 20L
+            }
+            onSkipAttempted(isYouTube, platformId ?: if (isYouTube) "youtube" else "hotstar", secondsSaved = totalAdDuration)
         }
 
         return clicked
@@ -5798,16 +5858,93 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun onSkipAttempted(
-        isYouTube: Boolean,
-        platformId: String = if (isYouTube) "youtube" else "hotstar"
-    ) {
+    /**
+     * Inspects active window hierarchy for ad timers, countdowns, and duration indicators.
+     * Records the maximum detected total ad duration (e.g. 120s for a 2-minute ad)
+     * so that skipping or muting tracks the real, exact time saved for the user.
+     */
+    private fun trackActiveAdDuration(root: AccessibilityNodeInfo?, platformId: String? = null) {
+        if (root == null) return
+        try {
+            val detectedSec = DetectionDictionary.extractAdTotalDurationSeconds(root)
+            if (detectedSec != null && detectedSec >= 5L) {
+                if (detectedSec > currentAdSessionMaxDurationSeconds) {
+                    currentAdSessionMaxDurationSeconds = detectedSec
+                    Log.d(TAG, "[$platformId] Parsed full ad total duration: ${detectedSec}s")
+                }
+            }
+            if (currentAdSessionStartTimeMs == 0L) {
+                currentAdSessionStartTimeMs = SystemClock.elapsedRealtime()
+                if (platformId != null) currentAdSessionPlatformId = platformId
+            }
+        } catch (e: Exception) {
+            // Safe fallback
+        }
+    }
+
+    private fun startAdSession(platformId: String, isAudioOnly: Boolean = false, root: AccessibilityNodeInfo? = null) {
+        if (currentAdSessionStartTimeMs == 0L || currentAdSessionPlatformId != platformId) {
+            currentAdSessionStartTimeMs = SystemClock.elapsedRealtime()
+            currentAdSessionPlatformId = platformId
+            currentAdSessionMaxDurationSeconds = 0L
+        }
+        if (root != null) {
+            trackActiveAdDuration(root, platformId)
+        }
+    }
+
+    private fun finishAdSessionAndRecord(platformId: String, isAudioOnly: Boolean = false) {
+        val now = SystemClock.elapsedRealtime()
+        val elapsedSec = if (currentAdSessionStartTimeMs > 0L) {
+            ((now - currentAdSessionStartTimeMs) / 1000L).coerceIn(5L, 300L)
+        } else 0L
+
+        val baseline = if (isAudioOnly) 30L else 15L
+        val secondsSaved = maxOf(currentAdSessionMaxDurationSeconds, elapsedSec).coerceAtLeast(baseline)
+
+        Log.i(TAG, "[$platformId] Ad session finished! Recorded exact ad duration: ${secondsSaved}s (parsedMax=${currentAdSessionMaxDurationSeconds}s, elapsed=${elapsedSec}s)")
+
+        // Reset session state
+        currentAdSessionStartTimeMs = 0L
+        currentAdSessionMaxDurationSeconds = 0L
+        currentAdSessionPlatformId = ""
+
         serviceScope.launch {
             try {
-                statsRepo.recordAdSkipped(platformId = platformId)
+                if (platformId == "spotify") {
+                    statsRepo.recordSpotifyAdMuted(secondsSaved = secondsSaved)
+                } else if (platformId == "saavn") {
+                    statsRepo.recordSaavnAdMuted(secondsSaved = secondsSaved)
+                } else {
+                    statsRepo.recordAdEvent(platformId = platformId, isAudioOnly = isAudioOnly, secondsSaved = secondsSaved)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error recording ad session stat for $platformId", e)
+            }
+        }
+    }
+
+    private fun onSkipAttempted(
+        isYouTube: Boolean,
+        platformId: String = if (isYouTube) "youtube" else "hotstar",
+        secondsSaved: Long? = null
+    ) {
+        val finalSecondsSaved = secondsSaved
+            ?: (if (currentAdSessionMaxDurationSeconds >= 5L) currentAdSessionMaxDurationSeconds else (if (isYouTube) 30L else 20L))
+
+        Log.i(TAG, "[$platformId] Ad skipped! Recording real full ad duration saved: ${finalSecondsSaved}s (sessionMax=${currentAdSessionMaxDurationSeconds}s)")
+
+        // Reset session state
+        currentAdSessionStartTimeMs = 0L
+        currentAdSessionMaxDurationSeconds = 0L
+        currentAdSessionPlatformId = ""
+
+        serviceScope.launch {
+            try {
+                statsRepo.recordAdSkipped(platformId = platformId, secondsSaved = finalSecondsSaved)
                 if (!preferencesRepo.isPlatformUnlockedSync(isYouTube)) {
                     val used = preferencesRepo.incrementFreeSkips()
-                    Log.i(TAG, "Free ad skip used: $used of ${BillingConstants.FREE_TIER_MAX_SKIPS} (platform=$platformId, isYouTube=$isYouTube)")
+                    Log.i(TAG, "Free ad skip used: $used of ${BillingConstants.FREE_TIER_MAX_SKIPS} (platform=$platformId, isYouTube=$isYouTube, secondsSaved=${finalSecondsSaved}s)")
                     if (used >= BillingConstants.FREE_TIER_MAX_SKIPS) {
                         notifyPaywallLimitReached(isOttUpgrade = false)
                     }

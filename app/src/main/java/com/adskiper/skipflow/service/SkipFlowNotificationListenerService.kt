@@ -11,6 +11,7 @@ import android.media.session.PlaybackState
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
@@ -88,6 +89,8 @@ class SkipFlowNotificationListenerService : NotificationListenerService() {
     private var activeSpotifyCallback: MediaController.Callback? = null
     @Volatile
     private var isSpotifyMutedByUs = false
+    @Volatile
+    private var spotifyAdStartTimeMs = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -256,13 +259,18 @@ class SkipFlowNotificationListenerService : NotificationListenerService() {
                     Log.i(TAG, "⚡ Spotify Ad detected in background/pocket! Silencing audio instantly at 0ms ('$title').")
                     audioController.muteAdAudio()
                     isSpotifyMutedByUs = true
-                    serviceScope.launch { statsRepo.recordSpotifyAdMuted() }
+                    spotifyAdStartTimeMs = SystemClock.elapsedRealtime()
                 }
             } else if (isNormalSong) {
                 if (isSpotifyMutedByUs || audioController.isCurrentlyMuted()) {
-                    Log.i(TAG, "🎵 Spotify normal track active! Restoring music audio at 0ms ('$title' by '$artist').")
+                    val elapsedSec = if (spotifyAdStartTimeMs > 0L) {
+                        ((SystemClock.elapsedRealtime() - spotifyAdStartTimeMs) / 1000L).coerceIn(15L, 300L)
+                    } else 30L
+                    spotifyAdStartTimeMs = 0L
+                    Log.i(TAG, "🎵 Spotify normal track active! Restoring music audio at 0ms ('$title' by '$artist'). Recorded ${elapsedSec}s saved.")
                     isSpotifyMutedByUs = false
                     audioController.unmuteAdAudio()
+                    serviceScope.launch { statsRepo.recordSpotifyAdMuted(secondsSaved = elapsedSec) }
                 }
             }
         } catch (e: Exception) {
@@ -283,12 +291,17 @@ class SkipFlowNotificationListenerService : NotificationListenerService() {
             if (!audioController.isCurrentlyMuted() || !isSpotifyMutedByUs) {
                 audioController.muteAdAudio()
                 isSpotifyMutedByUs = true
-                serviceScope.launch { statsRepo.recordSpotifyAdMuted() }
+                spotifyAdStartTimeMs = SystemClock.elapsedRealtime()
             }
         } else if (title.isNotEmpty() && !title.equals("spotify", true)) {
             if (isSpotifyMutedByUs || audioController.isCurrentlyMuted()) {
+                val elapsedSec = if (spotifyAdStartTimeMs > 0L) {
+                    ((SystemClock.elapsedRealtime() - spotifyAdStartTimeMs) / 1000L).coerceIn(15L, 300L)
+                } else 30L
+                spotifyAdStartTimeMs = 0L
                 isSpotifyMutedByUs = false
                 audioController.unmuteAdAudio()
+                serviceScope.launch { statsRepo.recordSpotifyAdMuted(secondsSaved = elapsedSec) }
             }
         }
     }

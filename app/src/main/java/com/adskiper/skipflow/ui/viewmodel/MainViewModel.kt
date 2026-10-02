@@ -330,7 +330,7 @@ class MainViewModel(
             delay(if (skipDelayMs.value > 0) skipDelayMs.value else 200)
             _isSimMuted.value = false
             _isSimulatingAd.value = false
-            statsRepo.recordAdSkipped()
+            statsRepo.recordAdSkipped(platformId = "youtube", secondsSaved = 30L)
         }
     }
 

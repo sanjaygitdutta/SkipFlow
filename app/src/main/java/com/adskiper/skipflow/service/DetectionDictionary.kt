@@ -1,5 +1,8 @@
 package com.adskiper.skipflow.service
 
+import android.view.accessibility.AccessibilityNodeInfo
+import java.util.ArrayDeque
+
 object DetectionDictionary {
 
     val YOUTUBE_PACKAGES = setOf(
@@ -42,6 +45,7 @@ object DetectionDictionary {
     )
 
     val PRIME_VIDEO_PACKAGES = setOf(
+        "com.primevideo.android",            // Amazon Prime Video Android Client (Phone)
         "com.amazon.avod.thirdpartyclient",  // Amazon Prime Video Android Client
         "com.amazon.amazonvideo.livingroom"  // Prime Video Android TV / Fire OS
     )
@@ -56,7 +60,8 @@ object DetectionDictionary {
     )
 
     val ZEE5_PACKAGES = setOf(
-        "com.graymatrix.did"                 // Zee5 Android Client
+        "com.graymatrix.did",                // Zee5 Android Client
+        "com.zee5.android"                  // Zee5 Android Alternate / Global
     )
 
     val SAAVN_PACKAGES = setOf(
@@ -157,6 +162,196 @@ object DetectionDictionary {
         """\bad\b[\s:•·\.\-|]*\(?\s*(?:(\d{1,2}:\d{2})|(\d+\s*s(?:ec)?(?:onds?)?))\s*\)?""",
         RegexOption.IGNORE_CASE
     )
+
+    // ------------------------------------------------------------------------
+    // AD FULL DURATION & TIMING TRACKING ENGINE
+    // Accurately extracts the total ad duration (e.g. 2 minutes = 120s, 1:30 = 90s,
+    // 0:30 = 30s) across all supported platforms (YouTube, Hotstar, Prime, etc.)
+    // so user insights reflect the exact duration avoided.
+    // ------------------------------------------------------------------------
+
+    val AD_CURRENT_TOTAL_REGEX = Regex(
+        """\b(?:\d{1,2}:)?\d{1,2}:\d{2}\s*(?:\/|of|•|·)\s*(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\b""",
+        RegexOption.IGNORE_CASE
+    )
+
+    val AD_SPOKEN_DURATION_REGEX = Regex(
+        """\b(?:of|total)\s+(?:(\d+)\s*(?:hr|hour|hours?)[,\s]*)?(?:(\d+)\s*(?:min|minute|minutes?)[,\s]*)?(?:(\d+)\s*(?:sec|second|seconds?))?\b""",
+        RegexOption.IGNORE_CASE
+    )
+
+    val AD_HEADER_DURATION_REGEX = Regex(
+        """\b(?:video will (?:play|resume) after ad|ad will end in|ad ends in|remaining)[^\d]*(\d{1,2}):(\d{2})\b""",
+        RegexOption.IGNORE_CASE
+    )
+
+    val AD_SECONDS_REMAINING_REGEX = Regex(
+        """\b(?:ad will end in|ad ends in|remaining)\s*(\d{1,3})\s*(?:s|sec|seconds?)\b""",
+        RegexOption.IGNORE_CASE
+    )
+
+    val AD_COUNTER_DURATION_REGEX = Regex(
+        """\b(?:\d+\s*(?:of|\/)\s*\d+\s*[•·\.\-|:()]*\s*|ad[\s:•·\.\-|]+)\(?\s*(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s*\)?""",
+        RegexOption.IGNORE_CASE
+    )
+
+    val STANDALONE_MM_SS_REGEX = Regex(
+        """^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})$"""
+    )
+
+    val AD_DURATION_VIEW_IDS = listOf(
+        "com.google.android.youtube:id/time_duration",
+        "com.google.android.youtube:id/ad_time_remaining",
+        "com.google.android.youtube:id/ad_countdown_text",
+        "com.google.android.youtube:id/countdown_text",
+        "com.google.android.youtube:id/ad_progress_text",
+        "in.startv.hotstar:id/ad_timer",
+        "in.startv.hotstar:id/tv_ad_timer",
+        "in.startv.hotstar:id/ad_countdown",
+        "com.jiohotstar.android:id/ad_timer",
+        "com.jiohotstar.android:id/tv_ad_timer",
+        "com.jiohotstar.android:id/ad_countdown",
+        "com.mxtech.videoplayer.ad:id/ad_timer",
+        "com.mxtech.videoplayer.ad:id/timer",
+        "com.sonyliv:id/ad_timer",
+        "com.sonyliv:id/timer",
+        "com.graymatrix.did:id/ad_timer",
+        "com.graymatrix.did:id/timer",
+        "time_duration",
+        "exo_duration",
+        "ad_timer",
+        "tv_ad_timer",
+        "ad_countdown"
+    )
+
+    fun parseDurationSecondsFromText(text: String): Long? {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return null
+
+        // 1. Current / Total format (e.g. "0:05 / 2:00", "0:05 of 1:30")
+        AD_CURRENT_TOTAL_REGEX.find(trimmed)?.let { match ->
+            val hours = match.groups[1]?.value?.toLongOrNull() ?: 0L
+            val mins = match.groups[2]?.value?.toLongOrNull() ?: 0L
+            val secs = match.groups[3]?.value?.toLongOrNull() ?: 0L
+            val total = hours * 3600L + mins * 60L + secs
+            if (total in 5L..900L) return total
+        }
+
+        // 2. Spoken accessibility description (e.g. "5 seconds of 2 minutes", "10 seconds of 1 minute, 30 seconds")
+        AD_SPOKEN_DURATION_REGEX.find(trimmed)?.let { match ->
+            val hours = match.groups[1]?.value?.toLongOrNull() ?: 0L
+            val mins = match.groups[2]?.value?.toLongOrNull() ?: 0L
+            val secs = match.groups[3]?.value?.toLongOrNull() ?: 0L
+            val total = hours * 3600L + mins * 60L + secs
+            if (total in 5L..900L) return total
+        }
+
+        // 3. Header duration (e.g. "Video will play after ad • 2:00", "Ad will end in 1:15")
+        AD_HEADER_DURATION_REGEX.find(trimmed)?.let { match ->
+            val mins = match.groups[1]?.value?.toLongOrNull() ?: 0L
+            val secs = match.groups[2]?.value?.toLongOrNull() ?: 0L
+            val total = mins * 60L + secs
+            if (total in 5L..900L) return total
+        }
+
+        // 4. Countdown in seconds (e.g. "Ad ends in 25s", "15 seconds remaining")
+        AD_SECONDS_REMAINING_REGEX.find(trimmed)?.let { match ->
+            val secs = match.groups[1]?.value?.toLongOrNull() ?: 0L
+            if (secs in 5L..900L) return secs
+        }
+
+        // 5. Counter with timer (e.g. "1 of 2 . 00:30", "Ad • 00:45", "ad:(0:30)")
+        AD_COUNTER_DURATION_REGEX.find(trimmed)?.let { match ->
+            val hours = match.groups[1]?.value?.toLongOrNull() ?: 0L
+            val mins = match.groups[2]?.value?.toLongOrNull() ?: 0L
+            val secs = match.groups[3]?.value?.toLongOrNull() ?: 0L
+            val total = hours * 3600L + mins * 60L + secs
+            if (total in 5L..900L) return total
+        }
+
+        // 6. Standalone MM:SS format (e.g. "2:00", "01:30")
+        STANDALONE_MM_SS_REGEX.matchEntire(trimmed)?.let { match ->
+            val hours = match.groups[1]?.value?.toLongOrNull() ?: 0L
+            val mins = match.groups[2]?.value?.toLongOrNull() ?: 0L
+            val secs = match.groups[3]?.value?.toLongOrNull() ?: 0L
+            val total = hours * 3600L + mins * 60L + secs
+            if (total in 5L..900L) return total
+        }
+
+        return null
+    }
+
+    fun extractAdTotalDurationSeconds(root: AccessibilityNodeInfo): Long? {
+        val pkg = root.packageName?.toString() ?: ""
+
+        // 1. Direct view ID search on player duration views
+        for (vId in AD_DURATION_VIEW_IDS) {
+            val candidateIds = if (vId.contains(":id/")) listOf(vId) else listOf("$pkg:id/$vId", vId)
+            for (fullId in candidateIds) {
+                val nodes = root.findAccessibilityNodeInfosByViewId(fullId)
+                if (!nodes.isNullOrEmpty()) {
+                    for (node in nodes) {
+                        if (node.isVisibleToUser) {
+                            val text = node.text?.toString()?.trim() ?: ""
+                            val desc = node.contentDescription?.toString()?.trim() ?: ""
+                            val parsed = parseDurationSecondsFromText(text) ?: parseDurationSecondsFromText(desc)
+                            if (parsed != null && parsed >= 5L) {
+                                nodes.forEach { it.recycle() }
+                                return parsed
+                            }
+                        }
+                        node.recycle()
+                    }
+                }
+            }
+        }
+
+        // 2. Direct fast text search for common ad duration prefixes
+        for (keyword in listOf("/", "of", "play after ad", "end in", "remaining")) {
+            val nodes = root.findAccessibilityNodeInfosByText(keyword)
+            if (!nodes.isNullOrEmpty()) {
+                for (node in nodes) {
+                    if (node.isVisibleToUser) {
+                        val text = node.text?.toString()?.trim() ?: ""
+                        val desc = node.contentDescription?.toString()?.trim() ?: ""
+                        val parsed = parseDurationSecondsFromText(text) ?: parseDurationSecondsFromText(desc)
+                        if (parsed != null && parsed >= 5L) {
+                            nodes.forEach { it.recycle() }
+                            return parsed
+                        }
+                    }
+                    node.recycle()
+                }
+            }
+        }
+
+        // 3. Fast BFS over top nodes (depth-limited)
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        for (i in 0 until root.childCount) {
+            root.getChild(i)?.let { queue.add(it) }
+        }
+        var inspected = 0
+        while (queue.isNotEmpty() && inspected < 60) {
+            val node = queue.poll() ?: continue
+            inspected++
+            if (node.isVisibleToUser) {
+                val text = node.text?.toString()?.trim() ?: ""
+                val desc = node.contentDescription?.toString()?.trim() ?: ""
+                val parsed = parseDurationSecondsFromText(text) ?: parseDurationSecondsFromText(desc)
+                if (parsed != null && parsed >= 5L) {
+                    while (queue.isNotEmpty()) queue.poll()?.recycle()
+                    node.recycle()
+                    return parsed
+                }
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { queue.add(it) }
+            }
+            node.recycle()
+        }
+        while (queue.isNotEmpty()) queue.poll()?.recycle()
+        return null
+    }
 
     // Hotstar / JioHotstar in-stream ad countdown and break counters (e.g. "2 of 3 • 00:14", "3 of 3 • 00:13", "1 of 1 • 00:15", "1 of 1 . 00:15", "Ad • 1 of 2", "Ad 1 of 1")
     val HOTSTAR_COUNTDOWN_REGEX = COUNTER_WITH_TIMER_REGEX

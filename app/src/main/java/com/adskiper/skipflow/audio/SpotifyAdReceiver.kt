@@ -34,11 +34,15 @@ class SpotifyAdReceiver : BroadcastReceiver {
         @Volatile
         private var isCurrentTrackAd = false
 
+        @Volatile
+        private var spotifyAdStartTimeMs = 0L
+
         fun isCurrentlyMuting(): Boolean = isCurrentlyMutingSpotify
 
         fun resetMuteState() {
             isCurrentlyMutingSpotify = false
             isCurrentTrackAd = false
+            spotifyAdStartTimeMs = 0L
         }
 
         fun createIntentFilter(): IntentFilter {
@@ -131,24 +135,29 @@ class SpotifyAdReceiver : BroadcastReceiver {
 
         if (isAd) {
             if (!isCurrentlyMutingSpotify) {
+                spotifyAdStartTimeMs = android.os.SystemClock.elapsedRealtime()
                 Log.i(TAG, "Detected Spotify Ad via broadcast (id='$id', track='$track', artist='$artist', album='$album')! Silencing audio stream (0ms).")
                 controller.muteAdAudio()
                 isCurrentlyMutingSpotify = true
                 onStateChanged?.invoke(true)
-                statsRepo?.let { repo ->
-                    scope.launch { repo.recordSpotifyAdMuted() }
-                } ?: run {
-                    val repo = StatsRepository(context.applicationContext)
-                    scope.launch { repo.recordSpotifyAdMuted() }
-                }
             }
         } else if (!isAd && (track.isNotEmpty() || id.startsWith("spotify:track:", ignoreCase = true))) {
             if (isCurrentlyMutingSpotify || controller.isCurrentlyMuted()) {
-                Log.i(TAG, "Spotify normal track resumed via broadcast ('$track' by '$artist'). Restoring audio (0ms).")
+                val elapsedSec = if (spotifyAdStartTimeMs > 0L) {
+                    ((android.os.SystemClock.elapsedRealtime() - spotifyAdStartTimeMs) / 1000L).coerceIn(15L, 300L)
+                } else 30L
+                spotifyAdStartTimeMs = 0L
+                Log.i(TAG, "Spotify normal track resumed via broadcast ('$track' by '$artist'). Restoring audio (0ms). Recorded $elapsedSec s saved.")
                 controller.unmuteAdAudio()
                 isCurrentlyMutingSpotify = false
                 isCurrentTrackAd = false
                 onStateChanged?.invoke(false)
+                statsRepo?.let { repo ->
+                    scope.launch { repo.recordSpotifyAdMuted(secondsSaved = elapsedSec) }
+                } ?: run {
+                    val repo = StatsRepository(context.applicationContext)
+                    scope.launch { repo.recordSpotifyAdMuted(secondsSaved = elapsedSec) }
+                }
             }
         }
     }
