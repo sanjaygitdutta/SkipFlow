@@ -521,6 +521,17 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         val text = node.text?.toString()?.lowercase() ?: ""
         val combined = "$viewId $desc $text"
 
+        // 0. Explicit Ad Indicators: NEVER treat ad badges or sponsored tags as playback controls or video titles!
+        if (text.contains("sponsored") || desc.contains("sponsored") ||
+            text.contains("advertisement") || desc.contains("advertisement") ||
+            text.startsWith("ad ·") || desc.startsWith("ad ·") ||
+            text.startsWith("ad •") || desc.startsWith("ad •") ||
+            text.contains("विज्ञापन") || desc.contains("विज्ञापन") ||
+            isAdBadgeText(text) || isAdBadgeText(desc)
+        ) {
+            return false
+        }
+
         // 1. Video title & channel information (prevents matching "Part 1 of 2", "Download:", "Brad", etc.)
         if (viewId.contains("video_title") || viewId.contains("title_text_view") ||
             viewId.contains("player_video_title") || viewId.contains("watch_title") ||
@@ -577,12 +588,15 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         if (t.isEmpty()) return false
 
         // 1. Explicit sponsored prefix with brand name or URL (e.g. "Sponsored · Samsung Galaxy S24", "Sponsored · Booking.com")
-        // These can have long advertiser brand names up to 80 chars, strictly within active video player
-        if (t.startsWith("sponsored ·") || t.startsWith("sponsored •") || t.startsWith("sponsored -") ||
-            t.startsWith("sponsored:") || t.startsWith("sponsored: ") || t.startsWith("sponsored |") ||
-            t.startsWith("sponsored /") || (t.startsWith("sponsored ") && t.length <= 80) ||
+        // These can have long advertiser brand names up to 80 chars, anywhere in active video player or watch header
+        if (t.contains("sponsored ·") || t.contains("sponsored •") || t.contains("sponsored -") ||
+            t.contains("sponsored |") || t.contains("sponsored /") || t.contains("sponsored .") ||
+            t.startsWith("sponsored:") || t.startsWith("sponsored: ") ||
+            (t.startsWith("sponsored ") && t.length <= 80) ||
             t == "sponsored"
         ) {
+            return t.length <= 80
+        }
             return t.length <= 80
         }
 
@@ -4954,7 +4968,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         val screenWidth = Resources.getSystem().displayMetrics.widthPixels
         val isPortrait = screenHeight > screenWidth
 
-        // Helper to validate a node resides within the active video canvas
+        // Helper to validate a node resides within the active video canvas or active watch ad header
         // requireVisible is true by default so invisible/recycled ad views in memory never trigger false mutes
         fun isValidAdNode(node: AccessibilityNodeInfo, minW: Int = 6, minH: Int = 6, requireVisible: Boolean = true): Rect? {
             if (requireVisible && !node.isVisibleToUser) return null
@@ -4965,13 +4979,30 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             if (rect.width() < minW || rect.height() < minH) return null
             if (rect.left < 0 || rect.top < 0) return null
 
-            // Node must intersect the active video player canvas
-            if (!Rect.intersects(rect, validAdBounds)) return null
+            val nodeText = node.text?.toString()?.lowercase() ?: ""
+            val nodeDesc = node.contentDescription?.toString()?.lowercase() ?: ""
+            val isExplicitAdCue = nodeText.contains("sponsored") || nodeDesc.contains("sponsored") ||
+                    nodeText.startsWith("ad ·") || nodeDesc.startsWith("ad ·") ||
+                    nodeText.startsWith("ad •") || nodeDesc.startsWith("ad •") ||
+                    nodeText.contains("skip in") || nodeDesc.contains("skip in") ||
+                    nodeText.contains("skip to video in") || nodeDesc.contains("skip to video in") ||
+                    nodeText.contains("you can skip") || nodeDesc.contains("you can skip") ||
+                    nodeText.contains("विज्ञापन") || nodeDesc.contains("विज्ञापन")
 
-            // In standard portrait mode, strictly ensure node does not belong to the feed below
-            if (isPortrait && isYouTube && validAdBounds.height() < screenHeight) {
-                if (rect.top >= validAdBounds.bottom) return null
-                if (rect.centerY() > validAdBounds.bottom) return null
+            // In portrait YouTube, explicit ad badges (like "Sponsored · [Brand]") can reside in the active watch header directly beneath the player
+            val allowedMaxBottom = if (isPortrait && isYouTube) {
+                if (isExplicitAdCue) (screenHeight * 0.58f).toInt() else validAdBounds.bottom
+            } else {
+                screenHeight
+            }
+
+            val checkBounds = Rect(0, 0, screenWidth, allowedMaxBottom)
+            if (!Rect.intersects(rect, checkBounds)) return null
+
+            // In standard portrait mode, strictly ensure node does not belong to the recommendation feed below
+            if (isPortrait && isYouTube && allowedMaxBottom < screenHeight) {
+                if (rect.top >= allowedMaxBottom) return null
+                if (rect.centerY() > allowedMaxBottom) return null
             }
 
             return rect
@@ -4982,10 +5013,20 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             val text = node.text?.toString()?.lowercase() ?: ""
             val desc = node.contentDescription?.toString()?.lowercase() ?: ""
             val viewId = node.viewIdResourceName?.lowercase() ?: ""
-            val combined = "$text $desc $viewId"
 
+            // Explicit ad indicators in the active player/watch area are NEVER feed shopping cards!
+            if (text.contains("sponsored") || desc.contains("sponsored") ||
+                text.startsWith("ad ·") || desc.startsWith("ad ·") ||
+                text.startsWith("ad •") || desc.startsWith("ad •") ||
+                text.contains("विज्ञापन") || desc.contains("विज्ञापन") ||
+                isAdBadgeText(text) || isAdBadgeText(desc)
+            ) {
+                return false
+            }
+
+            val combined = "$text $desc $viewId"
             val isPosterOrFeedId = (viewId.contains("feed") || viewId.contains("shelf") ||
-                    viewId.contains("promoted") || viewId.contains("item_ad")) &&
+                    viewId.contains("item_ad")) &&
                     !viewId.contains("instream") && !viewId.contains("player") && !viewId.contains("ad_")
 
             val hasPrice = combined.contains("₹") || combined.contains("$") || combined.contains("€") || combined.contains("£")
@@ -4994,6 +5035,63 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             val isCreatorPromo = combined.contains("paid promotion") || combined.contains("includes paid promotion")
 
             return isPosterOrFeedId || hasPrice || hasRating || hasShopCues || isCreatorPromo
+        }
+
+        // =========================================================================
+        // PRIORITY ZERO: Direct 0ms Instant Sponsored & In-Stream Ad Badge Fast-Path
+        // Catches "Sponsored · [Brand]", "Sponsored •", "Sponsored -", "Sponsored", "Ad ·"
+        // anywhere in the active video canvas or active watch ad header (top 58% of screen)
+        // with ZERO millisecond latency before running any container or BFS checks.
+        // =========================================================================
+        val fastSponsoredMarkers = listOf(
+            "Sponsored ·", "Sponsored •", "Sponsored -", "Sponsored:", "Sponsored",
+            "sponsored ·", "sponsored •", "sponsored -", "sponsored:", "sponsored",
+            "Ad ·", "Ad •", "Ad:", "Ad: (",
+            "Ad 1 of", "Ad 2 of",
+            "1 of 2", "2 of 2", "1 of 1",
+            "Skip in", "Skip ad in", "Skip to video in", "You can skip",
+            "Video will play after", "Ad will end in", "Ad ends in",
+            "विज्ञापन", "सेकंड में छोड़ें", "प्रायोजित"
+        )
+        for (fastMarker in fastSponsoredMarkers) {
+            val fastNodes = root.findAccessibilityNodeInfosByText(fastMarker)
+            if (!fastNodes.isNullOrEmpty()) {
+                var foundFast = false
+                for (fNode in fastNodes) {
+                    val fText = fNode.text?.toString()?.trim() ?: ""
+                    val fDesc = fNode.contentDescription?.toString()?.trim() ?: ""
+                    val fLower = "$fText $fDesc".lowercase()
+
+                    val isSponsored = fLower.contains("sponsored ·") || fLower.contains("sponsored •") ||
+                            fLower.contains("sponsored -") || fLower.contains("sponsored |") ||
+                            fLower.contains("sponsored .") || fLower.startsWith("sponsored:") ||
+                            fLower.startsWith("sponsored ") || fLower == "sponsored"
+
+                    val isAdPrefix = fLower.startsWith("ad ·") || fLower.startsWith("ad •") ||
+                            fLower.startsWith("ad -") || fLower.startsWith("ad:") || fLower.startsWith("ad (") ||
+                            fLower == "ad 1 of 2" || fLower == "ad 2 of 2" || fLower == "ad 1 of 1" ||
+                            fLower.startsWith("ad 1 of") || fLower.startsWith("ad 2 of")
+
+                    val isIndic = fLower.contains("विज्ञापन") || fLower.contains("प्रायोजित") || fLower.contains("सेकंड में छोड़ें")
+
+                    val isCountdown = fLower.contains("skip in") || fLower.contains("skip ad in") ||
+                            fLower.contains("skip to video in") || fLower.contains("you can skip") ||
+                            fLower.contains("video will play after") || fLower.contains("ad will end in") ||
+                            fLower.contains("ad ends in")
+
+                    if (isSponsored || isAdPrefix || isIndic || isCountdown) {
+                        val fRect = Rect()
+                        fNode.getBoundsInScreen(fRect)
+                        val maxAllowedY = if (isPortrait && isYouTube) (screenHeight * 0.58f).toInt() else screenHeight
+                        if (fRect.width() >= 4 && fRect.height() >= 4 && fRect.top >= 0 && fRect.top < maxAllowedY) {
+                            foundFast = true
+                            checkForMultiAdSequence(fText, fDesc)
+                        }
+                    }
+                    fNode.recycle()
+                }
+                if (foundFast) return true
+            }
         }
 
         // Strategy 0: Direct Pre-Render in-stream ad container detection (0ms reaction at second 0.0)
