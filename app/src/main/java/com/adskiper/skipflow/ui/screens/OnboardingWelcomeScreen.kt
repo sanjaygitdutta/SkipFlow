@@ -17,10 +17,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,6 +34,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
@@ -48,9 +52,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
@@ -86,6 +93,9 @@ fun OnboardingWelcomeScreen(
 
     // Interactive Showcase Tab state (0: Life Moments, 1: Vibe Waves, 2: 0ms Pipeline)
     var selectedShowcaseTab by remember { mutableIntStateOf(0) }
+
+    // Active feature detail modal dialog for the 4 interactive blocks (Headphones, YouTube, Smart Phone, OTT)
+    var activeFeatureDialog by remember { mutableStateOf<DeviceFeatureDetail?>(null) }
 
     // Floating micro-animations for device cards
     val floatOffset1 by infiniteTransition.animateFloat(
@@ -453,7 +463,25 @@ fun OnboardingWelcomeScreen(
                             icon = Icons.Default.Headphones,
                             accentColor = SpotifyGreen,
                             badge = "Music",
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                activeFeatureDialog = DeviceFeatureDetail(
+                                    title = "Headphones & Music",
+                                    subtitle = "Spotify & JioSaavn Background Muter",
+                                    icon = Icons.Default.Headphones,
+                                    accentColor = SpotifyGreen,
+                                    badge = "Music",
+                                    headline = "Screen-Off & Pocket Background Muting",
+                                    supportedApps = listOf("Spotify", "Spotify Lite", "JioSaavn", "MediaSession"),
+                                    features = listOf(
+                                        FeatureItem("🎧", "Screen-Off & Pocket Muting", "Background", "Mutes commercial audio even when your phone is asleep, locked, or in your pocket."),
+                                        FeatureItem("⚡", "Zero-Latency OS Hooks", "0ms Speed", "Direct Android OS Broadcasts and MediaSession tokens — zero lag and zero battery drain."),
+                                        FeatureItem("🎵", "Instant Music Restoration", "Calibrated", "Restores your exact preferred volume the millisecond the next real song starts."),
+                                        FeatureItem("📻", "Multi-App Music Support", "Universal", "Works seamlessly across Spotify, Spotify Lite, and JioSaavn."),
+                                        FeatureItem("📊", "Time Saved Tracker", "Real-Time", "Accurately logs total minutes of music commercials saved and silenced.")
+                                    )
+                                )
+                            }
                         )
                         DynamicDeviceCard(
                             title = "YouTube",
@@ -461,7 +489,25 @@ fun OnboardingWelcomeScreen(
                             icon = Icons.Default.PlayArrow,
                             accentColor = Color(0xFFFF2A2A),
                             badge = "Video",
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                activeFeatureDialog = DeviceFeatureDetail(
+                                    title = "YouTube",
+                                    subtitle = "Autonomous Video Ad Control",
+                                    icon = Icons.Default.PlayArrow,
+                                    accentColor = Color(0xFFFF2A2A),
+                                    badge = "Video",
+                                    headline = "0ms Autonomous Ad Skipping & Silencing",
+                                    supportedApps = listOf("YouTube", "YouTube Kids", "YouTube TV", "Web Player"),
+                                    features = listOf(
+                                        FeatureItem("⚡", "Instant Audio Silencing", "0ms Speed", "Silences loud ad noise on the very first video frame so you hear zero commercial sound."),
+                                        FeatureItem("⏩", "Auto-Skip Video Ads", "Hands-Free", "Clicks the 'Skip Ad' countdown the exact millisecond it finishes without touching the screen."),
+                                        FeatureItem("🛡️", "Multi-Ad Transition Lock", "Dual-Ad Fix", "Seamlessly holds mute across Ad 1 of 2 into Ad 2 of 2 with zero sound blast."),
+                                        FeatureItem("❌", "Auto-Close Banners", "Overlay Filter", "Automatically closes popup banners, survey boxes, and sponsored overlay cards."),
+                                        FeatureItem("📺", "Clean Screen Auto-Dismiss", "Full Screen", "Fades lingering accessibility player controls so you enjoy a clear, unobstructed video.")
+                                    )
+                                )
+                            }
                         )
                     }
 
@@ -477,7 +523,25 @@ fun OnboardingWelcomeScreen(
                             icon = Icons.Default.Smartphone,
                             accentColor = CyberCyan,
                             badge = "Hands-Free",
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                activeFeatureDialog = DeviceFeatureDetail(
+                                    title = "Smart Phone",
+                                    subtitle = "Proximity Wave Gesture Sensor",
+                                    icon = Icons.Default.Smartphone,
+                                    accentColor = CyberCyan,
+                                    badge = "Hands-Free",
+                                    headline = "Touchless Gesture Control for Daily Life",
+                                    supportedApps = listOf("Proximity Sensor", "Gym Mode", "Kitchen Mode", "100% Private"),
+                                    features = listOf(
+                                        FeatureItem("👋", "Wave to Skip", "Touchless", "Wave your hand over the front proximity sensor to skip video ads without touching the glass."),
+                                        FeatureItem("🍳", "Kitchen & Cooking Mode", "Clean Hands", "Skip ads while cooking or eating with wet, greasy, or flour-covered hands."),
+                                        FeatureItem("🏋️", "Gym & Workout Friendly", "Sweat-Proof", "Skip ads when your hands are sweaty or chalked without smudging your display."),
+                                        FeatureItem("🔋", "Battery-Smart Sensor Sleep", "Doze Aware", "The hardware sensor sleeps automatically when the screen locks or you leave the media app."),
+                                        FeatureItem("🔒", "100% On-Device & Private", "Zero Camera", "Processed strictly by the local hardware sensor hub with zero camera or internet usage.")
+                                    )
+                                )
+                            }
                         )
                         DynamicDeviceCard(
                             title = "Smart TV & OTT",
@@ -485,7 +549,25 @@ fun OnboardingWelcomeScreen(
                             icon = Icons.Default.Tv,
                             accentColor = VioletNeon,
                             badge = "Streaming",
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                activeFeatureDialog = DeviceFeatureDetail(
+                                    title = "Smart TV & OTT",
+                                    subtitle = "Cinema Streaming & Commercial Muter",
+                                    icon = Icons.Default.Tv,
+                                    accentColor = VioletNeon,
+                                    badge = "Streaming",
+                                    headline = "Universal Cinema & OTT Streaming Engine",
+                                    supportedApps = listOf("JioHotstar", "Prime Video", "Netflix", "MX Player", "SonyLIV", "Zee5"),
+                                    features = listOf(
+                                        FeatureItem("🎬", "Universal OTT Protection", "6+ Platforms", "Instant ad skipping and silencing across JioHotstar, Prime Video, Netflix, MX Player, SonyLIV, and Zee5."),
+                                        FeatureItem("⏭️", "Auto-Skip Intros & Recaps", "Binge Mode", "Automatically clicks 'Skip Intro', 'Skip Recap', and 'Next Episode' buttons in series."),
+                                        FeatureItem("🔇", "Commercial Pod Silencing", "Zero Leak", "Silences long multi-ad commercial breaks on Hotstar, SonyLIV, Zee5, and MX Player."),
+                                        FeatureItem("⚡", "Instant Content Return", "0ms Speed", "Restores normal audio at 0ms as soon as the movie or TV episode resumes."),
+                                        FeatureItem("📺", "Phone & Android TV Support", "Dual Screen", "Fully compatible with Android smartphones, tablets, and Android TV remote interfaces.")
+                                    )
+                                )
+                            }
                         )
                     }
                 }
@@ -628,9 +710,35 @@ fun OnboardingWelcomeScreen(
                     }
                 }
             }
+
+            // Interactive Modal Dialog showing all features aligned to the clicked block
+            activeFeatureDialog?.let { detail ->
+                DeviceFeatureModalDialog(
+                    detail = detail,
+                    onDismiss = { activeFeatureDialog = null }
+                )
+            }
         }
     }
 }
+
+private data class FeatureItem(
+    val emoji: String,
+    val title: String,
+    val badge: String,
+    val description: String
+)
+
+private data class DeviceFeatureDetail(
+    val title: String,
+    val subtitle: String,
+    val icon: ImageVector,
+    val accentColor: Color,
+    val badge: String,
+    val headline: String,
+    val supportedApps: List<String>,
+    val features: List<FeatureItem>
+)
 
 @Composable
 private fun DynamicDeviceCard(
@@ -639,17 +747,19 @@ private fun DynamicDeviceCard(
     icon: ImageVector,
     accentColor: Color,
     badge: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
 ) {
     Card(
         modifier = modifier
             .border(
                 1.dp,
                 Brush.linearGradient(
-                    listOf(accentColor.copy(alpha = 0.4f), Color(0xFF1E293B).copy(alpha = 0.3f))
+                    listOf(accentColor.copy(alpha = 0.45f), Color(0xFF1E293B).copy(alpha = 0.3f))
                 ),
                 RoundedCornerShape(18.dp)
-            ),
+            )
+            .clickable { onClick() },
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color(0xFF121826)
@@ -703,13 +813,309 @@ private fun DynamicDeviceCard(
                 color = Color.White,
                 fontSize = 14.sp
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF94A3B8),
-                fontSize = 11.sp
-            )
+            Spacer(modifier = Modifier.height(3.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF94A3B8),
+                    fontSize = 11.sp,
+                    modifier = Modifier.weight(1f, fill = false),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(accentColor.copy(alpha = 0.15f))
+                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                ) {
+                    Text(
+                        text = "Info ›",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = accentColor
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeviceFeatureModalDialog(
+    detail: DeviceFeatureDetail,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.72f))
+                .clickable { onDismiss() }
+                .padding(horizontal = 20.dp, vertical = 32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 440.dp)
+                    .heightIn(max = 620.dp)
+                    .clickable(enabled = false) { /* stop backdrop propagation */ }
+                    .border(
+                        1.2.dp,
+                        Brush.verticalGradient(
+                            listOf(
+                                detail.accentColor.copy(alpha = 0.7f),
+                                Color(0xFF1E293B).copy(alpha = 0.4f)
+                            )
+                        ),
+                        RoundedCornerShape(26.dp)
+                    ),
+                shape = RoundedCornerShape(26.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF0F172A)
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp)
+                ) {
+                    // Header Row with Icon, Title, Badge, and Close Button
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .background(detail.accentColor.copy(alpha = 0.16f), RoundedCornerShape(14.dp))
+                                    .border(1.dp, detail.accentColor.copy(alpha = 0.35f), RoundedCornerShape(14.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = detail.icon,
+                                    contentDescription = null,
+                                    tint = detail.accentColor,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = detail.title,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color.White,
+                                        fontSize = 17.sp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .background(detail.accentColor.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = detail.badge,
+                                            color = detail.accentColor,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.ExtraBold
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = detail.subtitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+
+                        // Close (X) icon button
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF1E293B).copy(alpha = 0.6f))
+                                .clickable { onDismiss() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = Color(0xFF94A3B8),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Supported Platforms Pill Tags
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "WORKS WITH:",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF64748B),
+                            letterSpacing = 0.5.sp
+                        )
+                        detail.supportedApps.forEach { appName ->
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFF1E293B))
+                                    .border(0.6.dp, detail.accentColor.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = appName,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFFE2E8F0)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Headline benefit banner
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(detail.accentColor.copy(alpha = 0.12f))
+                            .border(0.8.dp, detail.accentColor.copy(alpha = 0.30f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = "✨ " + detail.headline,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Feature micro-cards with smooth vertical scrolling
+                    Column(
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "CAPABILITIES & CONTROLS",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF64748B),
+                            letterSpacing = 0.5.sp
+                        )
+                        detail.features.forEach { feat ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF131D31))
+                                    .border(0.7.dp, Color(0xFF1E293B), RoundedCornerShape(12.dp))
+                                    .padding(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Text(
+                                        text = feat.emoji,
+                                        fontSize = 16.sp,
+                                        modifier = Modifier.padding(top = 1.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = feat.title,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .background(detail.accentColor.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                                                    .padding(horizontal = 5.dp, vertical = 1.dp)
+                                            ) {
+                                                Text(
+                                                    text = feat.badge,
+                                                    color = detail.accentColor,
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.ExtraBold
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(3.dp))
+                                        Text(
+                                            text = feat.description,
+                                            fontSize = 11.sp,
+                                            lineHeight = 15.sp,
+                                            color = Color(0xFF94A3B8)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Dismiss Button
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = detail.accentColor
+                        )
+                    ) {
+                        Text(
+                            text = "Got It 👍",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (detail.accentColor == CyberCyan || detail.accentColor == EmeraldAccent) Color(0xFF070B14) else Color.White
+                        )
+                    }
+                }
+            }
         }
     }
 }

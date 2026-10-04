@@ -12,8 +12,8 @@ android {
         applicationId = "com.adskiper.skipflow"
         minSdk = 26
         targetSdk = 34
-        versionCode = 32
-        versionName = "1.2.19"
+        versionCode = 33
+        versionName = "1.2.20"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
