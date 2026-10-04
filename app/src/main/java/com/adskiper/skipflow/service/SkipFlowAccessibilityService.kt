@@ -597,8 +597,6 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         ) {
             return t.length <= 80
         }
-            return t.length <= 80
-        }
 
         // 2. Explicit Ad prefix with brand name, timer, or counter (e.g. "Ad · Amazon India", "Ad • 0:15", "Ad 1 of 2")
         if (t.startsWith("ad ·") || t.startsWith("ad •") || t.startsWith("ad -") ||
