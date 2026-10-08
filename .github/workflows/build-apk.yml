@@ -41,41 +41,45 @@ jobs:
 
       - name: Prepare APKs for Release
         run: |
-          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.2.22.apk
-          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.2.22-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.2.23.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.2.23-debug.apk
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SkipFlow-v1.2.22-Release-APK
-          path: SkipFlow-v1.2.22.apk
+          name: SkipFlow-v1.2.23-Release-APK
+          path: SkipFlow-v1.2.23.apk
           retention-days: 30
 
       - name: Create GitHub Release with Direct APK Download
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.2.22' }}
-          name: "SkipFlow v1.2.22 (Instant 0ms Muting for YouTube 'Sponsored ·' Ads & Hotstar Stability)"
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.2.23' }}
+          name: "SkipFlow v1.2.23 (0ms Ad Muting & Seekbar Protection for Hotstar, Prime, Zee5, SonyLIV, MX Player & YouTube)"
           body: |
-            ### 🚀 SkipFlow v1.2.22 — True 0ms Instant Muting for YouTube "Sponsored ·" Ads
+            ### 🚀 SkipFlow v1.2.23 — Universal 0ms Ad Muting & Video Seekbar Protection
 
-            #### 🌟 What's Fixed in v1.2.22:
-            - 🎯 **Fixed YouTube 1s-3s Initial Ad Leakage on "Sponsored ·" Ads**:
-              - **The Problem**: On modern YouTube, ads displaying "Sponsored · [Brand]" were leaking 1s to 3s of audio before muting. This was caused by three critical filters:
-                1. `isPlaybackControlOrVideoTitle` was matching `viewId.contains("title")` and treating the ad headline as a normal video title.
-                2. `isValidAdNode` was strictly clipping nodes at the bottom edge of the 16:9 video frame (`validAdBounds.bottom`), discarding the advertiser header/card that sits directly beneath the video player.
-                3. `isFeedShoppingCard` was flagging `viewId.contains("promoted")` (`promoted_badge`), classifying the active in-stream ad badge as a shopping card.
-              - **The Fix**:
-                1. **Priority Zero 0ms Fast-Path**: Directly scans for `"Sponsored ·"`, `"Sponsored •"`, `"Sponsored"`, `"Ad ·"` anywhere in the active video canvas or watch header (top 58% of screen) and mutes with <0.3ms latency!
-                2. **Video Title Protection**: Explicit ad indicators (`"sponsored"`, `"ad ·"`, `"advertisement"`, `"विज्ञापन"`) are never classified as normal video titles.
-                3. **Watch Ad Header Expansion**: Allowed boundary expanded to the top 58% of the screen for explicit ad badges, capturing the advertiser header right beneath the player.
-                4. **Shopping Card Bypass**: In-stream ad badges are never treated as feed shopping cards.
-            - 🎬 **All Hotstar Movie Stability & Standalone Countdown Ad (59➔0, 39➔0) Fixes Retained**.
-            - 🎧 **Spotify Screen-Off Background Muting & Battery Optimization Retained**.
+            #### 🌟 What's Fixed in v1.2.23:
+            - 🎯 **Eliminated Ad Seekbar False Normal-Content Detection Across All 5 OTT Platforms**:
+              - **The Problem**: During in-stream ads on **JioHotstar**, **Amazon Prime Video**, **Zee 5**, **SonyLIV**, and **MX Player**, the video ad player renders an orange/yellow progress bar or seekbar (`exo_progress`, `seekbar`, `player_progress`, `mx_progress`, `player_seekbar`). Because normal content detection checked for these generic progress bars, any slight polling gap falsely flagged "movie playing", causing premature unmuting and audio leaks.
+              - **The Universal Fix**:
+                1. Removed all generic seekbars, progress bars, and player containers from normal content view IDs across **JioHotstar, Prime Video, Zee5, SonyLIV, and MX Player**.
+                2. Normal content confirmation now strictly checks for genuine interactive movie controls (Rewind 10s `btn_rewind` / `exo_rew`, Fast-Forward 10s `btn_forward` / `exo_ffwd`, X-Ray buttons) or dual movie duration timestamps (e.g. `14:20 / 48:15` or `-34:20`).
+                3. Interactive movie controls are preserved and auto-fade naturally after 2–3s, giving users a 100% clean, uncluttered movie viewing experience with zero false muting.
+            - ⏱️ **Universal 0ms Standalone Countdown Ad Detection (`00:59`, `00:35`, `00:15`, `0:29`, `15s`)**:
+              - Ads starting at any countdown duration (`00:59`, `00:45`, `00:35`, `00:15`, `15s`) without explicit "Ad" text are now instantly detected and muted at 0ms when movie controls and movie timestamps are absent.
+              - Full support for bracketed `[Ad]` and `(Ad)` badges across all platforms.
+              - Added Hotstar companion card CTAs (`"Own Now"`, `"Shop Now"`, `"Know More"`, `"Order Now"`, `"Claim Now"`).
+            - 📺 **YouTube Mid-Playback Muting Guard**:
+              - Fixed rare mid-video false auto-muting (occurring ~4 minutes into content) by filtering out closed captions / subtitles (`isCaptionOrSubtitleNode`), video title containers (`isPlaybackControlOrVideoTitle`), and long spoken dialogue (>80 characters).
+            - 🏋️ **Modernized Onboarding Media**:
+              - Replaced lifestyle gym image with high-definition athlete visual asset.
+            - 🎬 **YouTube 'Sponsored ·' 0ms Priority Zero Fast-Path Retained**.
+            - 🎧 **Spotify Background Receiver & Battery Optimization Retained**.
 
-            > 💡 **Recommended**: Download **SkipFlow-v1.2.22.apk** (Release, Signed) for the best performance.
+            > 💡 **Recommended**: Download **SkipFlow-v1.2.23.apk** (Release, Signed) for the best performance.
           files: |
-            SkipFlow-v1.2.22.apk
-            SkipFlow-v1.2.22-debug.apk
+            SkipFlow-v1.2.23.apk
+            SkipFlow-v1.2.23-debug.apk
           prerelease: false

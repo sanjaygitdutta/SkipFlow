@@ -126,7 +126,7 @@ object DetectionDictionary {
     // - Suffixes/prefixes: "19s", "0s", "59s", "15s", ". 19", "· 19", "• 19", ":19", "(19)", "(0:19)", "19 sec", "19 seconds"
     // - Also matches optional Ad prefix ("Ad 19", "Ad · 19", "Ad: 19") or break counter prefix ("1 of 1 . 19", "1 of 2 . 19")
     val HOTSTAR_STANDALONE_TIMER_REGEX = Regex(
-        """^(?:(?:ad\s*)?\d+\s*(?:of|\/)\s*\d+\s*[•·\.\-:|\s]*)?(?:ad\s*[•·\.\-:|\s]*)?(?:[•·\.\-:(\[\s|]*)(?:(\d{1,2}):(\d{2})|([0-9]|[1-9][0-9]|1[0-7][0-9]|180))(?:\s*s(?:ec)?(?:onds?)?|\s*remaining)?(?:[•·\.\-:)\]\s]*)$""",
+        """^(?:(?:ad\s*)?\d+\s*(?:of|\/)\s*\d+\s*[•·\.\-:|\s]*)?(?:ad\s*[•·\.\-:|\s]*)?(?:[•·\.\-:(\[\s|]*)(?:(\d{1,2}):(\d{2})|([0-9]|[1-9][0-9]|1[0-7][0-9]|180))(?:\s*s(?:ec)?(?:onds?)?|\s*remaining)?(?:[•·\.\-:)\]\s]*(?:\(?i\)?|info)?\s*)$""",
         RegexOption.IGNORE_CASE
     )
 
@@ -437,7 +437,8 @@ object DetectionDictionary {
     val HOTSTAR_AD_CTA_KEYWORDS = setOf(
         "buy now", "try now", "shop now", "install now", "order now",
         "learn more", "download now", "download", "get offer", "book now", "sign up", "explore now",
-        "explore", "get app", "visit site", "view more", "open app", "register now"
+        "explore", "get app", "visit site", "view more", "open app", "register now",
+        "own now", "know more", "claim now", "get now", "grab now", "apply now", "view offer", "watch now"
     )
 
     // MX Player in-stream video ad pattern:
@@ -493,15 +494,18 @@ object DetectionDictionary {
     )
 
     // MX Player normal video playback controls (indicates active non-ad streaming)
+    // Strictly includes genuine interactive movie controls (Rewind 10s, Fast-Forward 10s).
+    // Strictly EXCLUDES generic progress bars and seekbars (seekbar, seek_bar, player_progress, mx_progress,
+    // exo_position, exo_duration) which also exist during ad playback!
     val MX_PLAYER_NORMAL_CONTENT_VIEW_IDS = setOf(
-        "seekbar",
-        "seek_bar",
-        "player_progress",
-        "mx_progress",
-        "btn_play",
-        "btn_pause",
-        "exo_position",
-        "exo_duration"
+        "btn_rewind",
+        "btn_forward",
+        "rewind",
+        "forward",
+        "exo_rew",
+        "exo_ffwd",
+        "btn_rew",
+        "btn_ffwd"
     )
 
     // Amazon Prime Video in-stream ad countdown and view IDs:
@@ -512,7 +516,7 @@ object DetectionDictionary {
     // Matches "0:30 remaining", "15s remaining", "30 sec remaining", "Ad break in progress", "Ad break"
     // Matches "Skip in 5s", "Skip in 5", "Skip in 0:05", "Skip Ad in 5s", "Skip ad in 5"
     val PRIME_VIDEO_AD_TIMER_REGEX = Regex(
-        """\bad\b(?:\s*\d+\s*(?:of|\/)\s*\d+)?[\s:•·\.\-|]*\(?\s*(?:\d{1,2}:\d{2}|\d+\s*s(?:ec)?(?:onds?)?|\d{1,3})\s*\)?(?:\s*remaining)?|\b\d+\s*(?:of|\/)\s*\d+[\s:•·\.\-|]*\(?\s*(?:\d{1,2}:\d{2}|\d+\s*s(?:ec)?(?:onds?)?|\d{1,3})\s*\)?(?:\s*remaining)?|\bad\b\s*:\s*\(?\s*\d{1,2}:\d{2}\s*\)?|\bskip\s*(?:ad\s*)?in\s*\(?\s*(?:\d{1,2}:\d{2}|\d+\s*s(?:ec)?(?:onds?)?|\d{1,2})\s*\)?|\bad\s*break(?:\s*in\s*progress)?\b|\b\d{1,2}:\d{2}\s*remaining\b""",
+        """\bad\b(?:\s*\d+\s*(?:of|\/)\s*\d+)?[\s:•·\.\-|]*\(?\s*(?:\d{1,2}:\d{2}|\d+\s*s(?:ec)?(?:onds?)?|\d{1,3})\s*\)?(?:\s*remaining)?|\b\d+\s*(?:of|\/)\s*\d+[\s:•·\.\-|]*\(?\s*(?:\d{1,2}:\d{2}|\d+\s*s(?:ec)?(?:onds?)?|\d{1,3})\s*\)?(?:\s*remaining)?|\bad\b\s*:\s*\(?\s*\d{1,2}:\d{2}\s*\)?|\bskip\s*(?:ad\s*)?in\s*\(?\s*(?:\d{1,2}:\d{2}|\d+\s*s(?:ec)?(?:onds?)?|\d{1,2})\s*\)?|\bad\s*break(?:\s*in\s*progress)?\b|\b(?:\d{1,2}:\d{2}|\d+\s*s(?:ec)?(?:onds?)?)\s*remaining\b""",
         RegexOption.IGNORE_CASE
     )
     val PRIME_VIDEO_COUNTDOWN_REGEX = PRIME_VIDEO_AD_TIMER_REGEX
@@ -557,6 +561,9 @@ object DetectionDictionary {
     )
 
     // Amazon Prime Video normal playback control view IDs (used for 0ms audio restoration)
+    // Strictly includes genuine interactive movie controls and X-Ray elements.
+    // Strictly EXCLUDES generic progress bars and player containers (exo_progress, exo_position, exo_duration,
+    // time_current, time_duration, player_ui_container, playback_container, playback_controls) which also exist during ad breaks!
     val PRIME_VIDEO_NORMAL_CONTENT_VIEW_IDS = setOf(
         "xray_button",
         "xray_badge",
@@ -565,17 +572,9 @@ object DetectionDictionary {
         "xray_container",
         "quick_xray",
         "view_xray",
-        "playback_controls",
-        "player_ui_container",
-        "playback_container",
         "control_rewind_button",
         "control_fast_forward_button",
         "control_play_pause_button",
-        "exo_position",
-        "exo_duration",
-        "exo_progress",
-        "time_current",
-        "time_duration",
         "subtitle_button",
         "audio_button",
         "audio_subtitle_settings",
@@ -644,24 +643,14 @@ object DetectionDictionary {
     )
 
     // SonyLIV normal video player playback controls (indicates active non-ad streaming)
+    // Strictly includes genuine interactive movie controls (Rewind 10s, Fast-Forward 10s).
+    // Strictly EXCLUDES generic progress bars and seekbars (exo_progress, player_seekbar, seekbar, track_seek_bar,
+    // player_current_time, tv_current_time, exo_position, exo_duration) which also exist during ad playback!
     val SONYLIV_NORMAL_CONTENT_VIEW_IDS = setOf(
-        "com.sonyliv:id/exo_position",
-        "com.sonyliv:id/exo_duration",
-        "com.sonyliv:id/exo_progress",
-        "com.sonyliv:id/exo_play",
-        "com.sonyliv:id/exo_pause",
-        "com.sonyliv:id/player_current_time",
-        "com.sonyliv:id/player_total_time",
-        "com.sonyliv:id/tv_current_time",
-        "com.sonyliv:id/tv_total_time",
-        "com.sonyliv:id/player_seekbar",
-        "com.sonyliv:id/seekbar",
-        "com.sonyliv:id/track_seek_bar",
-        "com.sonyliv:id/btn_audio_subtitle",
         "com.sonyliv:id/btn_rewind",
         "com.sonyliv:id/btn_forward",
-        "exo_position",
-        "exo_duration"
+        "btn_rewind",
+        "btn_forward"
     )
 
     // Zee5 in-stream ad countdown and view IDs
@@ -688,23 +677,14 @@ object DetectionDictionary {
     )
 
     // Zee5 normal video player playback controls (indicates active non-ad streaming)
+    // Strictly includes genuine interactive movie controls (Rewind 10s, Fast-Forward 10s).
+    // Strictly EXCLUDES generic progress bars and seekbars (exo_progress, player_seekbar, seekbar, track_seek_bar,
+    // player_current_time, tv_current_time, exo_position, exo_duration) which also exist during ad playback!
     val ZEE5_NORMAL_CONTENT_VIEW_IDS = setOf(
-        "com.graymatrix.did:id/exo_position",
-        "com.graymatrix.did:id/exo_duration",
-        "com.graymatrix.did:id/exo_progress",
-        "com.graymatrix.did:id/exo_play",
-        "com.graymatrix.did:id/exo_pause",
-        "com.graymatrix.did:id/player_current_time",
-        "com.graymatrix.did:id/player_total_time",
-        "com.graymatrix.did:id/tv_current_time",
-        "com.graymatrix.did:id/tv_total_time",
-        "com.graymatrix.did:id/player_seekbar",
-        "com.graymatrix.did:id/seekbar",
-        "com.graymatrix.did:id/track_seek_bar",
         "com.graymatrix.did:id/btn_rewind",
         "com.graymatrix.did:id/btn_forward",
-        "exo_position",
-        "exo_duration"
+        "btn_rewind",
+        "btn_forward"
     )
 
     // JioSaavn in-stream ad countdown, audio ad cues, and view IDs
