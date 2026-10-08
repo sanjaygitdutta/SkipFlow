@@ -120,13 +120,12 @@ object DetectionDictionary {
     )
 
     // JioHotstar standalone countdown timer during video ad playback:
-    // Matches when ONLY the countdown timer is displayed on screen without any 'Ad' word or '1 of 1' text:
-    // - "59", "58", ..., "19", ..., "1", "0" (time count counting 59 down to 0)
-    // - "1:29", "1:28", ..., "0:19", ..., "0:01", "0:00" (time count of ad counting down towards 0)
-    // - Suffixes/prefixes: "19s", "0s", "59s", "15s", ". 19", "· 19", "• 19", ":19", "(19)", "(0:19)", "19 sec", "19 seconds"
-    // - Also matches optional Ad prefix ("Ad 19", "Ad · 19", "Ad: 19") or break counter prefix ("1 of 1 . 19", "1 of 2 . 19")
+    // Matches genuine ad countdown timers while strictly rejecting isolated movie numbers (age ratings like 16, 18, 13, 12, quality 4K, subtitles):
+    // 1) MM:SS formats: "00:59", "00:33", "00:15", "00:13", "0:30", "0:15", "1:15"
+    // 2) Explicit seconds with unit: "59s", "30s", "15s", "0s", "15 sec", "30 seconds", "15s remaining"
+    // 3) Digits with ad prefix or break counter: "Ad 15", "Ad • 15", "Ad: 15s", "1 of 2 . 15", "1 of 1 • 00:15"
     val HOTSTAR_STANDALONE_TIMER_REGEX = Regex(
-        """^(?:(?:ad\s*)?\d+\s*(?:of|\/)\s*\d+\s*[•·\.\-:|\s]*)?(?:ad\s*[•·\.\-:|\s]*)?(?:[•·\.\-:(\[\s|]*)(?:(\d{1,2}):(\d{2})|([0-9]|[1-9][0-9]|1[0-7][0-9]|180))(?:\s*s(?:ec)?(?:onds?)?|\s*remaining)?(?:[•·\.\-:)\]\s]*(?:\(?i\)?|info)?\s*)$""",
+        """^(?:(?:ad\s*)?\d+\s*(?:of|\/)\s*\d+\s*[•·\.\-:|\s]*)?(?:ad\s*[•·\.\-:|\s]*)?(?:[•·\.\-:(\[\s|]*)(?:(\d{1,2}):(\d{2})|([1-9][0-9]|1[0-7][0-9]|180)\s*s(?:ec)?(?:onds?)?|(?:ad\s*[•·\.\-:|\s]+|\d+\s*(?:of|\/)\s*\d+\s*[•·\.\-:|\s]+)([0-9]|[1-9][0-9]|1[0-7][0-9]|180))(?:\s*remaining)?(?:[•·\.\-:)\]\s]*(?:\(?i\)?|info)?\s*)$""",
         RegexOption.IGNORE_CASE
     )
 
@@ -140,7 +139,8 @@ object DetectionDictionary {
         val match = HOTSTAR_STANDALONE_TIMER_REGEX.matchEntire(trimmed) ?: return null
         val minsGroup = match.groups[1]?.value
         val secsGroup = match.groups[2]?.value
-        val bareSecsGroup = match.groups[3]?.value
+        val secsWithUnitGroup = match.groups[3]?.value
+        val secsWithAdPrefixGroup = match.groups[4]?.value
 
         return when {
             minsGroup != null && secsGroup != null -> {
@@ -149,8 +149,12 @@ object DetectionDictionary {
                 val total = m * 60 + s
                 if (total in 0..180) total else null
             }
-            bareSecsGroup != null -> {
-                val s = bareSecsGroup.toIntOrNull() ?: return null
+            secsWithUnitGroup != null -> {
+                val s = secsWithUnitGroup.toIntOrNull() ?: return null
+                if (s in 0..180) s else null
+            }
+            secsWithAdPrefixGroup != null -> {
+                val s = secsWithAdPrefixGroup.toIntOrNull() ?: return null
                 if (s in 0..180) s else null
             }
             else -> null
@@ -375,7 +379,6 @@ object DetectionDictionary {
         "in.startv.hotstar:id/ad_frame",
         "in.startv.hotstar:id/ad_overlay",
         "in.startv.hotstar:id/tv_ad_timer",
-        "in.startv.hotstar:id/tv_timer",
         "in.startv.hotstar:id/cta_button",
         "in.startv.hotstar:id/ad_cta",
         "com.jiohotstar.android:id/ad_timer",
@@ -394,7 +397,6 @@ object DetectionDictionary {
         "com.jiohotstar.android:id/video_ad_layout",
         "com.jiohotstar.android:id/ima_ad_container",
         "com.jiohotstar.android:id/tv_ad_timer",
-        "com.jiohotstar.android:id/tv_timer",
         "com.jiohotstar.android:id/cta_button",
         "com.jiohotstar.android:id/ad_cta",
         "com.disney.hotstar:id/ad_timer",
@@ -874,10 +876,16 @@ object DetectionDictionary {
     // IDs for closing overlay/popup ad banners in portrait and full-screen video
     // (Strictly excludes video player control IDs like close_button to avoid touching playback overlay)
     val BANNER_CLOSE_BUTTON_IDS = setOf(
-        // YouTube ad overlay banners
+        // YouTube ad overlay banners & modern bottom sheet / engagement panels
         "com.google.android.youtube:id/ad_close_button",
         "com.google.android.youtube:id/dismiss_button",
         "com.google.android.youtube:id/cancel_button",
+        "com.google.android.youtube:id/close_button",
+        "com.google.android.youtube:id/panel_close_button",
+        "com.google.android.youtube:id/engagement_panel_close_button",
+        "com.google.android.youtube:id/action_sheet_close",
+        "com.google.android.youtube:id/bottom_sheet_close",
+        "com.google.android.youtube:id/close",
         // Hotstar
         "in.startv.hotstar:id/close_btn",
         "in.startv.hotstar:id/btn_close",
@@ -899,6 +907,9 @@ object DetectionDictionary {
         "ad_close_button",
         "interstitial_close",
         "dismiss_button",
+        "panel_close_button",
+        "engagement_panel_close_button",
+        "action_sheet_close",
         "btn_close",
         "iv_close"
     )
@@ -1075,7 +1086,8 @@ object DetectionDictionary {
     // Multi-language text and contentDescription for closing banner ads
     // (Strictly excludes generic "close" to prevent matching player controls hide buttons)
     val BANNER_CLOSE_TEXTS = setOf(
-        "close ad", "dismiss ad", "hide ad",
+        "close ad", "dismiss ad", "hide ad", "close panel", "close", "dismiss",
+        "✕", "×", "x",
         "cerrar anuncio", "fermer l'annonce", "schließen",
         "fechar anúncio", "chiudi annuncio",
         "закрыть рекламу", "閉じる", "विज्ञापन बंद करें"
