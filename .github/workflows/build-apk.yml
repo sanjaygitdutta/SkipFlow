@@ -41,45 +41,40 @@ jobs:
 
       - name: Prepare APKs for Release
         run: |
-          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.2.23.apk
-          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.2.23-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk ./SkipFlow-v1.2.24.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ./SkipFlow-v1.2.24-debug.apk
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SkipFlow-v1.2.23-Release-APK
-          path: SkipFlow-v1.2.23.apk
+          name: SkipFlow-v1.2.24-Release-APK
+          path: SkipFlow-v1.2.24.apk
           retention-days: 30
 
       - name: Create GitHub Release with Direct APK Download
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.2.23' }}
-          name: "SkipFlow v1.2.23 (0ms Ad Muting & Seekbar Protection for Hotstar, Prime, Zee5, SonyLIV, MX Player & YouTube)"
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.2.24' }}
+          name: "SkipFlow v1.2.24 (JioHotstar 0ms Ad Muting, All Timer Variations & Multi-Ad Transition Lock)"
           body: |
-            ### 🚀 SkipFlow v1.2.23 — Universal 0ms Ad Muting & Video Seekbar Protection
+            ### 🚀 SkipFlow v1.2.24 — JioHotstar 0ms Ad Muting & Universal Timer Handling
 
-            #### 🌟 What's Fixed in v1.2.23:
-            - 🎯 **Eliminated Ad Seekbar False Normal-Content Detection Across All 5 OTT Platforms**:
-              - **The Problem**: During in-stream ads on **JioHotstar**, **Amazon Prime Video**, **Zee 5**, **SonyLIV**, and **MX Player**, the video ad player renders an orange/yellow progress bar or seekbar (`exo_progress`, `seekbar`, `player_progress`, `mx_progress`, `player_seekbar`). Because normal content detection checked for these generic progress bars, any slight polling gap falsely flagged "movie playing", causing premature unmuting and audio leaks.
-              - **The Universal Fix**:
-                1. Removed all generic seekbars, progress bars, and player containers from normal content view IDs across **JioHotstar, Prime Video, Zee5, SonyLIV, and MX Player**.
-                2. Normal content confirmation now strictly checks for genuine interactive movie controls (Rewind 10s `btn_rewind` / `exo_rew`, Fast-Forward 10s `btn_forward` / `exo_ffwd`, X-Ray buttons) or dual movie duration timestamps (e.g. `14:20 / 48:15` or `-34:20`).
-                3. Interactive movie controls are preserved and auto-fade naturally after 2–3s, giving users a 100% clean, uncluttered movie viewing experience with zero false muting.
-            - ⏱️ **Universal 0ms Standalone Countdown Ad Detection (`00:59`, `00:35`, `00:15`, `0:29`, `15s`)**:
-              - Ads starting at any countdown duration (`00:59`, `00:45`, `00:35`, `00:15`, `15s`) without explicit "Ad" text are now instantly detected and muted at 0ms when movie controls and movie timestamps are absent.
-              - Full support for bracketed `[Ad]` and `(Ad)` badges across all platforms.
-              - Added Hotstar companion card CTAs (`"Own Now"`, `"Shop Now"`, `"Know More"`, `"Order Now"`, `"Claim Now"`).
-            - 📺 **YouTube Mid-Playback Muting Guard**:
-              - Fixed rare mid-video false auto-muting (occurring ~4 minutes into content) by filtering out closed captions / subtitles (`isCaptionOrSubtitleNode`), video title containers (`isPlaybackControlOrVideoTitle`), and long spoken dialogue (>80 characters).
-            - 🏋️ **Modernized Onboarding Media**:
-              - Replaced lifestyle gym image with high-definition athlete visual asset.
-            - 🎬 **YouTube 'Sponsored ·' 0ms Priority Zero Fast-Path Retained**.
-            - 🎧 **Spotify Background Receiver & Battery Optimization Retained**.
+            #### 🌟 What's New & Fixed in v1.2.24:
+            - 🎯 **Full Support for Merged JioHotstar App (`com.jio.media.ondemand`)**:
+              - Added dedicated package routing, foreground radar, and 0ms lifecycle handling for the unified JioCinema / JioHotstar merged application client (`com.jio.media.ondemand`).
+            - ⏱️ **Universal 0ms Timer Variation & Countdown Support**:
+              - **All Timer Formats**: Instant 0ms detection for `mm:ss` (`00:13`, `00:33`), `m:ss` (`0:05`, `0:15`, `1:30`), bare seconds (`5s`, `15s`, `30s`, `59s`), phrased countdowns (`Ad ends in`, `Skip in`, `Video will play after ad`), and bare numeric counts.
+              - **Duration Scaling**: Parser ceiling expanded from 180s to 600s (up to 10-minute long-form ads).
+            - 🔄 **Multi-Ad Sequence Lock (`1 of 3`, `1 of 2`)**:
+              - In-stream compound break counters (`1 of 3 • 00:33`, `1 of 2 · 0:15`) now activate an atomic mute lock across the momentary 200–400ms transition gaps between Ad 1, Ad 2, and Ad 3, eliminating ad audio leaks during back-to-back commercial breaks.
+            - 🏷️ **Sponsor Companion Card & CTA Fast-Path**:
+              - Sub-millisecond direct indexing for `[Ad]` badges, `Galaxy Z Fold8`, `Tanishq`, and companion action buttons (`Own Now`, `Shop Now`, `Buy Now`, `Order Now`, `Install Now`, `Learn More`).
+            - 🛡️ **Zero-Timer Ad Protection**:
+              - Ads with no visible countdown timers are instantly silenced at 0ms via badge, break counter, or companion card detection.
 
-            > 💡 **Recommended**: Download **SkipFlow-v1.2.23.apk** (Release, Signed) for the best performance.
+            > 💡 **Recommended**: Download **SkipFlow-v1.2.24.apk** (Release, Signed) for the best performance.
           files: |
-            SkipFlow-v1.2.23.apk
-            SkipFlow-v1.2.23-debug.apk
+            SkipFlow-v1.2.24.apk
+            SkipFlow-v1.2.24-debug.apk
           prerelease: false

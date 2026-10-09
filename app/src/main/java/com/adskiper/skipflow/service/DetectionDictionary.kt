@@ -30,7 +30,8 @@ object DetectionDictionary {
         "com.disney.hotstar",              // Hotstar Global
         "com.jiohotstar.android",          // JioHotstar
         "com.jio.hotstar",                 // JioHotstar alternate
-        "in.startv.hotstar.dplus"          // Hotstar Android TV / alternate
+        "in.startv.hotstar.dplus",         // Hotstar Android TV / alternate
+        "com.jio.media.ondemand"           // JioCinema / JioHotstar merged app
     )
 
     val MX_PLAYER_PACKAGES = setOf(
@@ -87,6 +88,25 @@ object DetectionDictionary {
         RegexOption.IGNORE_CASE
     )
 
+    // Universal YouTube / Streaming Sponsored Ad badge pattern:
+    // Matches:
+    // - Bare "sponsored ·", "sponsored •", "sponsored -", "sponsored |", "sponsored:", "sponsored"
+    //   (supports ads with no timer count displaying only "sponsored ·")
+    // - "sponsored · 0:05", "sponsored · 0:07", "sponsored · 0:15", "sponsored · 0:30" (with countdown timer)
+    // - "sponsored · 1 of 2", "sponsored · 2 of 2", "sponsored · 1 of 3", "sponsored · 2 of 3", "sponsored · 3 of 3"
+    // - "sponsored · 1 of 2 · 0:07", "sponsored · 2 of 2 · 0:05" (compound counter + timer)
+    // - "sponsored · [Brand]", "sponsored • [Brand]" (with advertiser brand name)
+    val YOUTUBE_SPONSORED_AD_REGEX = Regex(
+        """\bsponsored\b\s*(?:[•·\.\-|:|\/]\s*)?(?:(?:\d+\s*(?:of|\/)\s*\d+)\s*(?:[•·\.\-|:|\/]\s*)?)?(?:\d{1,2}:\d{2})?""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // Universal Visit Advertiser cues for in-stream YouTube ads (inside video player canvas)
+    val ADVERTISER_CUE_REGEX = Regex(
+        """\bvisit advertiser\b""",
+        RegexOption.IGNORE_CASE
+    )
+
     // Compound ad counter with timer (with OR without the word "Ad"):
     // Matches:
     // - "1 of 1 . 00:15", "1 of 1 . 15", "1 of 1. 00:15", "1 of 1 · 00:15", "1 of 1 • 00:15"
@@ -126,13 +146,13 @@ object DetectionDictionary {
     // - Suffixes/prefixes: "19s", "0s", "59s", "15s", ". 19", "· 19", "• 19", ":19", "(19)", "(0:19)", "19 sec", "19 seconds"
     // - Also matches optional Ad prefix ("Ad 19", "Ad · 19", "Ad: 19") or break counter prefix ("1 of 1 . 19", "1 of 2 . 19")
     val HOTSTAR_STANDALONE_TIMER_REGEX = Regex(
-        """^(?:(?:ad\s*)?\d+\s*(?:of|\/)\s*\d+\s*[•·\.\-:|\s]*)?(?:ad\s*[•·\.\-:|\s]*)?(?:[•·\.\-:(\[\s|]*)(?:(\d{1,2}):(\d{2})|([0-9]|[1-9][0-9]|1[0-7][0-9]|180))(?:\s*s(?:ec)?(?:onds?)?|\s*remaining)?(?:[•·\.\-:)\]\s]*(?:\(?i\)?|info)?\s*)$""",
+        """^(?:(?:ad\s*)?(?:will\s*)?ends?\s*in\s*|skip\s*(?:to\s*video\s*|ad\s*)?in\s*|you\s*can\s*skip\s*in\s*|reward\s*in\s*|video\s*will\s*(?:play|resume)\s*after\s*(?:ad|ads)?\s*[\-•·:|\.]*\s*|(?:ad\s*)?\d+\s*(?:of|\/)\s*\d+\s*[•·\.\-:|\s]*|ad\s*[•·\.\-:|\s]*)*(?:[•·\.\-:(\[\s|]*)(?:(\d{1,2}):(\d{2})|(\d{1,3}))(?:\s*s(?:ec)?(?:onds?)?|\s*remaining)?(?:[•·\.\-:)\]\s]*(?:\(?i\)?|info|ⓘ)?\s*)$""",
         RegexOption.IGNORE_CASE
     )
 
     /**
      * Parses a standalone Hotstar countdown timer string into total remaining seconds.
-     * Returns the integer seconds (0 to 180) if text is an ad countdown timer, or null otherwise.
+     * Returns the integer seconds (0 to 600) if text is an ad countdown timer, or null otherwise.
      */
     fun parseHotstarCountdownSeconds(text: String): Int? {
         val trimmed = text.trim()
@@ -147,11 +167,11 @@ object DetectionDictionary {
                 val m = minsGroup.toIntOrNull() ?: return null
                 val s = secsGroup.toIntOrNull() ?: return null
                 val total = m * 60 + s
-                if (total in 0..180) total else null
+                if (total in 0..600) total else null
             }
             bareSecsGroup != null -> {
                 val s = bareSecsGroup.toIntOrNull() ?: return null
-                if (s in 0..180) s else null
+                if (s in 0..600) s else null
             }
             else -> null
         }
@@ -409,6 +429,25 @@ object DetectionDictionary {
         "com.jio.hotstar:id/ad_container",
         "com.jio.hotstar:id/ad_view",
         "com.jio.hotstar:id/player_ad_layout",
+        "com.jio.media.ondemand:id/ad_timer",
+        "com.jio.media.ondemand:id/ad_countdown",
+        "com.jio.media.ondemand:id/ad_badge",
+        "com.jio.media.ondemand:id/ad_container",
+        "com.jio.media.ondemand:id/ad_view",
+        "com.jio.media.ondemand:id/player_ad_layout",
+        "com.jio.media.ondemand:id/ad_companion_container",
+        "com.jio.media.ondemand:id/ad_companion",
+        "com.jio.media.ondemand:id/ad_metadata",
+        "com.jio.media.ondemand:id/ad_progress",
+        "com.jio.media.ondemand:id/ad_slot",
+        "com.jio.media.ondemand:id/ad_frame",
+        "com.jio.media.ondemand:id/ad_overlay",
+        "com.jio.media.ondemand:id/video_ad_layout",
+        "com.jio.media.ondemand:id/ima_ad_container",
+        "com.jio.media.ondemand:id/tv_ad_timer",
+        "com.jio.media.ondemand:id/tv_timer",
+        "com.jio.media.ondemand:id/cta_button",
+        "com.jio.media.ondemand:id/ad_cta",
         "ad_container",
         "player_ad_layout",
         "ad_view",
@@ -430,7 +469,14 @@ object DetectionDictionary {
         "cta_button",
         "ad_cta",
         "sponsor_badge",
-        "sponsor_tag"
+        "sponsor_tag",
+        "ad_tag",
+        "ad_label",
+        "ad_pill",
+        "companion_ad_badge",
+        "companion_container",
+        "ad_card",
+        "companion_card"
     )
 
     // Hotstar companion sponsor card CTA button keywords that appear directly below video during in-stream ads
@@ -874,10 +920,16 @@ object DetectionDictionary {
     // IDs for closing overlay/popup ad banners in portrait and full-screen video
     // (Strictly excludes video player control IDs like close_button to avoid touching playback overlay)
     val BANNER_CLOSE_BUTTON_IDS = setOf(
-        // YouTube ad overlay banners
+        // YouTube ad overlay banners & engagement panel ads
         "com.google.android.youtube:id/ad_close_button",
         "com.google.android.youtube:id/dismiss_button",
         "com.google.android.youtube:id/cancel_button",
+        "com.google.android.youtube:id/close_panel_button",
+        "com.google.android.youtube:id/engagement_panel_close_button",
+        "com.google.android.youtube:id/action_sheet_close",
+        "com.google.android.youtube:id/panel_close_button",
+        "close_panel_button",
+        "engagement_panel_close_button",
         // Hotstar
         "in.startv.hotstar:id/close_btn",
         "in.startv.hotstar:id/btn_close",
@@ -959,10 +1011,12 @@ object DetectionDictionary {
 
     // Exact in-stream countdown phrases that only appear during in-stream video ads
     val IN_STREAM_COUNTDOWN_MARKERS = setOf(
-        // Modern YouTube single ad & countdown badges
-        "sponsored",
+        // Modern YouTube single ad & countdown badges (requires delimiter to avoid matching static panel title)
         "sponsored ·",
         "sponsored •",
+        "sponsored -",
+        "sponsored |",
+        "sponsored:",
         "ad ·",
         "ad •",
         // Multi-ad indicators & counters
@@ -970,11 +1024,13 @@ object DetectionDictionary {
         "2 of 2",
         "1 of 3",
         "2 of 3",
+        "3 of 3",
         "1 of 1",
         "1/2",
         "2/2",
         "1/3",
         "2/3",
+        "3/3",
         "1/1",
         "ad 1 of",
         "ad 2 of",
@@ -1027,11 +1083,6 @@ object DetectionDictionary {
         "you can skip in",
         "reward in",
         "visit advertiser",
-        "learn more",
-        "visit site",
-        "open app",
-        "install now",
-        "shop now",
         // Multi-language specific ad markers
         "विज्ञापन",
         "सेकंड में छोड़ें",
