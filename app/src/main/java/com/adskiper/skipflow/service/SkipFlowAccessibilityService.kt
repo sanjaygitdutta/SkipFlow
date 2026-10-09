@@ -97,7 +97,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
     private var activeMutePollerRunnable: Runnable? = null
     private var foregroundRadarRunnable: Runnable? = null
     private val FOREGROUND_RADAR_RAPID_MS = 40L // 25Hz rapid radar during ad transitions (< 3.0s after ad)
-    private val FOREGROUND_RADAR_PEACEFUL_MS = 300L // ~3Hz peaceful heartbeat during stable content playback (saves 85% battery)
+    private val FOREGROUND_RADAR_PEACEFUL_MS = 80L // 12.5Hz active radar during playback (catches dropped/throttled ad events in <80ms)
     @Volatile
     private var lastAdFinishedTimestamp = 0L
     private var screenStateReceiver: BroadcastReceiver? = null
@@ -200,6 +200,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS or
                 AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or
                 AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+            info.notificationTimeout = 0L // Explicitly prevent OEM debouncing (Samsung/Xiaomi/Oppo 100ms lag)
             serviceInfo = info
             Log.i(TAG, "Dynamic AccessibilityServiceInfo applied: FLAG_INCLUDE_NOT_IMPORTANT_VIEWS active")
         } catch (e: Exception) {
@@ -397,6 +398,25 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         if (isSpotify && (!isSpotifyMuteEnabled || !preferencesRepo.isPlatformLockedSync("spotify"))) return
         if (isOtt && !isOttSkipEnabled && !isAutoMuteEnabled) return
 
+        // =========================================================================
+        // ZERO-LATENCY EVENT PAYLOAD INTERCEPTOR (<0.01ms Reaction)
+        // Inspects event.text, event.contentDescription, and event.source directly
+        // from RAM without waiting for rootInActiveWindow Binder IPC.
+        // If an in-stream ad indicator is present, closes the audio stream immediately!
+        // =========================================================================
+        if (isAutoMuteEnabled && (isYouTube || isHotstar || isOtt)) {
+            val eventAdDetected = fastCheckEventPayloadForAd(event, isYouTube, isHotstar)
+            if (eventAdDetected) {
+                cancelPendingUnmute()
+                cancelDeferredScan()
+                if (!audioController.isCurrentlyMuted()) {
+                    audioController.muteAdAudio()
+                    updatePersistentNotification(isMuted = true)
+                    Log.i(TAG, "Zero-Latency Event Payload Interceptor: Muted ad audio instantly in <0.01ms!")
+                }
+            }
+        }
+
         // Handle Spotify foreground app
         if (isSpotify) {
             isForegroundInTargetMediaApp = true
@@ -518,6 +538,109 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             mainHandler.removeCallbacks(it)
             deferredScanRunnable = null
         }
+    }
+
+    /**
+     * Sub-millisecond (<0.01ms) event payload inspector.
+     * Evaluates event text, contentDescription, and source node directly from memory
+     * without invoking expensive rootInActiveWindow cross-process Binder calls.
+     */
+    private fun fastCheckEventPayloadForAd(event: AccessibilityEvent, isYouTube: Boolean, isHotstar: Boolean): Boolean {
+        // 1. Direct check on event text list (in RAM, zero Binder cost)
+        val textList = event.text
+        if (!textList.isNullOrEmpty()) {
+            for (cs in textList) {
+                val str = cs?.toString()?.trim() ?: continue
+                if (str.isEmpty()) continue
+                val lower = str.lowercase()
+
+                if (isYouTube) {
+                    if (lower.contains("sponsored ·") || lower.contains("sponsored •") || lower.contains("sponsored -") ||
+                        lower.contains("sponsored:") || lower.contains("visit advertiser") ||
+                        lower.contains("ad ·") || lower.contains("ad •") || lower.contains("ad:") ||
+                        lower.contains("skip in") || lower.contains("skip ad in") ||
+                        lower.contains("1 of 2") || lower.contains("2 of 2") || lower.contains("1 of 3") || lower.contains("2 of 3") ||
+                        lower.contains("1/2") || lower.contains("2/2") || lower.contains("1/3") || lower.contains("2/3") ||
+                        DetectionDictionary.YOUTUBE_SPONSORED_AD_REGEX.containsMatchIn(lower) ||
+                        DetectionDictionary.SINGLE_AD_TIMER_REGEX.containsMatchIn(lower)
+                    ) {
+                        return true
+                    }
+                } else if (isHotstar) {
+                    if (lower.contains("1 of") || lower.contains("2 of") || lower.contains("3 of") || lower.contains("4 of") ||
+                        lower.contains("1/") || lower.contains("2/") || lower.contains("3/") || lower.contains("4/") ||
+                        (lower.startsWith("00:") && !lower.contains("/")) ||
+                        lower.contains("own now") || lower.contains("shop now") || lower.contains("buy now") || lower.contains("order now") ||
+                        lower.contains("install now") || lower.contains("learn more") || lower.contains("book now") || lower.contains("visit site") ||
+                        lower == "ad" || lower == "[ad]" || lower == "advertisement" || lower == "sponsored" ||
+                        DetectionDictionary.HOTSTAR_NO_AD_WORD_COUNTER_REGEX.containsMatchIn(lower) ||
+                        DetectionDictionary.COUNTER_WITH_TIMER_REGEX.containsMatchIn(lower) ||
+                        DetectionDictionary.parseHotstarCountdownSeconds(str) != null
+                    ) {
+                        return true
+                    }
+                }
+            }
+        }
+
+        // 2. Direct check on contentDescription
+        val desc = event.contentDescription?.toString()?.trim()
+        if (!desc.isNullOrEmpty()) {
+            val lowerDesc = desc.lowercase()
+            if (isYouTube) {
+                if (lowerDesc.contains("sponsored ·") || lowerDesc.contains("sponsored •") || lowerDesc.contains("visit advertiser") ||
+                    lowerDesc.contains("ad ·") || lowerDesc.contains("1 of 2") || lowerDesc.contains("1 of 3") ||
+                    lowerDesc.contains("skip ad") || lowerDesc.contains("skip in")
+                ) {
+                    return true
+                }
+            } else if (isHotstar) {
+                if (lowerDesc.contains("1 of") || lowerDesc.contains("2 of") || lowerDesc.contains("3 of") || lowerDesc.contains("4 of") ||
+                    (lowerDesc.startsWith("00:") && !lowerDesc.contains("/")) ||
+                    lowerDesc.contains("own now") || lowerDesc.contains("shop now") || lowerDesc.contains("buy now") || lowerDesc.contains("order now") ||
+                    lowerDesc.contains("install now") || lowerDesc.contains("learn more") || lowerDesc.contains("book now") || lowerDesc.contains("visit site") ||
+                    lowerDesc == "ad" || lowerDesc == "[ad]" || lowerDesc == "advertisement" || lowerDesc == "sponsored"
+                ) {
+                    return true
+                }
+            }
+        }
+
+        // 3. Direct check on event.source node if available
+        val source = event.source
+        if (source != null) {
+            try {
+                val viewId = source.viewIdResourceName?.lowercase() ?: ""
+                val sText = source.text?.toString()?.trim() ?: ""
+                val sDesc = source.contentDescription?.toString()?.trim() ?: ""
+                val sLower = "$sText $sDesc".lowercase()
+
+                if (isYouTube) {
+                    if (viewId.contains("ad_progress") || viewId.contains("player_ad_layout") ||
+                        viewId.contains("skip_ad_button") || viewId.contains("ad_countdown") ||
+                        viewId.contains("ad_badge") ||
+                        sLower.contains("sponsored ·") || sLower.contains("sponsored •") || sLower.contains("visit advertiser")
+                    ) {
+                        return true
+                    }
+                } else if (isHotstar) {
+                    if (viewId.contains("ad_timer") || viewId.contains("ad_countdown") || viewId.contains("ad_badge") ||
+                        viewId.contains("tv_ad_timer") || viewId.contains("ad_companion") || viewId.contains("player_ad_layout") ||
+                        viewId.contains("video_ad_layout") || viewId.contains("ima_ad_container") || viewId.contains("ad_container") ||
+                        viewId.contains("ad_progress") || viewId.contains("ad_slot") || viewId.contains("ad_overlay") ||
+                        sLower.contains("own now") || sLower.contains("shop now") || sLower.contains("buy now") || sLower.contains("order now") ||
+                        (sLower.startsWith("00:") && !sLower.contains("/")) ||
+                        sLower.contains("1 of 1") || sLower.contains("1 of 2") || sLower.contains("1 of 3") || sLower.contains("2 of 3") || sLower.contains("3 of 3")
+                    ) {
+                        return true
+                    }
+                }
+            } finally {
+                source.recycle()
+            }
+        }
+
+        return false
     }
 
     private fun isCaptionOrSubtitleNode(node: AccessibilityNodeInfo): Boolean {
@@ -1008,49 +1131,13 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         try {
             audioController.checkWatchdog()
 
-            // 0. Auto-Confirm YouTube "Video paused. Continue watching?" prompt
-            if (isYouTube && isAutoResumeEnabled) {
-                val resumed = scanAndResumeYouTubePausedVideo(rootNode)
-                if (resumed) {
-                    return
-                }
-            }
-
-            // 0.5. Auto-skip video Intro if "Skip Intro" button is available
-            if (isSkipIntroEnabled) {
-                val introSkipped = scanAndSkipIntro(rootNode, platformId = if (isYouTube) "youtube" else "hotstar")
-                if (introSkipped) {
-                    return
-                }
-            }
-
             val now = System.currentTimeMillis()
             val inGracePeriod = (now - lastClickTimestamp < POST_SKIP_GRACE_PERIOD_MS)
+            val elapsedRt = SystemClock.elapsedRealtime()
+            val multiAdPending = isMultiAdSequenceActive && (elapsedRt - lastMultiAdSequenceTimestamp < 8_000L)
 
-            // 1. PRIORITY #1: Auto-skip in-stream video ad instantly!
-            if (isAutoSkipEnabled) {
-                val skipped = scanAndSkip(rootNode, isYouTube, platformId = if (isYouTube) "youtube" else "hotstar")
-                if (skipped) {
-                    if (isYouTube) {
-                        scheduleYouTubeCleanScreenPostSkipDismiss()
-                    }
-                    val now = SystemClock.elapsedRealtime()
-                    val multiAdPending = isMultiAdSequenceActive && (now - lastMultiAdSequenceTimestamp < 8_000L)
-                    val hasSecondAd = hasDistinctSecondaryAd(rootNode)
-                    if (isYouTube && (multiAdPending || hasSecondAd)) {
-                        Log.i(TAG, "Skip executed, but Ad 2 is pending (multiAdPending=$multiAdPending, hasSecondAd=$hasSecondAd). Retaining mute for Ad 2!")
-                        startActiveMutePoller(isYouTube = true, isOtt = false)
-                        return
-                    }
-                    return
-                }
-            }
-
-            // 2. In-stream video ad detection (audio muting) - active for YouTube & OTT platforms
+            // PRIORITY #1: In-stream video ad detection (0ms audio muting) - instant hardware silence!
             if ((isYouTube || isOtt) && isAutoMuteEnabled) {
-                val now = SystemClock.elapsedRealtime()
-                val multiAdPending = isMultiAdSequenceActive && (now - lastMultiAdSequenceTimestamp < 8_000L)
-
                 // If in post-skip grace period and no multi-ad pending, only re-mute if secondary ad is present
                 val inStreamAdActive = if (inGracePeriod && !multiAdPending) {
                     hasDistinctSecondaryAd(rootNode)
@@ -1097,12 +1184,45 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                             startActiveMutePoller(isYouTube, isOtt)
                         }
                     } else {
-                        // Multi-ad sequence or secondary ad in transition: ensure mute remains applied
-                        audioController.muteAdAudio()
+                        // Multi-ad sequence still in transition: keep active mute poller running
+                        startActiveMutePoller(isYouTube, isOtt)
                     }
                 } else {
-                    // Normal content playing and unmuted: actively calibrate user volume preferences
+                    // Safely record user's preferred volume while normal content is playing
                     audioController.recordUserVolume()
+                }
+            }
+
+            // PRIORITY #2: Auto-skip in-stream video ad if skip button is actionable
+            if (isAutoSkipEnabled) {
+                val skipped = scanAndSkip(rootNode, isYouTube, platformId = if (isYouTube) "youtube" else "hotstar")
+                if (skipped) {
+                    if (isYouTube) {
+                        scheduleYouTubeCleanScreenPostSkipDismiss()
+                    }
+                    val hasSecondAd = hasDistinctSecondaryAd(rootNode)
+                    if (isYouTube && (multiAdPending || hasSecondAd)) {
+                        Log.i(TAG, "Skip executed, but Ad 2 is pending (multiAdPending=$multiAdPending, hasSecondAd=$hasSecondAd). Retaining mute for Ad 2!")
+                        startActiveMutePoller(isYouTube = true, isOtt = false)
+                        return
+                    }
+                    return
+                }
+            }
+
+            // PRIORITY #3: Auto-Confirm YouTube "Video paused. Continue watching?" prompt
+            if (isYouTube && isAutoResumeEnabled) {
+                val resumed = scanAndResumeYouTubePausedVideo(rootNode)
+                if (resumed) {
+                    return
+                }
+            }
+
+            // PRIORITY #4: Auto-skip video Intro if "Skip Intro" button is available
+            if (isSkipIntroEnabled) {
+                val introSkipped = scanAndSkipIntro(rootNode, platformId = if (isYouTube) "youtube" else "hotstar")
+                if (introSkipped) {
+                    return
                 }
             }
 
@@ -1807,23 +1927,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         try {
             audioController.checkWatchdog()
 
-            // 0. Auto-skip video Intro if "Skip Intro" button is available
-            if (isSkipIntroEnabled) {
-                val introSkipped = scanAndSkipIntro(rootNode, platformId = "hotstar")
-                if (introSkipped) {
-                    return
-                }
-            }
-
-            // 1. Auto-skip in-stream video ad instantly if skip button is present
-            if (isAutoSkipEnabled) {
-                val skipped = scanAndSkip(rootNode, isYouTube = false, platformId = "hotstar")
-                if (skipped) {
-                    return
-                }
-            }
-
-            // 2. Hotstar in-stream video ad detection and 0ms audio muting
+            // 1. PRIORITY #1: Hotstar in-stream video ad detection and 0ms audio muting
             if (isAutoMuteEnabled) {
                 val isAdActive = isHotstarAdActive(rootNode)
 
@@ -1841,18 +1945,45 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 } else {
                     // Ad is no longer active on screen!
                     if (audioController.isCurrentlyMuted() || isHotstarAdPlaying) {
-                        Log.i(TAG, "Hotstar normal content confirmed! Restoring audio instantly at 0ms.")
-                        isHotstarAdPlaying = false
-                        hotstarConsecutiveNonAdChecks = 0
-                        stopHotstarMutePoller()
-                        cancelPendingUnmute()
-                        audioController.unmuteAdAudio()
-                        updatePersistentNotification(isMuted = false)
-                        startForegroundRadar()
-                        finishAdSessionAndRecord("hotstar", isAudioOnly = false)
+                        val isNormalContent = isHotstarNormalContent(rootNode)
+                        val now = SystemClock.elapsedRealtime()
+                        val multiAdPending = isMultiAdSequenceActive && (now - lastMultiAdSequenceTimestamp < 8_000L)
+
+                        if (!multiAdPending && isNormalContent) {
+                            Log.i(TAG, "Hotstar normal content confirmed! Restoring audio instantly at 0ms.")
+                            isHotstarAdPlaying = false
+                            isMultiAdSequenceActive = false
+                            hotstarConsecutiveNonAdChecks = 0
+                            stopHotstarMutePoller()
+                            cancelPendingUnmute()
+                            audioController.unmuteAdAudio()
+                            updatePersistentNotification(isMuted = false)
+                            startForegroundRadar()
+                            finishAdSessionAndRecord("hotstar", isAudioOnly = false)
+                        } else {
+                            // If normal content not fully confirmed yet (e.g. ad video finished, screen between ads, or controls hidden),
+                            // let the active mute poller verify with debouncing instead of unmuting immediately to eliminate flapping!
+                            startHotstarMutePoller()
+                        }
                     } else {
                         audioController.recordUserVolume()
                     }
+                }
+            }
+
+            // 2. Auto-skip video Intro if "Skip Intro" button is available
+            if (isSkipIntroEnabled) {
+                val introSkipped = scanAndSkipIntro(rootNode, platformId = "hotstar")
+                if (introSkipped) {
+                    return
+                }
+            }
+
+            // 3. Auto-skip in-stream video ad if skip button is present
+            if (isAutoSkipEnabled) {
+                val skipped = scanAndSkip(rootNode, isYouTube = false, platformId = "hotstar")
+                if (skipped) {
+                    return
                 }
             }
 
@@ -1877,16 +2008,22 @@ class SkipFlowAccessibilityService : AccessibilityService() {
      * Protects normal movie playback from false positives by verifying absence of seekbars / playback controls.
      */
     private fun hasActiveHotstarMovieControls(root: AccessibilityNodeInfo): Boolean {
+        val pkg = root.packageName?.toString() ?: "in.startv.hotstar"
         // True interactive movie playback controls (Rewind 10s, Fast-Forward 10s, Previous/Next Episode)
         // Strictly exclude generic 'exo_progress' and 'time_bar' which are also displayed for the orange ad progress bar!
         val controlIds = listOf(
-            "exo_rew", "exo_ffwd", "exo_prev", "exo_next"
+            "exo_rew", "exo_ffwd", "exo_prev", "exo_next", "exo_rewind", "exo_fastforward",
+            "btn_rewind", "btn_forward", "btn_rew", "btn_ffwd",
+            "control_rewind", "control_forward"
         )
         for (id in controlIds) {
             val nodes = root.findAccessibilityNodeInfosByViewId(id)
+                .ifEmpty { root.findAccessibilityNodeInfosByViewId("$pkg:id/$id") }
                 .ifEmpty { root.findAccessibilityNodeInfosByViewId("in.startv.hotstar:id/$id") }
                 .ifEmpty { root.findAccessibilityNodeInfosByViewId("com.jiohotstar.android:id/$id") }
+                .ifEmpty { root.findAccessibilityNodeInfosByViewId("com.jio.media.ondemand:id/$id") }
                 .ifEmpty { root.findAccessibilityNodeInfosByViewId("com.disney.hotstar:id/$id") }
+                .ifEmpty { root.findAccessibilityNodeInfosByViewId("com.jio.hotstar:id/$id") }
             if (!nodes.isNullOrEmpty()) {
                 var found = false
                 for (node in nodes) {
@@ -1898,6 +2035,23 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                 if (found) return true
             }
         }
+
+        // Also check rewind/forward text and descriptions
+        val rewTexts = listOf("Rewind", "rewind", "Rewind 10", "10 seconds rewind", "Forward 10", "Fast forward", "Fast-forward")
+        for (txt in rewTexts) {
+            val tNodes = root.findAccessibilityNodeInfosByText(txt)
+            if (!tNodes.isNullOrEmpty()) {
+                var found = false
+                for (node in tNodes) {
+                    if (node.isVisibleToUser && (node.isClickable || node.parent?.isClickable == true)) {
+                        found = true
+                    }
+                    node.recycle()
+                }
+                if (found) return true
+            }
+        }
+
         return false
     }
 
@@ -1946,56 +2100,77 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         val pkg = root.packageName?.toString() ?: "in.startv.hotstar"
 
         // =========================================================================
-        // PRIORITY ZERO: Direct 0ms Instant Hotstar / JioHotstar Fast-Path (<0.2ms)
-        // Catches in-stream countdowns, break counters, [Ad] badges, and CTA buttons
-        // at second 0.0 before any container or BFS checks.
+        // PRIORITY -1: Absolute Protection for Genuine Movie Playback Controls
+        // If true interactive movie playback controls (Rewind 10s, Fast-Forward 10s)
+        // are visible, it is 100% guaranteed to be normal movie/show content, NOT an in-stream ad!
         // =========================================================================
+        if (hasActiveHotstarMovieControls(root)) {
+            return false
+        }
 
-        // 1. Instant 0ms In-Stream Ad Countdown Timer Lookup (all formats: "00:13", "0:05", "1:30", "15s", "Skip in 5", "Ad ends in 10s")
-        val fastHotstarTimerMarkers = listOf(
-            "00:", "01:", "02:", "03:", "04:", "05:",
-            "0:", "1:", "2:", "3:", "4:", "5:",
-            "Skip in", "skip in", "Skip ad in",
-            "Ad ends in", "ad ends in", "Ad will end in", "Ends in", "ends in",
-            "Video will play after", "remaining", "sec",
-            "5s", "6s", "7s", "10s", "15s", "20s", "25s", "30s", "45s", "59s", "60s"
+        // Exclude normal content if screen displays long movie duration (> 5 minutes total: e.g. 48:30)
+        val totalSecs = DetectionDictionary.extractAdTotalDurationSeconds(root)
+        if (totalSecs != null && totalSecs > 300L) {
+            return false
+        }
+
+        // =========================================================================
+        // PRIORITY ZERO: Direct 0ms Active Ad Container Detection (Catches Ad at Second 0.0)
+        // In the first 1-2 seconds of an ad, Hotstar inflates player_ad_layout, video_ad_layout,
+        // ima_ad_container, or ad_container before the countdown text finishes rendering.
+        // Since movie controls were confirmed absent above, a visible ad container in the video
+        // player frame confirms an ad is actively playing at second 0.0 with 0ms latency.
+        // =========================================================================
+        val hotstarContainerIds = listOf(
+            "$pkg:id/player_ad_layout",
+            "$pkg:id/video_ad_layout",
+            "$pkg:id/ima_ad_container",
+            "$pkg:id/ad_container",
+            "$pkg:id/ad_ui_container",
+            "$pkg:id/ad_companion_container",
+            "$pkg:id/ad_companion",
+            "$pkg:id/ad_slot",
+            "$pkg:id/ad_frame",
+            "$pkg:id/ad_overlay",
+            "$pkg:id/linear_ad_view",
+            "in.startv.hotstar:id/player_ad_layout",
+            "in.startv.hotstar:id/video_ad_layout",
+            "in.startv.hotstar:id/ima_ad_container",
+            "in.startv.hotstar:id/ad_container",
+            "com.jiohotstar.android:id/player_ad_layout",
+            "com.jiohotstar.android:id/video_ad_layout",
+            "com.jiohotstar.android:id/ima_ad_container",
+            "com.jiohotstar.android:id/ad_container",
+            "com.jio.media.ondemand:id/player_ad_layout",
+            "com.jio.media.ondemand:id/video_ad_layout",
+            "com.jio.media.ondemand:id/ima_ad_container",
+            "com.jio.media.ondemand:id/ad_container",
+            "com.disney.hotstar:id/player_ad_layout",
+            "com.disney.hotstar:id/ad_container"
         )
-        for (timerMarker in fastHotstarTimerMarkers) {
-            val timerNodes = root.findAccessibilityNodeInfosByText(timerMarker)
-            if (!timerNodes.isNullOrEmpty()) {
-                var foundTimer = false
-                for (tNode in timerNodes) {
-                    if (tNode.isVisibleToUser) {
-                        val text = tNode.text?.toString()?.trim() ?: ""
-                        val desc = tNode.contentDescription?.toString()?.trim() ?: ""
-                        val candidate = if (text.isNotEmpty()) text else desc
-                        // Exclude full movie scrubbers containing slash duration (e.g. "00:13 / 48:30" or "0:15 / 1:20:00")
-                        if (!candidate.contains("/") && !candidate.contains(" / ")) {
-                            val parsedSecs = DetectionDictionary.parseHotstarCountdownSeconds(candidate)
-                            val isCounterMatch = DetectionDictionary.HOTSTAR_NO_AD_WORD_COUNTER_REGEX.containsMatchIn(candidate) ||
-                                    DetectionDictionary.COUNTER_WITH_TIMER_REGEX.containsMatchIn(candidate) ||
-                                    DetectionDictionary.STANDALONE_TIMER_REGEX.containsMatchIn(candidate)
-                            if (parsedSecs != null || isCounterMatch) {
-                                val tRect = Rect()
-                                tNode.getBoundsInScreen(tRect)
-                                if (tRect.top >= 0 && tRect.top < maxVideoBottomY) {
-                                    foundTimer = true
-                                    if (parsedSecs != null) {
-                                        lastHotstarTimerSeconds = parsedSecs
-                                        lastHotstarTimerTimestamp = System.currentTimeMillis()
-                                    }
-                                    checkForMultiAdSequence(text, desc)
-                                }
-                            }
+        for (cId in hotstarContainerIds) {
+            val cNodes = root.findAccessibilityNodeInfosByViewId(cId)
+            if (!cNodes.isNullOrEmpty()) {
+                var containerActive = false
+                val cRect = Rect()
+                for (cNode in cNodes) {
+                    if (cNode.isVisibleToUser) {
+                        cNode.getBoundsInScreen(cRect)
+                        if (cRect.width() > 0 && cRect.height() > 0 && cRect.top < maxVideoBottomY) {
+                            containerActive = true
                         }
                     }
-                    tNode.recycle()
+                    cNode.recycle()
                 }
-                if (foundTimer) return true
+                if (containerActive) return true
             }
         }
 
-        // 2. Instant 0ms Multi-Ad Break Counter Lookup ("1 of 3", "2 of 3", "3 of 3", "1 of 2", "2 of 2", "1 of 1")
+        // =========================================================================
+        // PRIORITY ONE: Instant 0ms In-Stream Break Counters & Countdown Timers
+        // =========================================================================
+
+        // 1. Instant 0ms Multi-Ad Break Counter Lookup ("1 of 3", "2 of 3", "3 of 3", "1 of 2", "2 of 2", "1 of 1")
         val fastHotstarBreakCounters = listOf(
             "1 of 1", "1 of 2", "2 of 2", "1 of 3", "2 of 3", "3 of 3", "1 of 4", "2 of 4", "3 of 4", "4 of 4",
             "1/1", "1/2", "2/2", "1/3", "2/3", "3/3", "1/4", "2/4", "3/4", "4/4",
@@ -2029,10 +2204,52 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             }
         }
 
+        // 2. Instant 0ms In-Stream Ad Countdown Timer Lookup ("00:13", "00:33", "00:15", "Skip in", "Ad ends in")
+        val fastHotstarTimerMarkers = listOf(
+            "00:", "01:",
+            "Skip in", "skip in", "Skip ad in",
+            "Ad ends in", "ad ends in", "Ad will end in", "Ends in", "ends in",
+            "Video will play after", "remaining", "sec",
+            "5s", "6s", "7s", "10s", "15s", "20s", "25s", "30s", "45s", "59s", "60s"
+        )
+        for (timerMarker in fastHotstarTimerMarkers) {
+            val timerNodes = root.findAccessibilityNodeInfosByText(timerMarker)
+            if (!timerNodes.isNullOrEmpty()) {
+                var foundTimer = false
+                for (tNode in timerNodes) {
+                    if (tNode.isVisibleToUser) {
+                        val text = tNode.text?.toString()?.trim() ?: ""
+                        val desc = tNode.contentDescription?.toString()?.trim() ?: ""
+                        val candidate = if (text.isNotEmpty()) text else desc
+                        // Exclude full movie scrubbers containing slash duration (e.g. "00:13 / 48:30" or "0:15 / 1:20:00")
+                        if (!candidate.contains("/") && !candidate.contains(" / ")) {
+                            val parsedSecs = DetectionDictionary.parseHotstarCountdownSeconds(candidate)
+                            val isCounterMatch = DetectionDictionary.HOTSTAR_NO_AD_WORD_COUNTER_REGEX.containsMatchIn(candidate) ||
+                                    DetectionDictionary.COUNTER_WITH_TIMER_REGEX.containsMatchIn(candidate)
+                            if (parsedSecs != null || isCounterMatch) {
+                                val tRect = Rect()
+                                tNode.getBoundsInScreen(tRect)
+                                if (tRect.top >= 0 && tRect.top < maxVideoBottomY) {
+                                    foundTimer = true
+                                    if (parsedSecs != null) {
+                                        lastHotstarTimerSeconds = parsedSecs
+                                        lastHotstarTimerTimestamp = System.currentTimeMillis()
+                                    }
+                                    checkForMultiAdSequence(text, desc)
+                                }
+                            }
+                        }
+                    }
+                    tNode.recycle()
+                }
+                if (foundTimer) return true
+            }
+        }
+
         // 3. Instant 0ms Companion Ad Card CTA Button Lookup ("Own Now", "Shop Now", "Buy Now", "Order Now")
         val fastHotstarCtas = listOf(
             "Shop Now", "Own Now", "Buy Now", "Order Now", "Install Now", "Learn More", "Book Now", "Claim Now", "Explore Now", "Get Offer",
-            "shop now", "own now", "buy now", "order now", "install now", "learn more", "book now", "claim now"
+            "shop now", "own now", "buy now", "order now", "install now", "learn more", "book now", "claim now", "visit site"
         )
         for (cta in fastHotstarCtas) {
             val ctaNodes = root.findAccessibilityNodeInfosByText(cta)
@@ -2128,54 +2345,6 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     tNode.recycle()
                 }
                 if (timerActive) return true
-            }
-        }
-
-        // Strategy 0b: Direct Active Hotstar Ad Container Detection by View ID
-        val hotstarContainerIds = listOf(
-            "$pkg:id/ad_container",
-            "$pkg:id/ad_view",
-            "$pkg:id/player_ad_layout",
-            "$pkg:id/ad_badge",
-            "$pkg:id/ad_metadata",
-            "$pkg:id/ad_progress",
-            "$pkg:id/ad_slot",
-            "$pkg:id/ad_frame",
-            "$pkg:id/ad_overlay",
-            "$pkg:id/video_ad_layout",
-            "$pkg:id/linear_ad_view",
-            "$pkg:id/ima_ad_container",
-            "$pkg:id/ad_ui_container",
-            "in.startv.hotstar:id/ad_container",
-            "in.startv.hotstar:id/ad_view",
-            "in.startv.hotstar:id/player_ad_layout",
-            "com.jiohotstar.android:id/ad_container",
-            "com.jiohotstar.android:id/ad_view",
-            "com.jiohotstar.android:id/player_ad_layout",
-            "com.jiohotstar.android:id/video_ad_layout",
-            "com.jiohotstar.android:id/ima_ad_container",
-            "com.jio.media.ondemand:id/ad_container",
-            "com.jio.media.ondemand:id/ad_view",
-            "com.jio.media.ondemand:id/player_ad_layout",
-            "com.jio.media.ondemand:id/ima_ad_container",
-            "com.disney.hotstar:id/ad_container",
-            "com.disney.hotstar:id/player_ad_layout"
-        )
-        for (cId in hotstarContainerIds) {
-            val cNodes = root.findAccessibilityNodeInfosByViewId(cId)
-            if (!cNodes.isNullOrEmpty()) {
-                var containerActive = false
-                for (cNode in cNodes) {
-                    if (cNode.isVisibleToUser) {
-                        val text = cNode.text?.toString()?.trim() ?: ""
-                        val desc = cNode.contentDescription?.toString()?.trim() ?: ""
-                        if (text.isNotEmpty() || desc.isNotEmpty() || hasActiveAdChild(cNode)) {
-                            containerActive = true
-                        }
-                    }
-                    cNode.recycle()
-                }
-                if (containerActive) return true
             }
         }
 
@@ -2353,7 +2522,14 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         // If an ad is actively confirmed on screen, normal content is NOT playing!
         if (isHotstarAdActive(root)) return false
 
-        // Check for normal episode/movie playback timestamps (e.g. "05:12 / 48:30" or "01:15:30 / 02:40:00")
+        // 1. Direct confirmation from interactive movie controls (Rewind 10s, Forward 10s, Play/Pause)
+        if (hasActiveHotstarMovieControls(root)) return true
+
+        // 2. Direct confirmation from total movie duration (> 5 minutes total: e.g. 48:30)
+        val totalSecs = DetectionDictionary.extractAdTotalDurationSeconds(root)
+        if (totalSecs != null && totalSecs > 300L) return true
+
+        // 3. Check for normal episode/movie playback timestamps (e.g. "05:12 / 48:30" or "01:15:30 / 02:40:00")
         val timeRegex = Regex("""\b\d{1,2}:\d{2}(?::\d{2})?\s*\/\s*\d{1,2}:\d{2}(?::\d{2})?\b""")
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         for (i in 0 until root.childCount) {

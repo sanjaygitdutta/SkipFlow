@@ -162,16 +162,32 @@ object DetectionDictionary {
         val secsGroup = match.groups[2]?.value
         val bareSecsGroup = match.groups[3]?.value
 
+        val hasAdCue = trimmed.contains("ad", ignoreCase = true) ||
+                trimmed.contains("skip", ignoreCase = true) ||
+                trimmed.contains("of", ignoreCase = true) ||
+                trimmed.contains("ends in", ignoreCase = true) ||
+                trimmed.contains("end in", ignoreCase = true) ||
+                trimmed.contains("remaining", ignoreCase = true) ||
+                trimmed.contains("ⓘ") || trimmed.contains("info", ignoreCase = true) ||
+                trimmed.endsWith("s", ignoreCase = true) || trimmed.endsWith("sec", ignoreCase = true)
+
         return when {
             minsGroup != null && secsGroup != null -> {
-                val m = minsGroup.toIntOrNull() ?: return null
-                val s = secsGroup.toIntOrNull() ?: return null
-                val total = m * 60 + s
-                if (total in 0..600) total else null
+                // If text has NO ad prefix or cue, format MUST start with "00:" (Hotstar countdown style)
+                // to prevent regular movie playback elapsed time (e.g. "0:05", "1:20") from matching!
+                if (!hasAdCue && minsGroup.length < 2) {
+                    null
+                } else {
+                    val m = minsGroup.toIntOrNull() ?: return null
+                    val s = secsGroup.toIntOrNull() ?: return null
+                    val total = m * 60 + s
+                    if (total in 0..600) total else null
+                }
             }
             bareSecsGroup != null -> {
                 val s = bareSecsGroup.toIntOrNull() ?: return null
-                if (s in 0..600) s else null
+                // Bare number only valid if it has an ad cue (e.g. "Ad 15", "15s", "15 ⓘ")
+                if (hasAdCue && s in 0..600) s else null
             }
             else -> null
         }
