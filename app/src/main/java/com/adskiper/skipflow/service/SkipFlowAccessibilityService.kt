@@ -157,7 +157,12 @@ class SkipFlowAccessibilityService : AccessibilityService() {
 
     private fun checkForMultiAdSequence(text: String, desc: String) {
         val lower = "$text $desc".lowercase()
-        if (lower.contains("1 of 2") || lower.contains("1 of 3") || lower.contains("1 of 4") ||
+        if (lower.contains("1 of 1") || lower.contains("1/1") || lower.contains("ad 1 of 1") || lower.contains("ad · 1 of 1")) {
+            if (isMultiAdSequenceActive) {
+                isMultiAdSequenceActive = false
+                Log.i(TAG, "Single ad (1 of 1) detected. Multi-ad sequence flag not needed.")
+            }
+        } else if (lower.contains("1 of 2") || lower.contains("1 of 3") || lower.contains("1 of 4") ||
             lower.contains("1/2") || lower.contains("1/3") || lower.contains("1/4") ||
             lower.contains("ad 1 of") || lower.contains("ad 1 of 2") || lower.contains("ad 1 of 3") ||
             lower.contains("ad · 1 of") || lower.contains("ad • 1 of")
@@ -165,7 +170,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             if (!isMultiAdSequenceActive) {
                 isMultiAdSequenceActive = true
                 lastMultiAdSequenceTimestamp = SystemClock.elapsedRealtime()
-                Log.i(TAG, "Multi-ad sequence detected on YouTube: Ad 1 is active. Will hold mute through transitions.")
+                Log.i(TAG, "Multi-ad sequence detected: Ad 1 is active. Will hold mute through transitions.")
             }
         } else if (lower.contains("2 of 3") || lower.contains("2/3") || lower.contains("2 of 4") || lower.contains("3 of 4") ||
             lower.contains("ad 2 of 3") || lower.contains("ad · 2 of 3") || lower.contains("ad • 2 of 3") ||
@@ -174,7 +179,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             // Intermediate ad in sequence (e.g. Ad 2 of 3): maintain active hold and refresh timestamp
             isMultiAdSequenceActive = true
             lastMultiAdSequenceTimestamp = SystemClock.elapsedRealtime()
-            Log.i(TAG, "Multi-ad intermediate ad active on YouTube. Holding mute through next transition.")
+            Log.i(TAG, "Multi-ad intermediate ad active. Holding mute through next transition.")
         } else if (lower.contains("2 of 2") || lower.contains("2/2") ||
             lower.contains("3 of 3") || lower.contains("3/3") ||
             lower.contains("4 of 4") || lower.contains("4/4") ||
@@ -184,7 +189,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
         ) {
             if (isMultiAdSequenceActive) {
                 isMultiAdSequenceActive = false
-                Log.i(TAG, "Final ad in sequence confirmed on YouTube. Multi-ad sequence flag fulfilled.")
+                Log.i(TAG, "Final ad in sequence confirmed. Multi-ad sequence flag fulfilled.")
             }
         }
     }
@@ -624,14 +629,23 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                         return true
                     }
                 } else if (isHotstar) {
-                    if (viewId.contains("ad_timer") || viewId.contains("ad_countdown") || viewId.contains("ad_badge") ||
-                        viewId.contains("tv_ad_timer") || viewId.contains("ad_companion") || viewId.contains("player_ad_layout") ||
-                        viewId.contains("video_ad_layout") || viewId.contains("ima_ad_container") || viewId.contains("ad_container") ||
-                        viewId.contains("ad_progress") || viewId.contains("ad_slot") || viewId.contains("ad_overlay") ||
-                        sLower.contains("own now") || sLower.contains("shop now") || sLower.contains("buy now") || sLower.contains("order now") ||
-                        (sLower.startsWith("00:") && !sLower.contains("/")) ||
-                        sLower.contains("1 of 1") || sLower.contains("1 of 2") || sLower.contains("1 of 3") || sLower.contains("2 of 3") || sLower.contains("3 of 3")
-                    ) {
+                    val isDedicatedAdView = viewId.contains("ad_timer") || viewId.contains("ad_countdown") ||
+                            viewId.contains("ad_badge") || viewId.contains("tv_ad_timer")
+                    val hasAdTextCue = sLower.contains("own now") || sLower.contains("shop now") ||
+                            sLower.contains("buy now") || sLower.contains("order now") ||
+                            sLower.contains("install now") || sLower.contains("learn more") ||
+                            sLower.contains("book now") || sLower.contains("visit site") ||
+                            (sLower.startsWith("00:") && !sLower.contains("/")) ||
+                            sLower.contains("1 of 1") || sLower.contains("1 of 2") || sLower.contains("1 of 3") ||
+                            sLower.contains("2 of 3") || sLower.contains("3 of 3") ||
+                            sLower == "ad" || sLower == "[ad]" || sLower == "advertisement" || sLower == "sponsored"
+                    val isAdContainerWithContent = (viewId.contains("ad_companion") || viewId.contains("player_ad_layout") ||
+                            viewId.contains("video_ad_layout") || viewId.contains("ima_ad_container") ||
+                            viewId.contains("ad_container") || viewId.contains("ad_overlay") ||
+                            viewId.contains("ad_slot") || viewId.contains("ad_progress")) &&
+                            (sLower.isNotEmpty() && (hasAdTextCue || sLower.any { it.isDigit() }))
+
+                    if (isDedicatedAdView || hasAdTextCue || isAdContainerWithContent) {
                         return true
                     }
                 }
@@ -1947,10 +1961,10 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     if (audioController.isCurrentlyMuted() || isHotstarAdPlaying) {
                         val isNormalContent = isHotstarNormalContent(rootNode)
                         val now = SystemClock.elapsedRealtime()
-                        val multiAdPending = isMultiAdSequenceActive && (now - lastMultiAdSequenceTimestamp < 8_000L)
+                        val multiAdPending = isMultiAdSequenceActive && (now - lastMultiAdSequenceTimestamp < 1_500L)
 
-                        if (!multiAdPending && isNormalContent) {
-                            Log.i(TAG, "Hotstar normal content confirmed! Restoring audio instantly at 0ms.")
+                        if (!multiAdPending || isNormalContent) {
+                            Log.i(TAG, "Hotstar normal content / ad ended! Restoring audio instantly at 0ms.")
                             isHotstarAdPlaying = false
                             isMultiAdSequenceActive = false
                             hotstarConsecutiveNonAdChecks = 0
@@ -1961,8 +1975,7 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                             startForegroundRadar()
                             finishAdSessionAndRecord("hotstar", isAudioOnly = false)
                         } else {
-                            // If normal content not fully confirmed yet (e.g. ad video finished, screen between ads, or controls hidden),
-                            // let the active mute poller verify with debouncing instead of unmuting immediately to eliminate flapping!
+                            // Brief transition window between multi-ads (< 1.5s): let active poller verify next ad or restore
                             startHotstarMutePoller()
                         }
                     } else {
@@ -2061,9 +2074,30 @@ class SkipFlowAccessibilityService : AccessibilityService() {
             if (child.isVisibleToUser) {
                 val text = child.text?.toString()?.trim() ?: ""
                 val desc = child.contentDescription?.toString()?.trim() ?: ""
-                if (text.isNotEmpty() || desc.isNotEmpty()) {
+                val childId = child.viewIdResourceName?.lowercase() ?: ""
+                if (text.isNotEmpty() || desc.isNotEmpty() ||
+                    childId.contains("ad_") || childId.contains("timer") || childId.contains("countdown") ||
+                    childId.contains("badge") || childId.contains("skip") || childId.contains("cta")
+                ) {
                     child.recycle()
                     return true
+                }
+                for (j in 0 until child.childCount) {
+                    val grandChild = child.getChild(j) ?: continue
+                    if (grandChild.isVisibleToUser) {
+                        val gText = grandChild.text?.toString()?.trim() ?: ""
+                        val gDesc = grandChild.contentDescription?.toString()?.trim() ?: ""
+                        val gId = grandChild.viewIdResourceName?.lowercase() ?: ""
+                        if (gText.isNotEmpty() || gDesc.isNotEmpty() ||
+                            gId.contains("ad_") || gId.contains("timer") || gId.contains("countdown") ||
+                            gId.contains("badge") || gId.contains("skip")
+                        ) {
+                            grandChild.recycle()
+                            child.recycle()
+                            return true
+                        }
+                    }
+                    grandChild.recycle()
                 }
             }
             child.recycle()
@@ -2157,7 +2191,13 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                     if (cNode.isVisibleToUser) {
                         cNode.getBoundsInScreen(cRect)
                         if (cRect.width() > 0 && cRect.height() > 0 && cRect.top < maxVideoBottomY) {
-                            containerActive = true
+                            val text = cNode.text?.toString()?.trim() ?: ""
+                            val desc = cNode.contentDescription?.toString()?.trim() ?: ""
+                            // Container is ONLY considered active if it contains visible ad text/cues or active ad children!
+                            // Empty FrameLayouts permanently retained in player layout must NOT trigger ad detection.
+                            if (text.isNotEmpty() || desc.isNotEmpty() || hasActiveAdChild(cNode)) {
+                                containerActive = true
+                            }
                         }
                     }
                     cNode.recycle()
@@ -2619,19 +2659,19 @@ class SkipFlowAccessibilityService : AccessibilityService() {
                             hotstarConsecutiveNonAdChecks = 0
                             isHotstarAdPlaying = true
                             trackActiveAdDuration(root, "hotstar")
-                            // Renew watchdog so mute never expires during multi-ad break
-                            audioController.renewWatchdogIfConfirmedAd(20_000L)
+                            // Renew watchdog so mute never expires during active ad
+                            audioController.renewWatchdogIfConfirmedAd(10_000L)
                         } else {
                             val isNormalContent = isHotstarNormalContent(root)
                             val now = SystemClock.elapsedRealtime()
-                            val multiAdPending = isMultiAdSequenceActive && (now - lastMultiAdSequenceTimestamp < 8_000L)
+                            val multiAdPending = isMultiAdSequenceActive && (now - lastMultiAdSequenceTimestamp < 1_500L)
 
-                            if (multiAdPending) {
+                            if (multiAdPending && !isNormalContent) {
                                 hotstarConsecutiveNonAdChecks = 0
                                 audioController.muteAdAudio()
                             } else {
                                 hotstarConsecutiveNonAdChecks++
-                                val threshold = if (isNormalContent) 2 else 4
+                                val threshold = if (isNormalContent || !isHotstarAdPlaying) 1 else 2
                                 if (hotstarConsecutiveNonAdChecks >= threshold) {
                                     Log.i(TAG, "Hotstar ad ended confirmed by poller! Restoring audio at 0ms (verifiedNormal=$isNormalContent).")
                                     hotstarConsecutiveNonAdChecks = 0
